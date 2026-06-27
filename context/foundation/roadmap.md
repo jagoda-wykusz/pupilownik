@@ -29,7 +29,7 @@ Pupilownik pozwala właścicielowi zwierząt rozłożyć opiekę na okres nieobe
 
 | ID   | Change ID                   | Outcome (user can …)                                             | Prerequisites | PRD refs                      | Status   |
 | ---- | --------------------------- | ---------------------------------------------------------------- | ------------- | ----------------------------- | -------- |
-| F-01 | owner-data-rls-baseline     | (foundation) bezpieczny wzorzec dostępu do danych właściciela    | —             | NFR (privacy), Access Control | ready    |
+| F-01 | owner-data-rls-baseline     | (foundation) bezpieczny wzorzec dostępu do danych właściciela    | —             | NFR (privacy), Access Control | done     |
 | S-01 | pet-and-instructions        | właściciel definiuje zwierzę z instrukcjami (publiczna+wrażliwa) | F-01          | FR-001, FR-002, FR-003, US-01 | proposed |
 | S-02 | care-period-and-invite-link | właściciel tworzy okres ze slotami i generuje link zapraszający  | S-01          | FR-004, FR-005, US-01         | proposed |
 | S-03 | caretaker-claims-slot       | opiekun otwiera link i zajmuje wolny slot (bez podwójnej obsady) | S-02          | FR-007, FR-008, FR-009, US-02 | proposed |
@@ -71,7 +71,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** Warstwa danych jest jedyną nieobecną (`supabase/` ma tylko `config.toml`), a inwestycja celowo idzie tutaj — RLS przed pierwszą tabelą domenową zapobiega wyciekowi danych między właścicielami. Ryzyko: przeinwestowanie w schemat z góry; trzymane minimalnie (wzorzec + RLS, tabele dokładają slice'y).
-- **Status:** ready
+- **Status:** done
 
 ## Slices
 
@@ -177,4 +177,4 @@ Foundations below assume these are present and do NOT re-scaffold them.
 
 ## Done
 
-(Empty on first generation. `/10x-archive` appends entries here when a matching change is archived.)
+- **F-01: (foundation) ustalony bezpieczny wzorzec persystencji: działający przepływ migracji Supabase, polityki Row-Level Security izolujące dane do właściciela-właściciela oraz typowany helper zapytań. Nie tworzy jeszcze tabel domenowych — ustanawia kontrakt „jak bezpiecznie dotykamy danych".** — Archived 2026-06-27 → `context/archive/2026-06-27-owner-data-rls-baseline/`. Lesson: —.
