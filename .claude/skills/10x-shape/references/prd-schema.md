@@ -7,7 +7,7 @@ Two contracts live here:
 1. **PRD frontmatter + required sections (10 greenfield / 11 brownfield)** — what `prd.md` must contain.
 2. **shape-notes.md checkpoint format** — what `shape-notes.md` must carry so a session can resume from disk.
 
-Renames or restructurings of either contract are load-bearing. Update this doc *first*, then both skill bodies, then any sibling change folder that points at it.
+Renames or restructurings of either contract are load-bearing. Update this doc _first_, then both skill bodies, then any sibling change folder that points at it.
 
 PRD frontmatter captures only **product-level priors** — what the product is, who it's for, when it ships. Fields that depend on team composition, runtime, or deployment target belong to a separate downstream tech-stack-selection step, not to PRD. Frame the PRD as the product's identity, not its architecture.
 
@@ -17,15 +17,16 @@ Every PRD declares this YAML frontmatter block. Field order is suggested, not lo
 
 ```yaml
 ---
-project: <string>                    # human-readable project name, e.g. "Recipe Fridge"
-version: <integer>                   # 1 for first PRD; bumped only when a versioned save lands (prd-v2.md → version: 2)
-status: <enum>                       # draft | reviewed | locked
-created: <YYYY-MM-DD>                # date the PRD was first written
-context_type: <enum>                 # greenfield | brownfield
-product_type: <enum>                 # web-app | api | cli | mobile | desktop | library | data-pipeline | other (+ free-text)
-target_scale: <object>               # { users: <small|medium|large|enterprise>, qps: <ballpark>, data_volume: <ballpark> }
-timeline_budget: <object>            # greenfield: { mvp_weeks: <int>, hard_deadline: <YYYY-MM-DD | null>, after_hours_only: <bool> }
-                                     # brownfield: { delivery_weeks: <int>, hard_deadline: <YYYY-MM-DD | null>, after_hours_only: <bool> }
+project: <string> # human-readable project name, e.g. "Recipe Fridge"
+version: <integer> # 1 for first PRD; bumped only when a versioned save lands (prd-v2.md → version: 2)
+status: <enum> # draft | reviewed | locked
+created: <YYYY-MM-DD> # date the PRD was first written
+context_type: <enum> # greenfield | brownfield
+product_type: <enum> # web-app | api | cli | mobile | desktop | library | data-pipeline | other (+ free-text)
+target_scale: <object> # { users: <small|medium|large|enterprise>, qps: <ballpark>, data_volume: <ballpark> }
+timeline_budget:
+  <object> # greenfield: { mvp_weeks: <int>, hard_deadline: <YYYY-MM-DD | null>, after_hours_only: <bool> }
+  # brownfield: { delivery_weeks: <int>, hard_deadline: <YYYY-MM-DD | null>, after_hours_only: <bool> }
 ---
 ```
 
@@ -86,12 +87,15 @@ Exactly three subsections, in this order:
 
 ```markdown
 ### Primary
+
 - One or two outcomes that prove the product worked. Measurable.
 
 ### Secondary
+
 - Outcomes that would be nice but aren't sufficient on their own.
 
 ### Guardrails
+
 - Things that must NOT break (privacy, performance floor, UX cost). Failure here is a regression even if Primary holds.
 ```
 
@@ -107,6 +111,7 @@ Each story is `### US-NN: <Title>` (NN is a zero-padded two-digit index starting
 - **Then** they see a ranked list of recipes whose ingredients match their fridge
 
 #### Acceptance Criteria
+
 - Top recipe match must use ≥ 80% of selected fridge items
 - Empty fridge shows an explanatory empty-state, not a 0-result list
 - ...
@@ -128,11 +133,12 @@ If `/10x-shape` ran a Socratic round, each FR may carry a `> Socratic:` blockquo
 
 ## Non-Functional Requirements
 
-Bulleted. Each NFR is a property an outside observer — a user, an operator, a regulator — can measure without inspecting the implementation. Pair the property with a *measurable* target where one exists (prefer `< NUMBER UNIT` / `≥ NUMBER UNIT` over qualitative words); binary properties ("no X leaves Y") are also valid.
+Bulleted. Each NFR is a property an outside observer — a user, an operator, a regulator — can measure without inspecting the implementation. Pair the property with a _measurable_ target where one exists (prefer `< NUMBER UNIT` / `≥ NUMBER UNIT` over qualitative words); binary properties ("no X leaves Y") are also valid.
 
-Do not name mechanism, enforcement strategy, runtime location, or UI affordance. "Per IP", "client-side", "via streaming", "with a spinner", "in the cache" all describe *how* the property is achieved and belong to downstream design. The NFR says **what must be true at the product's outer boundary**; downstream picks the means.
+Do not name mechanism, enforcement strategy, runtime location, or UI affordance. "Per IP", "client-side", "via streaming", "with a spinner", "in the cache" all describe _how_ the property is achieved and belong to downstream design. The NFR says **what must be true at the product's outer boundary**; downstream picks the means.
 
 Examples:
+
 - A learner sees acknowledgement of any input within 200 ms, and continuous visible progress during any operation that takes longer than two seconds.
 - A failed login does not lock out a legitimate user who mistypes their password three times in a row, but credential-stuffing at scale is rejected before reaching the auth check.
 - Source text submitted for processing leaves no trace in operator-accessible storage after the request that consumed it completes.
@@ -142,7 +148,7 @@ Examples:
 
 **One sentence first.** A single declarative sentence that captures the domain rule that makes this product non-trivial. If you cannot write this sentence, the product is empty CRUD and the PRD is hollow.
 
-After the one-sentence rule, supporting paragraphs (≤ 3) explain: what inputs the rule consumes (as user-facing inputs, not system components), what its output is, and how the user encounters it in the product flow. Do NOT name the components or actors that *perform* the computation ("the LLM does X", "the SRS library decides Y") — those are downstream architecture choices, not domain rule. State the rule as if the implementation were unknown.
+After the one-sentence rule, supporting paragraphs (≤ 3) explain: what inputs the rule consumes (as user-facing inputs, not system components), what its output is, and how the user encounters it in the product flow. Do NOT name the components or actors that _perform_ the computation ("the LLM does X", "the SRS library decides Y") — those are downstream architecture choices, not domain rule. State the rule as if the implementation were unknown.
 
 If `/10x-shape` flagged the empty-CRUD anti-pattern and the user accepted the warning, this section still exists with the user's chosen domain rule. If they overrode without choosing one, the section reads `# TODO: domain rule — see Open Questions` and `## Open Questions` carries an entry naming the gap.
 
@@ -156,12 +162,12 @@ If multi-user: roles, role → capability matrix, sign-up vs sign-in behavior, w
 
 Explicit list of things this MVP does NOT do, with one-line rationale each. Strong non-goals prevent scope creep. Weak ("not building a mobile app yet") is fine for nice-to-haves; load-bearing ("never sync to cloud — this is a local-first product") is critical.
 
-This section covers *both*:
+This section covers _both_:
 
 - **Functional non-goals** — capabilities the MVP explicitly will not provide (e.g., "no manual flashcard creation", "no team workspaces", "no PDF import").
 - **Non-functional non-goals** — quality dimensions the MVP explicitly will not aim for (e.g., "no offline-first guarantee", "no multi-region SLA", "no compliance certification beyond baseline GDPR").
 
-Technology avoids ("avoid: PHP", "avoid: monorepo") are NOT non-goals — they describe *how* the product is built, not what it does. They belong with the tech-stack-selection step downstream, alongside the rest of the runtime concerns. Scope decisions framed as avoids ("avoid: building our own recommendation algorithm", "avoid: running a local LLM") DO belong here as functional non-goals — they shape the product surface, not the implementation stack.
+Technology avoids ("avoid: PHP", "avoid: monorepo") are NOT non-goals — they describe _how_ the product is built, not what it does. They belong with the tech-stack-selection step downstream, alongside the rest of the runtime concerns. Scope decisions framed as avoids ("avoid: building our own recommendation algorithm", "avoid: running a local LLM") DO belong here as functional non-goals — they shape the product surface, not the implementation stack.
 
 ## Open Questions
 
@@ -181,6 +187,7 @@ When `context_type: brownfield`, the PRD uses delta-framing: sections describe w
 What exists now: key architecture, tech stack, user base, core functionality. This section has no greenfield equivalent — it establishes the baseline that all subsequent sections describe changes against. Unlike the greenfield "stack openness" rule, this section MAY name specific technologies because it describes reality, not a choice.
 
 Required content:
+
 - System purpose (one sentence)
 - Key architecture (monolith, microservices, serverless, etc.)
 - Tech stack (languages, frameworks, databases, infrastructure)
@@ -192,6 +199,7 @@ Required content:
 What's wrong or missing, and why now. Delta-framed: focuses on the gap between current state and desired state. This replaces the greenfield `## Vision & Problem Statement`.
 
 Required content:
+
 - The specific pain or gap (named user, named situation)
 - Why this change is needed now (trigger event, business pressure, user feedback)
 - What the current workaround is (if any) and its cost
@@ -226,6 +234,7 @@ This replaces the greenfield `## Functional Requirements`. The `[preserved]` cat
 Backward compatibility, data migration, existing integrations, preserved behavior. The brownfield-specific section that makes preservation explicit.
 
 Required content:
+
 - Backward compatibility requirements (API contracts, data formats, URLs)
 - Data migration needs (schema changes, data backfill, rollback plan)
 - Existing integrations that must continue working
@@ -255,18 +264,18 @@ Same structure and rules as greenfield. Numbered list with owner and resolution 
 
 ```yaml
 ---
-project: <string|null>                     # mirrors PRD frontmatter; null until phase 1 lands
-context_type: <enum>                       # greenfield | brownfield — set during Step 0.7, load-bearing for /10x-prd routing
+project: <string|null> # mirrors PRD frontmatter; null until phase 1 lands
+context_type: <enum> # greenfield | brownfield — set during Step 0.7, load-bearing for /10x-prd routing
 created: <YYYY-MM-DD>
-updated: <YYYY-MM-DD>                      # bumped at every phase-end write
+updated: <YYYY-MM-DD> # bumped at every phase-end write
 checkpoint:
-  current_phase: <integer>                 # 1..6 during a session, 7 during cross-check, 8 when finalized
-  phases_completed: [<integer>, ...]       # e.g. [1, 2, 3]
-  gray_areas_resolved:                     # list of decisions surfaced and resolved
-    - topic: <string>                      # e.g. "auth strategy"
-      decision: <string>                   # e.g. "passwordless email; no social"
-  frs_drafted: <integer>                   # count of FR-NNN entries currently in shape-notes.md
-  quality_check_status: <enum>             # pending | warned | accepted
+  current_phase: <integer> # 1..6 during a session, 7 during cross-check, 8 when finalized
+  phases_completed: [<integer>, ...] # e.g. [1, 2, 3]
+  gray_areas_resolved: # list of decisions surfaced and resolved
+    - topic: <string> # e.g. "auth strategy"
+      decision: <string> # e.g. "passwordless email; no social"
+  frs_drafted: <integer> # count of FR-NNN entries currently in shape-notes.md
+  quality_check_status: <enum> # pending | warned | accepted
 ---
 ```
 

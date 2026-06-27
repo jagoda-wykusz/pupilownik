@@ -18,14 +18,14 @@ The 10x-astro-starter is already wired for Cloudflare: `astro.config.mjs` uses t
 
 ## Platform Comparison
 
-| Platform | CLI-first | Managed/Serverless | Agent-readable docs | Stable deploy API | MCP/Integration | Total |
-|---|---|---|---|---|---|---|
-| **Cloudflare** | Pass | Pass | Pass | Pass | Pass | **5 Pass** |
-| **Netlify** | Pass | Pass | Pass | Pass | Pass | **5 Pass** |
-| **Vercel** | Pass | Pass | Pass | Pass | Partial | 4P / 1Pt |
-| **Railway** | Pass | Partial | Pass | Pass | Partial | 3P / 2Pt |
-| **Render** | Pass | Pass | Pass | Partial | Partial | 3P / 2Pt |
-| **Fly.io** | Pass | Partial | Partial | Pass | Partial | 2P / 3Pt |
+| Platform       | CLI-first | Managed/Serverless | Agent-readable docs | Stable deploy API | MCP/Integration | Total      |
+| -------------- | --------- | ------------------ | ------------------- | ----------------- | --------------- | ---------- |
+| **Cloudflare** | Pass      | Pass               | Pass                | Pass              | Pass            | **5 Pass** |
+| **Netlify**    | Pass      | Pass               | Pass                | Pass              | Pass            | **5 Pass** |
+| **Vercel**     | Pass      | Pass               | Pass                | Pass              | Partial         | 4P / 1Pt   |
+| **Railway**    | Pass      | Partial            | Pass                | Pass              | Partial         | 3P / 2Pt   |
+| **Render**     | Pass      | Pass               | Pass                | Partial           | Partial         | 3P / 2Pt   |
+| **Fly.io**     | Pass      | Partial            | Partial             | Pass              | Partial         | 2P / 3Pt   |
 
 - **Cloudflare** — `wrangler deploy`/`rollback [version-id]`/`tail` all GA; edge-serverless (no OS surface); `developers.cloudflare.com/llms.txt`; Cloudflare API MCP GA. Only the data-layer co-location (D1/R2/KV) is irrelevant here — Supabase owns data/auth/realtime.
 - **Netlify** — Tied on the matrix: GA `@astrojs/netlify` adapter, `netlify deploy`/unified `netlify logs`, `llms.txt`, **official MCP GA** (June 2025), no commercial-use restriction. Loses on requiring an adapter swap and credit-based pricing that may reach Pro ($19/mo).
@@ -42,7 +42,7 @@ Zero adapter-swap: the stack already targets it, `wrangler.jsonc` is correct, an
 
 #### 2. Netlify
 
-The only platform tied at 5/5, with a *GA* MCP (vs Cloudflare's API-scoped one) and no commercial-use limit. The gap is purely the cost of switching the Astro adapter away from a setup that already works.
+The only platform tied at 5/5, with a _GA_ MCP (vs Cloudflare's API-scoped one) and no commercial-use limit. The gap is purely the cost of switching the Astro adapter away from a setup that already works.
 
 #### 3. Vercel
 
@@ -52,9 +52,9 @@ Strongest DX and scale-to-zero of the group, but three frictions stack up agains
 
 ### Devil's Advocate — Weaknesses
 
-1. **`workerd` ≠ Node.** `@supabase/ssr` pulls Node built-ins (`stream`, `crypto`); without `nodejs_compat` + `node:` prefixes you hit a *"Dynamic require of 'stream'"* crash that only appears post-deploy. (Mitigated: `nodejs_compat` is already set in `wrangler.jsonc`.)
+1. **`workerd` ≠ Node.** `@supabase/ssr` pulls Node built-ins (`stream`, `crypto`); without `nodejs_compat` + `node:` prefixes you hit a _"Dynamic require of 'stream'"_ crash that only appears post-deploy. (Mitigated: `nodejs_compat` is already set in `wrangler.jsonc`.)
 2. **Stale Pages-era guidance.** `@astrojs/cloudflare` v13+ dropped Cloudflare **Pages** support; the path is now Workers static assets. Tutorials — and `tech-stack.md`'s `deployment_target: cloudflare-pages` line — still say "Pages," steering an agent to a deprecated target.
-3. **Cookie-cache session leak.** A cached `Set-Cookie` on an SSR response can leak one user's session to another — a direct breach of the PRD guardrail *"sensitive instructions don't leak outside the invited circle."* Needs `@supabase/ssr` ≥ 0.10.0 (have 0.10.3 ✓) and never caching authenticated SSR responses.
+3. **Cookie-cache session leak.** A cached `Set-Cookie` on an SSR response can leak one user's session to another — a direct breach of the PRD guardrail _"sensitive instructions don't leak outside the invited circle."_ Needs `@supabase/ssr` ≥ 0.10.0 (have 0.10.3 ✓) and never caching authenticated SSR responses.
 4. **Two-place env binding.** `astro:env` secrets must exist for both the build and the Workers runtime (`wrangler secret put`); missing one half = silent `undefined` Supabase creds at runtime. With native Workers Builds (GitHub), build-time vars are set in the Cloudflare dashboard build config — easy to forget the runtime half.
 
 ### Pre-Mortem — How This Could Fail
@@ -78,14 +78,14 @@ The solo dev scaffolds against the `cloudflare-pages` line in the hand-off, foll
 
 ## Risk Register
 
-| Risk | Source | Likelihood | Impact | Mitigation |
-|---|---|---|---|---|
-| Cached `Set-Cookie` leaks a session → sensitive instructions exposed to wrong caretaker | Devil's advocate / Pre-mortem | M | H | Never cache authenticated SSR responses; keep `@supabase/ssr` ≥ 0.10.0 (have 0.10.3); add a test asserting no `Cache-Control: public` on responses carrying `Set-Cookie`. |
-| Following deprecated `cloudflare-pages` path from `tech-stack.md` | Devil's advocate / Unknown unknowns | M | M | Correct `deployment_target` to `cloudflare-workers` in `tech-stack.md`; confirm `wrangler.jsonc` Workers config (already correct). |
-| No preview/staging env → untested migrations and cookie-cache regressions ship straight to production | Pre-mortem | M | H | Use Workers Builds per-PR preview URLs (native on GitHub); exercise auth + a slot-claim on the preview before merging; gate Supabase migrations behind approval. |
-| `nodejs_compat` / `node:` import misconfig → runtime crash on Supabase SSR | Devil's advocate | L | H | `nodejs_compat` already set; use `node:`-prefixed imports; smoke-test an auth route on a deployed preview, not just local. |
-| Secret bound for runtime but not build (or vice versa) → `undefined` Supabase creds | Devil's advocate | M | M | Set secrets in both `wrangler secret put` and Bitbucket Pipelines variables; add a startup assertion that both env vars are non-empty. |
-| Migration rollback gap — `wrangler rollback` reverts code, not Supabase schema | Research finding | L | H | Pair every forward migration with a tested down-migration; never auto-rollback DB during a code rollback (approval-gated). |
+| Risk                                                                                                  | Source                              | Likelihood | Impact | Mitigation                                                                                                                                                                |
+| ----------------------------------------------------------------------------------------------------- | ----------------------------------- | ---------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Cached `Set-Cookie` leaks a session → sensitive instructions exposed to wrong caretaker               | Devil's advocate / Pre-mortem       | M          | H      | Never cache authenticated SSR responses; keep `@supabase/ssr` ≥ 0.10.0 (have 0.10.3); add a test asserting no `Cache-Control: public` on responses carrying `Set-Cookie`. |
+| Following deprecated `cloudflare-pages` path from `tech-stack.md`                                     | Devil's advocate / Unknown unknowns | M          | M      | Correct `deployment_target` to `cloudflare-workers` in `tech-stack.md`; confirm `wrangler.jsonc` Workers config (already correct).                                        |
+| No preview/staging env → untested migrations and cookie-cache regressions ship straight to production | Pre-mortem                          | M          | H      | Use Workers Builds per-PR preview URLs (native on GitHub); exercise auth + a slot-claim on the preview before merging; gate Supabase migrations behind approval.          |
+| `nodejs_compat` / `node:` import misconfig → runtime crash on Supabase SSR                            | Devil's advocate                    | L          | H      | `nodejs_compat` already set; use `node:`-prefixed imports; smoke-test an auth route on a deployed preview, not just local.                                                |
+| Secret bound for runtime but not build (or vice versa) → `undefined` Supabase creds                   | Devil's advocate                    | M          | M      | Set secrets in both `wrangler secret put` and Bitbucket Pipelines variables; add a startup assertion that both env vars are non-empty.                                    |
+| Migration rollback gap — `wrangler rollback` reverts code, not Supabase schema                        | Research finding                    | L          | H      | Pair every forward migration with a tested down-migration; never auto-rollback DB during a code rollback (approval-gated).                                                |
 
 ## Getting Started
 
@@ -98,6 +98,7 @@ The solo dev scaffolds against the `cloudflare-pages` line in the hand-off, foll
 ## Out of Scope
 
 The following were not evaluated in this research:
+
 - Docker image configuration
 - CI/CD pipeline setup (the Bitbucket Pipelines note above is a pointer, not a built pipeline)
 - Production-scale architecture (multi-region, HA, DR)

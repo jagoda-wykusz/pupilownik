@@ -80,12 +80,15 @@ Brak ról administracyjnych i warstw uprawnień w MVP. Nieuwierzytelniony użytk
 ## Success Criteria
 
 ### Primary
+
 - Pełna ścieżka MVP działa end-to-end: właściciel definiuje zwierzę z instrukcjami, tworzy okres opieki i wysyła link, a co najmniej jeden opiekun samodzielnie zapisuje się na slot — bez seryjnego dopytywania przez właściciela.
 
 ### Secondary
+
 - Opiekunowie widzą imiona — kto zajął który dzień — co ułatwia wzajemną koordynację w obrębie okresu. (Mile widziane; nie przesądza o sukcesie v1.)
 
 ### Guardrails
+
 - **Brak podwójnej obsady slotu** — dwóch opiekunów nie może zająć tego samego dnia; widoczność zajęty/wolny jest zawsze prawdziwa.
 - **Dostęp tylko dla osób z linku** — instrukcje i kalendarz nie wyciekają poza zaproszony krąg (instrukcje bywają wrażliwe: adres, kody dostępu).
 - **Instrukcje zawsze aktualne** — opiekun widzi najnowszą wersję instrukcji karmienia; rozjazd tu oznacza głodne lub przekarmione zwierzę.
@@ -94,16 +97,19 @@ Brak ról administracyjnych i warstw uprawnień w MVP. Nieuwierzytelniony użytk
 ## Functional Requirements
 
 ### Konto właściciela
+
 - FR-001: Właściciel może założyć konto i zalogować się (email + hasło). Priority: must-have
   > Socrates: Kontrargument: dla zaufanego kręgu można by zrezygnować z kont na rzecz jednego linku zarządzającego. Rozstrzygnięcie: konto zostaje — właściciel wraca między okresami, może mieć wiele zwierząt, a dane wymagają trwałej, prywatnej tożsamości.
 
 ### Definicja zwierząt i instrukcji
+
 - FR-002: Właściciel może zdefiniować zwierzę (nazwa, gatunek / podstawowe dane). Priority: must-have
   > Socrates: Kontrargument: wystarczyłby jeden blok instrukcji na okres bez encji „zwierzę". Rozstrzygnięcie: encja zostaje — jeden okres może obejmować kilka zwierząt o różnych instrukcjach.
 - FR-003: Właściciel może zapisać instrukcje opieki dla zwierzęcia jako wolny tekst (zwyczaje, karmienie). Instrukcje dzielą się na część widoczną publicznie i część odsłanianą dopiero po zajęciu slotu. Priority: must-have
   > Socrates: Kontrargument: strukturalny harmonogram miski (godziny + gramy + komory) to przerost na v1. Rozstrzygnięcie: na v1 instrukcje jako wolny tekst; strukturalny harmonogram karmienia przeniesiony do Open Questions / v2.
 
 ### Okresy opieki i zaproszenia
+
 - FR-004: Właściciel może utworzyć okres opieki (zakres dat) generujący sloty per pora dnia (np. rano / wieczór), nie całodniowe. Priority: must-have
   > Socrates: Kontrargument: jeden slot na dzień wystarczy. Rozstrzygnięcie: opieka bywa per pora dnia (rano/wieczór), więc slot musi być drobniejszy niż dzień.
 - FR-005: Właściciel może wygenerować link zapraszający do okresu opieki. Priority: must-have
@@ -114,6 +120,7 @@ Brak ról administracyjnych i warstw uprawnień w MVP. Nieuwierzytelniony użytk
   > Socrates: Kontrargument: okres mija sam, ręczne zamykanie zbędne. Rozstrzygnięcie: przydatne (odwołany wyjazd, wrażliwy link), ale nie blokuje MVP — demote do nice-to-have.
 
 ### Dostęp i zapis opiekuna
+
 - FR-007: Opiekun może otworzyć okres opieki przez link, bez logowania. Priority: must-have
   > Socrates: Kontrargument: brak logowania = ryzyko nadużycia linku. Rozstrzygnięcie: bez logowania zostaje — krąg jest zaufany, a tarcie zabija adopcję; sekretny link to wystarczająca bariera na v1.
 - FR-008: Opiekun może zobaczyć publiczną część instrukcji od razu po wejściu z linku, a pełne (wrażliwe) instrukcje — adres, kody dostępu — dopiero po zajęciu slotu. Priority: must-have
@@ -124,6 +131,7 @@ Brak ról administracyjnych i warstw uprawnień w MVP. Nieuwierzytelniony użytk
   > Socrates: Kontrargument: prywatność — czy opiekunowie powinni widzieć siebie nawzajem? Rozstrzygnięcie: imiona zostają widoczne — krąg jest zaufany, a widoczność „kto wziął co" wspiera koordynację (zgodnie z Secondary).
 
 _Wycięte z MVP w rundzie Socratesa:_
+
 - ~~FR-010: Opiekun może zwolnić własny zapis~~ — bez tożsamości opiekuna trudne i ryzykowne; na v1 wypis załatwia właściciel ręcznie. Kandydat do v2 (po dodaniu lekkiej tożsamości opiekuna).
 
 ## User Stories
@@ -135,6 +143,7 @@ _Wycięte z MVP w rundzie Socratesa:_
 - **Then** otrzymuje link do wysłania zaufanym osobom, a okres pojawia się w jego panelu z widokiem obsady (na start wszystkie sloty wolne)
 
 #### Acceptance Criteria
+
 - Utworzenie okresu generuje sloty per pora dnia dla każdego dnia zakresu.
 - Link prowadzi wyłącznie do tego okresu i powiązanych instrukcji — nie do panelu właściciela ani innych okresów.
 - Właściciel widzi w każdej chwili, które pory są wolne, a które zajęte (i przez kogo).
@@ -146,6 +155,7 @@ _Wycięte z MVP w rundzie Socratesa:_
 - **Then** slot zostaje przypisany do niej, znika z puli wolnych dla pozostałych opiekunów, a wrażliwa część instrukcji staje się dla niej widoczna; właściciel widzi slot jako obsadzony
 
 #### Acceptance Criteria
+
 - Próba zajęcia slotu, który właśnie zajął ktoś inny, jest odrzucana z czytelnym komunikatem — nigdy nie powstaje podwójna obsada.
 - Opiekun zawsze widzi najnowszą wersję instrukcji opieki.
 - Publiczna część instrukcji jest widoczna przed zapisem; wrażliwe szczegóły (adres, kody) dopiero po zajęciu slotu.

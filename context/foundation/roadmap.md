@@ -27,24 +27,24 @@ Pupilownik pozwala właścicielowi zwierząt rozłożyć opiekę na okres nieobe
 
 ## At a glance
 
-| ID    | Change ID                  | Outcome (user can …)                                              | Prerequisites | PRD refs               | Status   |
-| ----- | -------------------------- | ---------------------------------------------------------------- | ------------- | ---------------------- | -------- |
-| F-01  | owner-data-rls-baseline    | (foundation) bezpieczny wzorzec dostępu do danych właściciela    | —             | NFR (privacy), Access Control | ready    |
-| S-01  | pet-and-instructions       | właściciel definiuje zwierzę z instrukcjami (publiczna+wrażliwa) | F-01          | FR-001, FR-002, FR-003, US-01 | proposed |
-| S-02  | care-period-and-invite-link| właściciel tworzy okres ze slotami i generuje link zapraszający  | S-01          | FR-004, FR-005, US-01  | proposed |
-| S-03  | caretaker-claims-slot      | opiekun otwiera link i zajmuje wolny slot (bez podwójnej obsady) | S-02          | FR-007, FR-008, FR-009, US-02 | proposed |
-| S-04  | owner-occupancy-view       | właściciel widzi pełną obsadę okresu — kto zajął którą porę      | S-03          | FR-006, US-01          | proposed |
-| S-05  | caretaker-names-visibility | opiekun widzi imiona innych opiekunów w obrębie okresu           | S-03          | FR-011                 | proposed |
-| S-06  | close-care-period          | właściciel zamyka/odwołuje okres i unieważnia link               | S-02          | FR-012                 | proposed |
+| ID   | Change ID                   | Outcome (user can …)                                             | Prerequisites | PRD refs                      | Status   |
+| ---- | --------------------------- | ---------------------------------------------------------------- | ------------- | ----------------------------- | -------- |
+| F-01 | owner-data-rls-baseline     | (foundation) bezpieczny wzorzec dostępu do danych właściciela    | —             | NFR (privacy), Access Control | ready    |
+| S-01 | pet-and-instructions        | właściciel definiuje zwierzę z instrukcjami (publiczna+wrażliwa) | F-01          | FR-001, FR-002, FR-003, US-01 | proposed |
+| S-02 | care-period-and-invite-link | właściciel tworzy okres ze slotami i generuje link zapraszający  | S-01          | FR-004, FR-005, US-01         | proposed |
+| S-03 | caretaker-claims-slot       | opiekun otwiera link i zajmuje wolny slot (bez podwójnej obsady) | S-02          | FR-007, FR-008, FR-009, US-02 | proposed |
+| S-04 | owner-occupancy-view        | właściciel widzi pełną obsadę okresu — kto zajął którą porę      | S-03          | FR-006, US-01                 | proposed |
+| S-05 | caretaker-names-visibility  | opiekun widzi imiona innych opiekunów w obrębie okresu           | S-03          | FR-011                        | proposed |
+| S-06 | close-care-period           | właściciel zamyka/odwołuje okres i unieważnia link               | S-02          | FR-012                        | proposed |
 
 ## Streams
 
 Navigation aid — groups items that share a Prerequisites chain. Canonical ordering still lives in the dependency graph below; this table is the proposed reading order across parallel tracks.
 
-| Stream | Theme                          | Chain                                            | Note                                                                                  |
-| ------ | ------------------------------ | ------------------------------------------------ | ------------------------------------------------------------------------------------- |
-| A      | Rdzeń: od zwierzęcia do zapisu | `F-01` → `S-01` → `S-02` → `S-03` → `S-04`       | Ścieżka must-have; zawiera gwiazdę przewodnią `S-03`. Zgodna z celem `szybkość`.       |
-| B      | Dodatki (nice-to-have)         | `S-05` / `S-06`                                  | `S-06` dołącza do Stream A przy `S-02`, `S-05` przy `S-03`; równoległe względem siebie. |
+| Stream | Theme                          | Chain                                      | Note                                                                                    |
+| ------ | ------------------------------ | ------------------------------------------ | --------------------------------------------------------------------------------------- |
+| A      | Rdzeń: od zwierzęcia do zapisu | `F-01` → `S-01` → `S-02` → `S-03` → `S-04` | Ścieżka must-have; zawiera gwiazdę przewodnią `S-03`. Zgodna z celem `szybkość`.        |
+| B      | Dodatki (nice-to-have)         | `S-05` / `S-06`                            | `S-06` dołącza do Stream A przy `S-02`, `S-05` przy `S-03`; równoległe względem siebie. |
 
 ## Baseline
 
@@ -151,15 +151,15 @@ Foundations below assume these are present and do NOT re-scaffold them.
 
 ## Backlog Handoff
 
-| Roadmap ID | Change ID                   | Suggested issue title                                      | Ready for `/10x-plan` | Notes |
-| ---------- | --------------------------- | --------------------------------------------------------- | --------------------- | ----- |
-| F-01       | owner-data-rls-baseline     | Wzorzec dostępu do danych: migracje + RLS izolujące właściciela | yes              | Run `/10x-plan owner-data-rls-baseline` |
-| S-01       | pet-and-instructions        | Definicja zwierzęcia + instrukcje (public/sensitive)      | no                    | Po F-01 |
-| S-02       | care-period-and-invite-link | Okres opieki ze slotami + link zapraszający               | no                    | Po S-01 |
-| S-03       | caretaker-claims-slot       | Opiekun zajmuje slot przez link (atomowo)                 | no                    | Gwiazda przewodnia; po S-02 |
-| S-04       | owner-occupancy-view        | Widok obsady okresu dla właściciela                       | no                    | Po S-03 |
-| S-05       | caretaker-names-visibility  | Widoczność imion opiekunów w okresie                      | no                    | Nice-to-have; po S-03 |
-| S-06       | close-care-period           | Zamknięcie/odwołanie okresu + unieważnienie linku         | no                    | Nice-to-have; po S-02 |
+| Roadmap ID | Change ID                   | Suggested issue title                                           | Ready for `/10x-plan` | Notes                                   |
+| ---------- | --------------------------- | --------------------------------------------------------------- | --------------------- | --------------------------------------- |
+| F-01       | owner-data-rls-baseline     | Wzorzec dostępu do danych: migracje + RLS izolujące właściciela | yes                   | Run `/10x-plan owner-data-rls-baseline` |
+| S-01       | pet-and-instructions        | Definicja zwierzęcia + instrukcje (public/sensitive)            | no                    | Po F-01                                 |
+| S-02       | care-period-and-invite-link | Okres opieki ze slotami + link zapraszający                     | no                    | Po S-01                                 |
+| S-03       | caretaker-claims-slot       | Opiekun zajmuje slot przez link (atomowo)                       | no                    | Gwiazda przewodnia; po S-02             |
+| S-04       | owner-occupancy-view        | Widok obsady okresu dla właściciela                             | no                    | Po S-03                                 |
+| S-05       | caretaker-names-visibility  | Widoczność imion opiekunów w okresie                            | no                    | Nice-to-have; po S-03                   |
+| S-06       | close-care-period           | Zamknięcie/odwołanie okresu + unieważnienie linku               | no                    | Nice-to-have; po S-02                   |
 
 ## Open Roadmap Questions
 

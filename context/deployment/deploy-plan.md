@@ -42,7 +42,7 @@ Oznaczenia: **[Ty]** = krok w dashboardzie/interaktywny (agent nie kliknie); **[
 4. **[Ty] Sekrety runtime Workera** — w ustawieniach Workera `pupilownik` → Settings → Variables and Secrets dodaj jako **Secret (encrypted)**:
    - `SUPABASE_URL` = URL projektu cloud Supabase
    - `SUPABASE_KEY` = anon key projektu
-   (Jeśli kreator z kroku 3 pozwala dodać je od razu — zrób to tam.)
+     (Jeśli kreator z kroku 3 pozwala dodać je od razu — zrób to tam.)
 5. **[Ty, jednorazowo] Supabase Auth na czas MVP** — w dashboardzie Supabase wyłącz „Confirm email" (Authentication → Email), żeby właściciel mógł się logować od razu po rejestracji (zgodnie z README).
 6. **[Agent] Push wyzwalający pierwszy deploy:** `git push origin master` (wypycha `74b00ee` z nazwą `pupilownik`). To uruchamia pierwszy build + `wrangler deploy` w Workers Builds.
 7. **[Ty/Agent] Jeśli pierwszy deploy poszedł bez sekretów** (kolejność z niuansu wyżej): po dodaniu sekretów (krok 4) uruchom ponowny deploy — „Retry build" w Workers Builds albo pusty commit/kolejny push.

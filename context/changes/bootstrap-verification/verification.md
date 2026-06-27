@@ -40,10 +40,10 @@ hints:
 
 ## Pre-scaffold verification
 
-| Signal       | Value                                          | Severity | Notes                                                        |
-| ------------ | ---------------------------------------------- | -------- | ------------------------------------------------------------ |
-| npm package  | not run                                        | —        | cmd_template to `git clone` — brak pakietu npm CLI do sprawdzenia |
-| GitHub repo  | not run                                        | —        | `gh` CLI niedostępny w środowisku (command not found)        |
+| Signal      | Value   | Severity | Notes                                                             |
+| ----------- | ------- | -------- | ----------------------------------------------------------------- |
+| npm package | not run | —        | cmd_template to `git clone` — brak pakietu npm CLI do sprawdzenia |
+| GitHub repo | not run | —        | `gh` CLI niedostępny w środowisku (command not found)             |
 
 Brak sygnału świeżości — WARN-AND-CONTINUE, scaffolding kontynuowany.
 
@@ -111,6 +111,7 @@ v1 odnotowuje te hinty, ale ich nie realizuje — `AGENTS.md`/`CLAUDE.md`, pliki
 Next: a future skill will set up agent context (CLAUDE.md, AGENTS.md). For now, your project is scaffolded and verified — happy hacking.
 
 Useful manual steps in the meantime:
+
 - `git init` jeśli jeszcze nie masz własnego repo (historia startera została usunięta celowo).
 - Przejrzyj `CLAUDE.md.scaffold` — porównaj z własnym `CLAUDE.md` i zdecyduj, co zachować (`diff CLAUDE.md CLAUDE.md.scaffold`).
 - Rozważ `npm audit fix` dla podatności nie wymagających breaking changes; `yaml` wymaga `--force`. 0 critical, większość high to narzędzia build/dev (część luk file-read tylko na Windows w dev serverze).
