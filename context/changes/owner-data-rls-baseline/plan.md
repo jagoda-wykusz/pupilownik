@@ -282,26 +282,26 @@ None material at MVP scale (target: medium users, low QPS). RLS policies on a si
 
 #### Automated
 
-- [x] 2.1 Migration applies cleanly from scratch: `npm run db:reset` exits 0 with migration + seed applied
-- [x] 2.2 Lint passes: `npm run lint`
+- [x] 2.1 Migration applies cleanly from scratch: `npm run db:reset` exits 0 with migration + seed applied — bd5fe43
+- [x] 2.2 Lint passes: `npm run lint` — bd5fe43
 
 #### Manual
 
-- [x] 2.3 `profiles` exists in Studio with RLS enabled and exactly the two policies
-- [x] 2.4 Signup creates exactly one matching `profiles` row (trigger fires)
-- [x] 2.5 Two-user isolation: A sees only A's row; B's row invisible
-- [x] 2.6 Deleting a user in `auth.users` cascades and removes their `profiles` row
+- [x] 2.3 `profiles` exists in Studio with RLS enabled and exactly the two policies — bd5fe43
+- [x] 2.4 Signup creates exactly one matching `profiles` row (trigger fires) — bd5fe43
+- [x] 2.5 Two-user isolation: A sees only A's row; B's row invisible — bd5fe43
+- [x] 2.6 Deleting a user in `auth.users` cascades and removes their `profiles` row — bd5fe43
 
 ### Phase 3: Typed client & convention doc
 
 #### Automated
 
-- [ ] 3.1 Types generate without error: `npm run db:gen-types` produces non-empty `src/db/database.types.ts`
-- [ ] 3.2 Type checking passes with typed client: `npx astro check`
-- [ ] 3.3 Lint passes: `npm run lint`
+- [x] 3.1 Types generate without error: `npm run db:gen-types` produces non-empty `src/db/database.types.ts`
+- [x] 3.2 Type checking passes with typed client: `npx astro check`
+- [x] 3.3 Lint passes: `npm run lint`
 
 #### Manual
 
-- [ ] 3.4 Sample typed `from("profiles").select()` surfaces correct row type (no `any`)
-- [ ] 3.5 `docs/reference/data-access.md` lets S-01 add `pets` by following it
-- [ ] 3.6 `.env.example` states the anon-key requirement
+- [x] 3.4 Sample typed `from("profiles").select()` surfaces correct row type (no `any`)
+- [x] 3.5 `docs/reference/data-access.md` lets S-01 add `pets` by following it
+- [x] 3.6 `.env.example` states the anon-key requirement
