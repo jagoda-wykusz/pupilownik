@@ -296,12 +296,12 @@ None material at MVP scale (target: medium users, low QPS). RLS policies on a si
 
 #### Automated
 
-- [x] 3.1 Types generate without error: `npm run db:gen-types` produces non-empty `src/db/database.types.ts`
-- [x] 3.2 Type checking passes with typed client: `npx astro check`
-- [x] 3.3 Lint passes: `npm run lint`
+- [x] 3.1 Types generate without error: `npm run db:gen-types` produces non-empty `src/db/database.types.ts` — 105638a
+- [x] 3.2 Type checking passes with typed client: `npx astro check` — 105638a
+- [x] 3.3 Lint passes: `npm run lint` — 105638a
 
 #### Manual
 
-- [x] 3.4 Sample typed `from("profiles").select()` surfaces correct row type (no `any`)
-- [x] 3.5 `docs/reference/data-access.md` lets S-01 add `pets` by following it
-- [x] 3.6 `.env.example` states the anon-key requirement
+- [x] 3.4 Sample typed `from("profiles").select()` surfaces correct row type (no `any`) — 105638a
+- [x] 3.5 `docs/reference/data-access.md` lets S-01 add `pets` by following it — 105638a
+- [x] 3.6 `.env.example` states the anon-key requirement — 105638a
