@@ -269,28 +269,28 @@ None material at MVP scale (target: medium users, low QPS). RLS policies on a si
 
 #### Automated
 
-- [ ] 1.1 Local stack boots: `npm run db:start` succeeds and reports local API + DB URLs
-- [ ] 1.2 Clean reset works on empty schema: `npm run db:reset` exits 0
-- [x] 1.3 Lint passes: `npm run lint`
+- [x] 1.1 Local stack boots: `npm run db:start` succeeds and reports local API + DB URLs — bb3917f
+- [x] 1.2 Clean reset works on empty schema: `npm run db:reset` exits 0 — bb3917f
+- [x] 1.3 Lint passes: `npm run lint` — bb3917f
 
 #### Manual
 
-- [ ] 1.4 `supabase/migrations/` exists and is git-tracked
-- [ ] 1.5 Local Supabase Studio reachable and DB empty (no domain tables)
+- [x] 1.4 `supabase/migrations/` exists and is git-tracked — bb3917f
+- [x] 1.5 Local Supabase Studio reachable and DB empty (no domain tables) — bb3917f
 
 ### Phase 2: profiles table + owner-isolation RLS + signup trigger + seed
 
 #### Automated
 
-- [ ] 2.1 Migration applies cleanly from scratch: `npm run db:reset` exits 0 with migration + seed applied
-- [ ] 2.2 Lint passes: `npm run lint`
+- [x] 2.1 Migration applies cleanly from scratch: `npm run db:reset` exits 0 with migration + seed applied
+- [x] 2.2 Lint passes: `npm run lint`
 
 #### Manual
 
-- [ ] 2.3 `profiles` exists in Studio with RLS enabled and exactly the two policies
-- [ ] 2.4 Signup creates exactly one matching `profiles` row (trigger fires)
-- [ ] 2.5 Two-user isolation: A sees only A's row; B's row invisible
-- [ ] 2.6 Deleting a user in `auth.users` cascades and removes their `profiles` row
+- [x] 2.3 `profiles` exists in Studio with RLS enabled and exactly the two policies
+- [x] 2.4 Signup creates exactly one matching `profiles` row (trigger fires)
+- [x] 2.5 Two-user isolation: A sees only A's row; B's row invisible
+- [x] 2.6 Deleting a user in `auth.users` cascades and removes their `profiles` row
 
 ### Phase 3: Typed client & convention doc
 
