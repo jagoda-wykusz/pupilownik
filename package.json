@@ -7,6 +7,12 @@
     "build": "astro build",
     "preview": "astro preview",
     "astro": "astro",
+    "db:start": "supabase start",
+    "db:stop": "supabase stop",
+    "db:reset": "supabase db reset",
+    "db:migration": "supabase migration new",
+    "db:push": "supabase db push",
+    "db:gen-types": "supabase gen types typescript --local > src/db/database.types.ts",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write ."
