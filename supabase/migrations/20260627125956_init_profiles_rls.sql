@@ -15,9 +15,11 @@ comment on table public.profiles is
 -- 2. Deny-by-default RLS. Enabling RLS with no policy denies all access (fail-closed).
 alter table public.profiles enable row level security;
 
--- Table-level grants so the authenticated role can reach the table at all; RLS then
--- governs *which rows*. No insert/delete grant: inserts come from the signup trigger
--- (security definer), deletes cascade from auth.users.
+-- Grants only make the table reachable for the authenticated role; they do NOT
+-- restrict operations. INSERT/DELETE are denied by RLS deny-by-default (no policy
+-- covers them) — NOT by withholding the grant, since Supabase default privileges may
+-- already grant ALL on new public tables. Inserts come from the signup trigger
+-- (security definer); deletes cascade from auth.users.
 grant select, update on table public.profiles to authenticated;
 
 -- Owner-isolation policies: TO authenticated + ownership predicate (BOLA/IDOR-safe).
@@ -45,7 +47,8 @@ security definer
 set search_path = ''
 as $$
 begin
-  insert into public.profiles (id) values (new.id);
+  -- on conflict guard: never let a stray existing row roll back the auth.users signup.
+  insert into public.profiles (id) values (new.id) on conflict (id) do nothing;
   return new;
 end;
 $$;

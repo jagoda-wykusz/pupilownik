@@ -2,7 +2,7 @@
 change_id: owner-data-rls-baseline
 title: Wzorzec dostępu do danych właściciela (migracje + RLS)
 roadmap_id: F-01
-status: implemented
+status: impl_reviewed
 created: 2026-06-27
 updated: 2026-06-27
 ---

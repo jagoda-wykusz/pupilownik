@@ -25,8 +25,11 @@ is no service_role client in the request path, by design.
    this is the correct fail-closed default.
 3. **Grant the table** to `authenticated` for the operations the role needs
    (`grant select, insert, update, delete on <table> to authenticated`). Grants
-   make the table reachable; RLS policies decide *which rows*. Without the grant,
-   policies never get a chance to run.
+   only make the table *reachable* — they do not restrict operations, and Supabase
+   default privileges may already grant ALL on new `public` tables. What actually
+   denies an operation is the **absence of an RLS policy** for it (deny-by-default),
+   not a withheld grant. Grant the operations you'll write policies for; deny the
+   rest by simply not writing a policy.
 4. **Write policies** that combine `TO authenticated` with an ownership predicate.
    `TO authenticated` alone is authentication without authorization (BOLA/IDOR).
    Wrap `auth.uid()` in a subselect so the planner evaluates it once.
