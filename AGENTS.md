@@ -31,4 +31,4 @@ There is no test runner configured yet.
 
 ## Commit & CI
 
-Pre-commit (husky + lint-staged) runs `eslint --fix` on `*.{ts,tsx,astro}` and `prettier --write` on `*.{json,css,md}`. GitHub Actions (`.github/workflows/ci.yml`) runs lint + build on push/PR to `master`; commit-message convention is not yet established.
+Pre-commit (husky + lint-staged) runs `eslint --fix` on `*.{ts,tsx,astro}` and `prettier --write` on `*.{json,css,md}`. Deployment and build CI run via Cloudflare Workers Builds (connected to the GitHub repo) — there is no GitHub Actions workflow. Run `npm run lint` and `npm run build` locally before pushing. Commit-message convention is not yet established.

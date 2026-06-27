@@ -168,7 +168,7 @@ Set `SUPABASE_URL` and `SUPABASE_KEY` as secrets in your Cloudflare dashboard or
 
 ## CI
 
-GitHub Actions runs lint + build on every push and PR to `master`. Configure `SUPABASE_URL` and `SUPABASE_KEY` as repository secrets in GitHub for the build step.
+Build and deploy run via [Cloudflare Workers Builds](https://developers.cloudflare.com/workers/ci-cd/builds/) connected to the GitHub repo — there is no GitHub Actions workflow. Merges to the production branch auto-deploy and pull requests get preview URLs. Configure `SUPABASE_URL` and `SUPABASE_KEY` as build-environment variables in the Workers Builds config (in addition to the runtime secrets set via `npx wrangler secret put`). Run `npm run lint` and `npm run build` locally before pushing.
 
 ## License
 

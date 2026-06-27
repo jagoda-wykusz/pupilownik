@@ -51,4 +51,4 @@ Full server-side rendering (`output: "server"` in astro.config.mjs). All pages a
 
 ## CI
 
-GitHub Actions workflow (`.github/workflows/ci.yml`) runs lint + build on every push and PR to master. Requires `SUPABASE_URL` and `SUPABASE_KEY` repository secrets for the build step.
+Build and deploy run via Cloudflare Workers Builds (connected to the GitHub repo) — there is no GitHub Actions workflow. Merges to the production branch auto-deploy; PRs get preview URLs. `SUPABASE_URL` and `SUPABASE_KEY` are set as build-environment variables in the Workers Builds config, plus runtime secrets via `npx wrangler secret put`. Run `npm run lint` and `npm run build` locally before pushing.
