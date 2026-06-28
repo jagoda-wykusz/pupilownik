@@ -145,6 +145,11 @@ Harness shipped in Phase 1 (`testing-rls-owner-isolation`). Recipe:
    admin-only operation like deleting an `auth.users` row — confine it to its own file,
    as in `tests/rls/profiles.cascade.test.ts`, and never use it to assert RLS.)
 
+`createOwnerClient()` signs up a fresh `auth.users` row per call and does not tear it
+down, so the local DB accumulates test owners across runs. This is harmless (local only),
+but run `npm run db:reset` to start from a clean, seed-only state whenever you want it
+tidy.
+
 ### 6.3 Adding an e2e test
 
 - TBD — deferred until a domain flow exists (post-§3 Phase 4).

@@ -108,6 +108,10 @@ loads the shared setup before tests.
 `test.globals = true`, `test.setupFiles = ["./tests/setup.ts"]`, and
 `resolve.alias` mapping `@` → `./src`. Pure-Node — do **not** pull in Astro's Vite config.
 
+> Impl note (impl-review F2): `globals` was left at its default (off) — tests import
+> `describe/it/expect` explicitly from `"vitest"`. This avoids needing a `vitest/globals`
+> entry in `tsconfig` `types` to satisfy the strict typecheck, and is the cleaner choice.
+
 #### 3. Test env file + gitignore
 
 **Files**: `.env.test` (new, gitignored), `.env.test.example` (new, committed), `.gitignore`

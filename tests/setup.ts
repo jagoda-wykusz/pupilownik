@@ -54,24 +54,31 @@ beforeAll(async () => {
 
   // Fail fast with an actionable message if the local stack is not up. A network throw
   // (nothing listening) AND a non-OK response (e.g. Kong 502 while auth is still
-  // reconnecting after a reset) both mean "not ready" — otherwise signUp fails later
-  // with a cryptic empty-body error instead of this guidance.
-  const controller = new AbortController();
-  const timeout = setTimeout(() => {
-    controller.abort();
-  }, 3000);
-  let ok = false;
-  try {
-    const res = await fetch(`${url}/auth/v1/health`, { signal: controller.signal });
-    ok = res.ok;
-  } catch {
-    ok = false;
-  } finally {
-    clearTimeout(timeout);
+  // reconnecting after a reset) both mean "not ready" — otherwise signUp / from() fail
+  // later with a cryptic error instead of this guidance. Probe BOTH backends the suite
+  // uses: auth (signUp) and PostgREST (from("profiles")) can come up independently.
+  const { anonKey } = getTestEnv();
+  const reachable = async (path: string, init?: RequestInit): Promise<boolean> => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => {
+      controller.abort();
+    }, 3000);
+    try {
+      const res = await fetch(`${url}${path}`, { ...init, signal: controller.signal });
+      return res.ok;
+    } catch {
+      return false;
+    } finally {
+      clearTimeout(timeout);
+    }
+  };
+
+  const notReady = `Run \`npm run db:start\` (and wait for it to finish) before \`npm test\`.`;
+  if (!(await reachable("/auth/v1/health"))) {
+    throw new Error(`Local Supabase auth API is not ready at ${url}. ${notReady}`);
   }
-  if (!ok) {
-    throw new Error(
-      `Local Supabase auth API is not ready at ${url}. Run \`npm run db:start\` (and wait for it to finish) before \`npm test\`.`,
-    );
+  // PostgREST root needs the apikey header; a 200 means the data API is serving.
+  if (!(await reachable("/rest/v1/", { headers: { apikey: anonKey } }))) {
+    throw new Error(`Local Supabase data API (PostgREST) is not ready at ${url}. ${notReady}`);
   }
 });
