@@ -1,8 +1,9 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/db/database.types";
 import { getTestEnv } from "../setup";
 
 export interface OwnerContext {
-  client: SupabaseClient;
+  client: SupabaseClient<Database>;
   userId: string;
   email: string;
   password: string;
@@ -21,7 +22,7 @@ export async function createOwnerClient(): Promise<OwnerContext> {
   const email = `owner-${crypto.randomUUID()}@pupilownik.test`;
   const password = DEFAULT_PASSWORD;
 
-  const client = createClient(url, anonKey);
+  const client = createClient<Database>(url, anonKey);
   const { data, error } = await client.auth.signUp({ email, password });
   if (error) {
     throw new Error(`createOwnerClient: signUp failed for ${email}: ${error.message}`);

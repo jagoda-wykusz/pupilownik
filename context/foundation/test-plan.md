@@ -73,7 +73,7 @@ orchestrator updates Status as artifacts appear on disk.
 
 | # | Phase name | Goal (one line) | Risks covered | Test types | Status | Change folder |
 |---|------------|-----------------|----------------|------------|--------|----------------|
-| 1 | Bootstrap runner + RLS owner-isolation | Prove an owner cannot read/modify another's rows; establish the reusable RLS-test harness every future table copies | #1 | vitest setup + integration vs local Supabase | change opened | context/changes/testing-rls-owner-isolation/ |
+| 1 | Bootstrap runner + RLS owner-isolation | Prove an owner cannot read/modify another's rows; establish the reusable RLS-test harness every future table copies | #1 | vitest setup + integration vs local Supabase | implemented | context/changes/testing-rls-owner-isolation/ |
 | 2 | Auth gating & input validation | Protected routes gate unauthenticated access; auth flows behave; handlers reject bad input | #2, #7 | integration (routes + middleware) | not started | — |
 | 3 | Secret-leak & quality-gate wiring | Secrets never ship to the client; lock the cheap floor (lint/build/secret-grep) | #6 | deterministic build-artifact checks + gate wiring | not started | — |
 | 4 | Domain guardrails (gated) | Instruction visibility scoping, link-only access enforcement, atomic slot claim | #3, #4, #5 | TBD per slice | not started | — |
@@ -89,7 +89,7 @@ test files). Phase 1 bootstraps it.
 
 | Layer | Tool | Version | Notes |
 |-------|------|---------|-------|
-| unit + integration | Vitest | TBD | none yet — see §3 Phase 1. Natural fit: the project already builds on Vite (Astro 6). |
+| unit + integration | Vitest | ^4.1 | wired in Phase 1 (`vitest.config.ts`, node env, `npm test`). Natural fit: the project already builds on Vite (Astro 6). |
 | Supabase integration | local stack (`npx supabase start`) + `@supabase/supabase-js` | installed | Run RLS tests against the local Postgres with two distinct user JWTs; never the service-role client. |
 | e2e | Playwright | TBD | none yet — optional, deferred until a domain flow exists (post-Phase 4). |
 | build-artifact checks | grep over `dist/` build output | n/a | none yet — see §3 Phase 3 (secret-leak gate). |
@@ -130,9 +130,20 @@ relevant rollout phase ships; before that it reads "TBD — see §3 Phase N."
 
 ### 6.2 Adding an integration test (RLS / Supabase)
 
-- TBD — see §3 Phase 1. Target pattern: run against the local Supabase stack,
-  authenticate as two distinct owners, assert cross-tenant denial. Never assert
-  through the service-role/postgres client (it bypasses RLS).
+Harness shipped in Phase 1 (`testing-rls-owner-isolation`). Recipe:
+
+1. Start the local stack (`npm run db:start`) and put the printed `SUPABASE_URL` +
+   **anon** key into `.env.test` (copy `.env.test.example`). `tests/setup.ts` loads it,
+   guards the host is local, and fails fast if the stack is down.
+2. In your test, get an authenticated, anon-keyed client per owner from
+   `createOwnerClient()` (`tests/helpers/auth.ts`). Each call signs up a fresh, distinct
+   owner and returns `{ client, userId, email, password }`.
+3. Assert cross-tenant denial via these clients only. See
+   `tests/rls/profiles.isolation.test.ts` for the canonical example.
+4. Run with `npm test`. **Never** assert through the service-role/postgres client — it
+   bypasses RLS and makes the test a tautology. (The one allowed service-role use is an
+   admin-only operation like deleting an `auth.users` row — confine it to its own file,
+   as in `tests/rls/profiles.cascade.test.ts`, and never use it to assert RLS.)
 
 ### 6.3 Adding an e2e test
 
@@ -145,14 +156,31 @@ relevant rollout phase ships; before that it reads "TBD — see §3 Phase N."
 
 ### 6.5 Adding RLS coverage for a NEW table
 
-- TBD — see §3 Phase 1. This is the recurring pattern every slice (S-01+) copies:
-  enable RLS, write owner-isolation policies, then add the two-JWT denial test from
-  the Phase 1 harness. See also `docs/reference/data-access.md`.
+The recurring pattern every slice (S-01+) copies. After enabling RLS and writing the
+owner-isolation policies (`docs/reference/data-access.md`), add a `tests/rls/<table>.isolation.test.ts`
+that mirrors `tests/rls/profiles.isolation.test.ts`:
+
+1. `createOwnerClient()` for two owners (A, B); seed each owner a row of the new table
+   (via the app's insert path or a helper) so there is cross-tenant data to probe.
+2. Assert all four denial surfaces, not just SELECT:
+   - **SELECT** — A sees only A's rows, never B's.
+   - **UPDATE** — A updating B's row affects 0 rows and does not mutate it.
+   - **INSERT** — writing a row owned by someone else is rejected (error).
+   - **DELETE** — A cannot delete B's row (0 rows; row survives).
+   - plus the **with-check** case if the table lets a user reassign the owner FK.
+3. A SELECT-only test is not enough — the deny-by-default gate lives on INSERT/DELETE
+   (grants may already permit them). This is the lesson from the F-01 impl-review (F3).
 
 ### 6.6 Per-rollout-phase notes
 
 (Optional. After each phase lands, `/10x-implement` appends a 2–3 line note here
 capturing anything surprising the phase taught.)
+
+- **Phase 1 (RLS owner-isolation, `testing-rls-owner-isolation`)**: DELETE/UPDATE denial
+  under RLS is silent — no error, just 0 rows affected — so those cases assert the row
+  *survives/is unchanged*, not that an error is thrown. Only INSERT (and the with-check
+  reassignment) raise a hard RLS error. `.env.test` carries a service-role key solely for
+  the cascade test's `auth.admin.deleteUser`; it is fenced to that one file.
 
 ## 7. What We Deliberately Don't Test
 

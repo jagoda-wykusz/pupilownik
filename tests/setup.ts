@@ -52,16 +52,26 @@ beforeAll(async () => {
     );
   }
 
-  // Fail fast with an actionable message if the local stack is not up.
+  // Fail fast with an actionable message if the local stack is not up. A network throw
+  // (nothing listening) AND a non-OK response (e.g. Kong 502 while auth is still
+  // reconnecting after a reset) both mean "not ready" — otherwise signUp fails later
+  // with a cryptic empty-body error instead of this guidance.
   const controller = new AbortController();
   const timeout = setTimeout(() => {
     controller.abort();
   }, 3000);
+  let ok = false;
   try {
-    await fetch(`${url}/auth/v1/health`, { signal: controller.signal });
+    const res = await fetch(`${url}/auth/v1/health`, { signal: controller.signal });
+    ok = res.ok;
   } catch {
-    throw new Error(`Local Supabase stack is not reachable at ${url}. Run \`npm run db:start\` before \`npm test\`.`);
+    ok = false;
   } finally {
     clearTimeout(timeout);
+  }
+  if (!ok) {
+    throw new Error(
+      `Local Supabase auth API is not ready at ${url}. Run \`npm run db:start\` (and wait for it to finish) before \`npm test\`.`,
+    );
   }
 });
