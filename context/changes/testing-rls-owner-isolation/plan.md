@@ -320,14 +320,14 @@ re-seedable with `npm run db:reset`.
 
 #### Automated
 
-- [x] 2.1 Type checking passes: `npx astro check`
-- [x] 2.2 Linting passes: `npm run lint`
-- [x] 2.3 With the local stack up, the full suite passes: `npm test`
-- [x] 2.4 The isolation suite explicitly asserts INSERT and DELETE denial as named cases
-- [x] 2.5 The cascade test passes: deleting the auth user removes the profile
+- [x] 2.1 Type checking passes: `npx astro check` — dad5917
+- [x] 2.2 Linting passes: `npm run lint` — dad5917
+- [x] 2.3 With the local stack up, the full suite passes: `npm test` — dad5917
+- [x] 2.4 The isolation suite explicitly asserts INSERT and DELETE denial as named cases — dad5917
+- [x] 2.5 The cascade test passes: deleting the auth user removes the profile — dad5917
 
 #### Manual
 
-- [x] 2.6 Tautology check: relaxing a policy makes the isolation test fail, then revert
-- [x] 2.7 No service-role key in `profiles.isolation.test.ts`; confined to the cascade test
-- [x] 2.8 Test-plan §6.2/§6.5 read as a usable recipe for the next table
+- [x] 2.6 Tautology check: relaxing a policy makes the isolation test fail, then revert — dad5917
+- [x] 2.7 No service-role key in `profiles.isolation.test.ts`; confined to the cascade test — dad5917
+- [x] 2.8 Test-plan §6.2/§6.5 read as a usable recipe for the next table — dad5917

@@ -1,7 +1,7 @@
 ---
 change_id: testing-rls-owner-isolation
 title: Testing rls owner isolation
-status: implementing
+status: implemented
 created: 2026-06-28
 updated: 2026-06-28
 archived_at: null
