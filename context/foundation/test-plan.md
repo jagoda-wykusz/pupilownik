@@ -74,9 +74,14 @@ orchestrator updates Status as artifacts appear on disk.
 | # | Phase name | Goal (one line) | Risks covered | Test types | Status | Change folder |
 |---|------------|-----------------|----------------|------------|--------|----------------|
 | 1 | Bootstrap runner + RLS owner-isolation | Prove an owner cannot read/modify another's rows; establish the reusable RLS-test harness every future table copies | #1 | vitest setup + integration vs local Supabase | implemented | context/changes/testing-rls-owner-isolation/ |
-| 2 | Auth gating & input validation | Protected routes gate unauthenticated access; auth flows behave; handlers reject bad input | #2, #7 | integration (routes + middleware) | not started | — |
+| 2a | Auth gating | Protected routes gate unauthenticated access; auth/session flows behave; an invalid session cannot reach owner data | #2 | integration (routes + middleware) | implemented | context/changes/testing-auth-gating/ |
+| 2b | Input validation | API handlers reject malformed/forbidden input server-side (zod), not just the client | #7 | unit / integration on API handlers | not started | — |
 | 3 | Secret-leak & quality-gate wiring | Secrets never ship to the client; lock the cheap floor (lint/build/secret-grep) | #6 | deterministic build-artifact checks + gate wiring | not started | — |
 | 4 | Domain guardrails (gated) | Instruction visibility scoping, link-only access enforcement, atomic slot claim | #3, #4, #5 | TBD per slice | not started | — |
+
+Phase 2 was split into **2a (auth gating, #2)** and **2b (input validation, #7)**
+when the gating work shipped in `context/changes/testing-auth-gating/` — Risk #2
+landed there; Risk #7 remains its own pending change.
 
 Phase 4 is blocked until slices S-01..S-03 exist — `/10x-research` cannot
 ground code that has not been written. When those slices land, split Phase 4
