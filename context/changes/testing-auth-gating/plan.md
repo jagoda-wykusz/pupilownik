@@ -213,26 +213,26 @@ None — additive test + harness + docs only; no schema or production-code chang
 
 #### Automated
 
-- [x] 1.1 Type checking passes: `npm run build`
-- [x] 1.2 Linting passes: `npm run lint`
-- [x] 1.3 `onRequest` resolves under Vitest (no virtual-module resolution error)
-- [x] 1.4 Existing RLS suite still passes: `npm test`
+- [x] 1.1 Type checking passes: `npm run build` — 73f4da8
+- [x] 1.2 Linting passes: `npm run lint` — 73f4da8
+- [x] 1.3 `onRequest` resolves under Vitest (no virtual-module resolution error) — 73f4da8
+- [x] 1.4 Existing RLS suite still passes: `npm test` — 73f4da8
 
 #### Manual
 
-- [x] 1.5 Local stack down → `npm test` still fails fast with setup guidance
-- [x] 1.6 Captured `cookieHeader` shows `sb-127-auth-token` entries (chunked when large)
+- [x] 1.5 Local stack down → `npm test` still fails fast with setup guidance — 73f4da8
+- [x] 1.6 Captured `cookieHeader` shows `sb-127-auth-token` entries (chunked when large) — 73f4da8
 
 ### Phase 2: Auth-gating integration test + cookbook
 
 #### Automated
 
-- [ ] 2.1 All three gating cases pass: `npm test`
-- [ ] 2.2 Existing RLS + smoke suites still pass: `npm test`
-- [ ] 2.3 Linting passes: `npm run lint`
-- [ ] 2.4 Type checking / build passes: `npm run build`
+- [x] 2.1 All three gating cases pass: `npm test`
+- [x] 2.2 Existing RLS + smoke suites still pass: `npm test`
+- [x] 2.3 Linting passes: `npm run lint`
+- [x] 2.4 Type checking / build passes: `npm run build`
 
 #### Manual
 
-- [ ] 2.5 Breaking the gate makes the no-cookie test fail (then revert)
-- [ ] 2.6 Valid-cookie case round-trips a chunked cookie
+- [x] 2.5 Breaking the gate makes the no-cookie test fail (then revert)
+- [x] 2.6 Valid-cookie case round-trips a chunked cookie

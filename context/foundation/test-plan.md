@@ -6,7 +6,7 @@
 >
 > Refresh: re-run `/10x-test-plan --refresh` when stale (see §8).
 >
-> Last updated: 2026-06-28
+> Last updated: 2026-07-12
 
 ## 1. Strategy
 
@@ -186,6 +186,35 @@ capturing anything surprising the phase taught.)
   *survives/is unchanged*, not that an error is thrown. Only INSERT (and the with-check
   reassignment) raise a hard RLS error. `.env.test` carries a service-role key solely for
   the cascade test's `auth.admin.deleteUser`; it is fenced to that one file.
+- **Phase 2 (auth gating, `testing-auth-gating`)**: the Phase-1 harness yields an in-memory
+  session, not cookies — driving the middleware needs the real `sb-<host>-auth-token` captured
+  from an `@supabase/ssr` sign-in (`createAuthenticatedCookieHeader`), never a hand-forged JWT
+  (real sessions are base64url and chunk past ~3180 chars). The genuine `onRequest` runs in
+  pure-Node Vitest via honest shims for `astro:env/server` / `astro:middleware` — no Container
+  API (it won't auto-load our middleware) and no running server needed. `getUser()` is the
+  correct call and is never mocked.
+
+### 6.7 Adding a protected-route (middleware gating) test
+
+The recipe for proving a route is gated (Risk #2). Shipped in Phase 2
+(`testing-auth-gating`). Mirrors `tests/middleware/auth-gating.test.ts`:
+
+1. Drive the real middleware with `runMiddleware({ pathname, cookieHeader })`
+   (`tests/helpers/middleware.ts`) — it imports the genuine `onRequest` and returns
+   `{ response, nextCalled, locals }`. The `astro:env/server` / `astro:middleware` virtual
+   modules resolve via shims wired in `vitest.config.ts` (honest stand-ins, not auth mocks).
+2. For the authenticated case, get a real session cookie from `createAuthenticatedCookieHeader()`
+   (`tests/helpers/session.ts`) — it mints a fresh owner and captures the genuine (base64url,
+   possibly chunked) `sb-<host>-auth-token`. For the negative case, `createInvalidCookieHeader()`
+   forges a structurally-valid-but-untrusted session.
+3. Assert three surfaces, not just the redirect status:
+   - **no cookie** — `response.status === 302`, `Location === "/auth/signin"`, and
+     `nextCalled === false` (the route handler never ran → no owner data served).
+   - **valid cookie** — `nextCalled === true` and `locals.user.id` is the signed-in user.
+   - **invalid/expired cookie** — redirect again. `getUser()` validates the token server-side;
+     a present token is not authorization.
+4. **Never** mock the Supabase auth client — that asserts the mock, not the gate (§2 Risk #2
+   anti-pattern). `getUser()` runs for real against the local stack.
 
 ## 7. What We Deliberately Don't Test
 
