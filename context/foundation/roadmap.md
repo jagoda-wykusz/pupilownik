@@ -3,8 +3,9 @@ project: "Pupilownik"
 version: 1
 status: draft
 created: 2026-06-27
-updated: 2026-06-27
+updated: 2026-07-12
 prd_version: 1
+design_ref: "context/design/Pupilownik Hi-fi.html"
 main_goal: speed
 top_blocker: time
 ---
@@ -36,6 +37,22 @@ Pupilownik pozwala właścicielowi zwierząt rozłożyć opiekę na okres nieobe
 | S-04 | owner-occupancy-view        | właściciel widzi pełną obsadę okresu — kto zajął którą porę      | S-03          | FR-006, US-01                 | proposed |
 | S-05 | caretaker-names-visibility  | opiekun widzi imiona innych opiekunów w obrębie okresu           | S-03          | FR-011                        | proposed |
 | S-06 | close-care-period           | właściciel zamyka/odwołuje okres i unieważnia link               | S-02          | FR-012                        | proposed |
+| S-07 | ui-design-system            | aplikacja wygląda wg hi-fi designu — system wizualny + reskin auth | —             | (UI wszystkich FR)            | proposed |
+
+## Design reference
+
+Hi-fi design (`context/design/Pupilownik Hi-fi.html`, tryby: jasny / ciemny / trzeci) dostarcza wizualną referencję dla **całego** MVP, nie tylko logowania. Każdy zaprojektowany ekran realizuje odpowiedni slice, używając systemu komponentów z **S-07**. Design nie jest osobną poziomą warstwą UI — poza S-07 (system + reskin auth) ekrany domenowe powstają w swoich slice'ach.
+
+| Ekran w designie                     | Realizuje slice                                  |
+| ------------------------------------ | ------------------------------------------------ |
+| Logowanie / Logowanie · desktop      | S-07 (reskin istniejących `signin`/`signup`)     |
+| Panel właściciela                    | S-04 (widok obsady okresu)                        |
+| Dodaj zwierzę + instrukcje           | S-01 (zwierzę + instrukcje public/sensitive)      |
+| Nowy wyjazd + link                   | S-02 (okres opieki + link zapraszający)           |
+| Kalendarz opiekuna (zapis na sloty)  | S-03 (opiekun zajmuje slot)                       |
+| Po zapisaniu · instrukcje            | S-03 (odsłonięcie wrażliwych instrukcji) / S-01   |
+
+System wizualny (z S-07): fonty **Quicksand** (nagłówki) + **Nunito** (tekst); akcent śliwkowo-różowy `#9C5470` (jasny) / `#E59AB6` (ciemny); tło ciepła biel `#FAF6F3` / ciemne `#211D24`; duże, miękkie zaokrąglenia i delikatne cienie; komponenty: input (z „Pokaż" dla hasła), przycisk primary/outline/Google, karta pupila z okrągłym slotem zdjęcia, element listy instrukcji (badge pory + tytuł + opis), callout wrażliwych danych, chip, nagłówek sekcji, panel-hero (desktop), baner sukcesu; pełne wsparcie trybu jasnego i ciemnego.
 
 ## Streams
 
@@ -45,6 +62,7 @@ Navigation aid — groups items that share a Prerequisites chain. Canonical orde
 | ------ | ------------------------------ | ------------------------------------------ | --------------------------------------------------------------------------------------- |
 | A      | Rdzeń: od zwierzęcia do zapisu | `F-01` → `S-01` → `S-02` → `S-03` → `S-04` | Ścieżka must-have; zawiera gwiazdę przewodnią `S-03`. Zgodna z celem `szybkość`.        |
 | B      | Dodatki (nice-to-have)         | `S-05` / `S-06`                            | `S-06` dołącza do Stream A przy `S-02`, `S-05` przy `S-03`; równoległe względem siebie. |
+| C      | UI / system wizualny           | `S-07`                                     | Bez prerekwizytów; powinien wylądować wcześnie (równolegle z/przed `S-01`), bo slice'y domenowe konsumują jego komponenty. Ekrany domenowe realizują swoje slice'y wg designu (zob. Design reference). |
 
 ## Baseline
 
@@ -149,6 +167,20 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Risk:** Nice-to-have; zależy tylko od istnienia okresu z linkiem (S-02), więc może iść równolegle do całej gałęzi opiekuna. Parkowany na koniec zgodnie z celem `szybkość`.
 - **Status:** proposed
 
+### S-07: Implementacja UI wg dostarczonego designu (system wizualny + reskin auth)
+
+- **Outcome:** aplikacja wygląda zgodnie z hi-fi designem — ustanowiony system wizualny (tokeny kolorów, fonty Quicksand/Nunito, zaokrąglenia, cienie, tryb jasny/ciemny) oraz zestaw bazowych komponentów (przycisk, input z „Pokaż" hasła, karta, chip, badge pory, callout wrażliwych danych, nagłówek sekcji, panel-hero, baner sukcesu). Istniejące ekrany logowania/rejestracji (`src/pages/auth/signin.astro`, `signup.astro`) są przeskórowane do designu. Ekrany domenowe (pupile, okresy, kalendarz opiekuna, panel właściciela) **nie** powstają tutaj — są realizowane w swoich slice'ach (S-01…S-04) przy użyciu tego systemu (zob. Design reference).
+- **Change ID:** ui-design-system
+- **PRD refs:** przekrojowo dla UI wszystkich FR (bez własnej reguły biznesowej); design: `context/design/Pupilownik Hi-fi.html`
+- **Prerequisites:** — (nie zależy od warstwy danych; dotyka istniejących ekranów auth)
+- **Parallel with:** S-01, S-02 (niezależny od danych; powinien wylądować wcześnie, by slice'y domenowe konsumowały komponenty)
+- **Blockers:** —
+- **Unknowns:**
+  - Wybór warstwy komponentów: rozbudować istniejące shadcn/ui (obecne w starterze) czy własne komponenty na Tailwind 4 tokenach? — Owner: team. Block: no (rozstrzygane w `/10x-plan`).
+  - Mechanizm trybu ciemnego (klasa `dark` Tailwind vs `prefers-color-scheme`) i czy jest w zakresie v1. — Owner: użytkownik. Block: no.
+- **Risk:** Poziomy, przekrojowy slice — ryzyko przeinwestowania w system komponentów zanim istnieją ekrany domenowe, oraz driftu między systemem a późniejszymi slice'ami. Trzymany minimalnie: tokeny + komponenty faktycznie użyte przez auth teraz, reszta dokładana przez slice'y domenowe wg designu. Nie blokuje ścieżki must-have (S-01→S-03), więc może iść równolegle, ale wcześnie daje spójny wygląd wszystkim kolejnym slice'om.
+- **Status:** proposed
+
 ## Backlog Handoff
 
 | Roadmap ID | Change ID                   | Suggested issue title                                           | Ready for `/10x-plan` | Notes                                   |
@@ -160,6 +192,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 | S-04       | owner-occupancy-view        | Widok obsady okresu dla właściciela                             | no                    | Po S-03                                 |
 | S-05       | caretaker-names-visibility  | Widoczność imion opiekunów w okresie                            | no                    | Nice-to-have; po S-03                   |
 | S-06       | close-care-period           | Zamknięcie/odwołanie okresu + unieważnienie linku               | no                    | Nice-to-have; po S-02                   |
+| S-07       | ui-design-system            | System wizualny wg hi-fi designu + reskin ekranów auth          | yes                   | Bez prerekwizytów; wcześnie, równolegle z S-01. `/10x-plan ui-design-system` |
 
 ## Open Roadmap Questions
 
