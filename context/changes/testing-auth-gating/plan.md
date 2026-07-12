@@ -227,12 +227,12 @@ None — additive test + harness + docs only; no schema or production-code chang
 
 #### Automated
 
-- [x] 2.1 All three gating cases pass: `npm test`
-- [x] 2.2 Existing RLS + smoke suites still pass: `npm test`
-- [x] 2.3 Linting passes: `npm run lint`
-- [x] 2.4 Type checking / build passes: `npm run build`
+- [x] 2.1 All three gating cases pass: `npm test` — 41c31c7
+- [x] 2.2 Existing RLS + smoke suites still pass: `npm test` — 41c31c7
+- [x] 2.3 Linting passes: `npm run lint` — 41c31c7
+- [x] 2.4 Type checking / build passes: `npm run build` — 41c31c7
 
 #### Manual
 
-- [x] 2.5 Breaking the gate makes the no-cookie test fail (then revert)
-- [x] 2.6 Valid-cookie case round-trips a chunked cookie
+- [x] 2.5 Breaking the gate makes the no-cookie test fail (then revert) — 41c31c7
+- [x] 2.6 Valid-cookie case round-trips a chunked cookie — 41c31c7
