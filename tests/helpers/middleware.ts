@@ -67,7 +67,13 @@ export async function runMiddleware(options: RunMiddlewareOptions): Promise<RunM
   };
 
   type MiddlewareArgs = Parameters<typeof onRequest>;
-  const response = await onRequest(context as unknown as MiddlewareArgs[0], next);
+  // Astro's MiddlewareHandler return type is `void | Response`; our middleware always
+  // returns a Response (a redirect, or next()'s response). Normalize so the result type
+  // stays Response and a stray void surfaces loudly instead of as a silent type hole.
+  const result = await onRequest(context as unknown as MiddlewareArgs[0], next);
+  if (!(result instanceof Response)) {
+    throw new Error("runMiddleware: onRequest did not return a Response");
+  }
 
-  return { response, nextCalled, locals };
+  return { response: result, nextCalled, locals };
 }

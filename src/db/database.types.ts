@@ -34,6 +34,74 @@ export type Database = {
   }
   public: {
     Tables: {
+      care_instructions: {
+        Row: {
+          body: string | null
+          created_at: string
+          id: string
+          is_sensitive: boolean
+          pet_id: string
+          sort_order: number
+          title: string
+        }
+        Insert: {
+          body?: string | null
+          created_at?: string
+          id?: string
+          is_sensitive?: boolean
+          pet_id: string
+          sort_order?: number
+          title: string
+        }
+        Update: {
+          body?: string | null
+          created_at?: string
+          id?: string
+          is_sensitive?: boolean
+          pet_id?: string
+          sort_order?: number
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "care_instructions_pet_id_fkey"
+            columns: ["pet_id"]
+            isOneToOne: false
+            referencedRelation: "pets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pets: {
+        Row: {
+          age: string | null
+          breed: string | null
+          created_at: string
+          id: string
+          name: string
+          owner_id: string
+          species: Database["public"]["Enums"]["pet_species"]
+        }
+        Insert: {
+          age?: string | null
+          breed?: string | null
+          created_at?: string
+          id?: string
+          name: string
+          owner_id: string
+          species: Database["public"]["Enums"]["pet_species"]
+        }
+        Update: {
+          age?: string | null
+          breed?: string | null
+          created_at?: string
+          id?: string
+          name?: string
+          owner_id?: string
+          species?: Database["public"]["Enums"]["pet_species"]
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
@@ -54,10 +122,33 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      create_pet_with_instructions: {
+        Args: {
+          p_age: string
+          p_breed: string
+          p_instructions: Json
+          p_name: string
+          p_species: Database["public"]["Enums"]["pet_species"]
+        }
+        Returns: {
+          age: string | null
+          breed: string | null
+          created_at: string
+          id: string
+          name: string
+          owner_id: string
+          species: Database["public"]["Enums"]["pet_species"]
+        }
+        SetofOptions: {
+          from: "*"
+          to: "pets"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
     }
     Enums: {
-      [_ in never]: never
+      pet_species: "dog" | "cat" | "other"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -187,7 +278,9 @@ export const Constants = {
     Enums: {},
   },
   public: {
-    Enums: {},
+    Enums: {
+      pet_species: ["dog", "cat", "other"],
+    },
   },
 } as const
 

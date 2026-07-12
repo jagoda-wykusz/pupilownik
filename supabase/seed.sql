@@ -35,3 +35,28 @@ values (
   now(), now(), now()
 )
 on conflict (provider_id, provider) do nothing;
+
+-- S-01: one pet + two instructions (one public, one sensitive) for the test owner, so
+-- `db:reset` gives a stable pet to log in and see, and the manual two-owner RLS check
+-- has cross-tenant data. Fixed UUIDs keep reset idempotent.
+insert into public.pets (id, owner_id, name, species, breed, age)
+values (
+  '44444444-4444-4444-4444-444444444444',
+  '33333333-3333-3333-3333-333333333333',
+  'Burek', 'dog', 'labrador', '4 lata'
+)
+on conflict (id) do nothing;
+
+insert into public.care_instructions (id, pet_id, title, body, is_sensitive, sort_order)
+values
+  (
+    '55555555-5555-5555-5555-555555555551',
+    '44444444-4444-4444-4444-444444444444',
+    'Karmienie', '1 miarka suchej karmy i świeża woda — rano i wieczorem.', false, 0
+  ),
+  (
+    '55555555-5555-5555-5555-555555555552',
+    '44444444-4444-4444-4444-444444444444',
+    'Klucze i kontakt', 'Klucze u sąsiadki, mieszkanie 4. Telefon: 600 100 200.', true, 1
+  )
+on conflict (id) do nothing;
