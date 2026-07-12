@@ -18,6 +18,11 @@ export default defineConfig({
     alias: {
       // Mirror the tsconfig path alias so tests can import from "@/..." if needed.
       "@": path.resolve(import.meta.dirname, "./src"),
+      // Resolve Astro's build-only virtual modules to honest test shims so the
+      // real middleware + Supabase client can be imported in pure-Node tests.
+      // These never mock auth — getUser() still runs against the local stack.
+      "astro:env/server": path.resolve(import.meta.dirname, "./tests/shims/astro-env-server.ts"),
+      "astro:middleware": path.resolve(import.meta.dirname, "./tests/shims/astro-middleware.ts"),
     },
   },
 });
