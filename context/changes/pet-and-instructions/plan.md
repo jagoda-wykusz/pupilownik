@@ -295,17 +295,17 @@ None material at MVP scale (medium users, low QPS). RLS predicates are index-bac
 
 #### Automated
 
-- [x] 1.1 Migration applies cleanly from scratch: `npm run db:reset` exits 0
-- [x] 1.2 Security advisors clean: `npx supabase db advisors --type security`
-- [x] 1.3 Types regenerate non-empty and typecheck: `npm run db:gen-types` then `npx astro check`
-- [x] 1.4 RLS isolation tests pass: `npm test`
-- [x] 1.5 Lint passes: `npm run lint`
+- [x] 1.1 Migration applies cleanly from scratch: `npm run db:reset` exits 0 — 42c0169
+- [x] 1.2 Security advisors clean: `npx supabase db advisors --type security` — 42c0169
+- [x] 1.3 Types regenerate non-empty and typecheck: `npm run db:gen-types` then `npx astro check` — 42c0169
+- [x] 1.4 RLS isolation tests pass: `npm test` — 42c0169
+- [x] 1.5 Lint passes: `npm run lint` — 42c0169
 
 #### Manual
 
-- [x] 1.6 Studio shows RLS enabled + four policies on each table
-- [x] 1.7 Two-owner check: A sees only A's pets/instructions; B's invisible
-- [x] 1.8 `create_pet_with_instructions` inserts atomically (failing instruction rolls back the pet)
+- [x] 1.6 Studio shows RLS enabled + four policies on each table — 42c0169
+- [x] 1.7 Two-owner check: A sees only A's pets/instructions; B's invisible — 42c0169
+- [x] 1.8 `create_pet_with_instructions` inserts atomically (failing instruction rolls back the pet) — 42c0169
 
 ### Phase 2: Validated API endpoint
 
