@@ -35,6 +35,10 @@ if (supabase) {
     // In the no-error branch PostgREST's discriminated response types data as non-null.
     pets = data;
   }
+} else {
+  // A null client means Supabase is unconfigured — surface it as an error rather
+  // than an empty list, so a misconfiguration doesn't masquerade as "no pets".
+  loadError = true;
 }
 
 const SPECIES_LABEL: Record<string, string> = { dog: "Pies", cat: "Kot", other: "Inne" };

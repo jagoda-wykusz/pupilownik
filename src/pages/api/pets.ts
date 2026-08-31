@@ -42,7 +42,10 @@ export const POST: APIRoute = async (context) => {
   });
 
   if (error) {
-    return jsonResponse({ error: error.message }, 500);
+    // Log the internal DB/constraint detail server-side; return a generic message
+    // so RLS/constraint internals never leak to the client.
+    console.error("create_pet_with_instructions failed:", error);
+    return jsonResponse({ error: "Nie udało się zapisać zwierzęcia" }, 500);
   }
 
   return jsonResponse({ pet: data }, 201);

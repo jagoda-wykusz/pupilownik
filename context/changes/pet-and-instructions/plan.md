@@ -287,6 +287,22 @@ None material at MVP scale (medium users, low QPS). RLS predicates are index-bac
 - Auth API + island patterns: `src/pages/api/auth/signin.ts`, `src/components/auth/SignInForm.tsx`
 - Design reference (visual target, reskin in S-07): `context/design/Pupilownik Hi-fi.html` ("Dodaj zwierzę + instrukcje")
 
+## Implementation Addenda
+
+Discovered during implementation, beyond the original contract:
+
+- **Seed hardening (P2, `dbbb46e`)**: the hand-seeded `auth.users` row was missing GoTrue
+  token columns (`confirmation_token`, `recovery_token`, `email_change*`, `phone_change*`,
+  `reauthentication_token`), causing "Database error querying schema" on the seed owner's
+  sign-in. `supabase/seed.sql` now sets them to `''`. Latent F-01 defect surfaced by S-01's
+  first app sign-in.
+- **RPC execute grants (post-review)**: added a follow-up migration revoking `execute` on
+  `create_pet_with_instructions` from `public` and granting it to `authenticated`, matching
+  the F-01 least-privilege posture (the function is `security invoker`, so this is defense in
+  depth, not a fix for an exploitable hole).
+- **Input bounds (post-review)**: `createPetSchema` gained `.max()` caps (instructions ≤ 50;
+  string length limits) to bound the atomic bulk insert.
+
 ## Progress
 
 > Convention: `- [ ]` pending, `- [x]` done. Append ` — <commit sha>` when a step lands. Do not rename step titles. See `references/progress-format.md`.
