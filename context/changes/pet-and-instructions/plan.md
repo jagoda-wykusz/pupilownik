@@ -325,14 +325,14 @@ None material at MVP scale (medium users, low QPS). RLS predicates are index-bac
 
 #### Automated
 
-- [x] 3.1 Type checking passes: `npx astro check`
-- [x] 3.2 Lint passes: `npm run lint`
-- [x] 3.3 Build passes: `npm run build`
-- [x] 3.4 Full test suite still green: `npm test`
+- [x] 3.1 Type checking passes: `npx astro check` — ee31786
+- [x] 3.2 Lint passes: `npm run lint` — ee31786
+- [x] 3.3 Build passes: `npm run build` — ee31786
+- [x] 3.4 Full test suite still green: `npm test` — ee31786
 
 #### Manual
 
-- [x] 3.5 Add a pet with 2 instructions (one sensitive) → redirected to `/pets`, pet visible with correct fields
-- [x] 3.6 Sensitive instruction stored with `is_sensitive = true`
-- [x] 3.7 Logged out → `/pets` and `/pets/new` redirect to `/auth/signin`
-- [x] 3.8 A second owner does not see the first owner's pets
+- [x] 3.5 Add a pet with 2 instructions (one sensitive) → redirected to `/pets`, pet visible with correct fields — ee31786
+- [x] 3.6 Sensitive instruction stored with `is_sensitive = true` — ee31786
+- [x] 3.7 Logged out → `/pets` and `/pets/new` redirect to `/auth/signin` — ee31786
+- [x] 3.8 A second owner does not see the first owner's pets — ee31786
