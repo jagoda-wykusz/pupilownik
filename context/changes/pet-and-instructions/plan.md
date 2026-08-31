@@ -311,15 +311,15 @@ None material at MVP scale (medium users, low QPS). RLS predicates are index-bac
 
 #### Automated
 
-- [ ] 2.1 Type checking passes: `npx astro check`
-- [ ] 2.2 Lint passes: `npm run lint`
-- [ ] 2.3 API tests pass (zod rejection + happy-path insert side-effect): `npm test`
-- [ ] 2.4 Build passes: `npm run build`
+- [x] 2.1 Type checking passes: `npx astro check`
+- [x] 2.2 Lint passes: `npm run lint`
+- [x] 2.3 API tests pass (zod rejection + happy-path insert side-effect): `npm test`
+- [x] 2.4 Build passes: `npm run build`
 
 #### Manual
 
-- [ ] 2.5 Malformed payload → 400, DB unchanged
-- [ ] 2.6 Valid payload → 201, pet + instructions appear for the owner
+- [x] 2.5 Malformed payload → 400, DB unchanged
+- [x] 2.6 Valid payload → 201, pet + instructions appear for the owner
 
 ### Phase 3: Add-pet form & pet list UI
 

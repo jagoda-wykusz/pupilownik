@@ -9,7 +9,13 @@
 insert into auth.users (
   instance_id, id, aud, role, email, encrypted_password,
   email_confirmed_at, created_at, updated_at,
-  raw_app_meta_data, raw_user_meta_data
+  raw_app_meta_data, raw_user_meta_data,
+  -- GoTrue scans these token columns into non-nullable Go strings; a hand-seeded
+  -- row must set them to '' (not NULL) or sign-in fails with
+  -- "Database error querying schema". signUp-created users get these defaults for free.
+  confirmation_token, recovery_token,
+  email_change, email_change_token_new, email_change_token_current,
+  phone_change, phone_change_token, reauthentication_token
 )
 values (
   '00000000-0000-0000-0000-000000000000',
@@ -19,7 +25,8 @@ values (
   crypt('password123', gen_salt('bf')),
   now(), now(), now(),
   '{"provider":"email","providers":["email"]}',
-  '{}'
+  '{}',
+  '', '', '', '', '', '', '', ''
 )
 on conflict (id) do nothing;
 

@@ -1,5 +1,5 @@
 import { createServerClient } from "@supabase/ssr";
-import { createOwnerClient } from "./auth";
+import { createOwnerClient, type OwnerContext } from "./auth";
 import { getTestEnv } from "../setup";
 
 // Session-cookie helpers for the auth-gating suite.
@@ -25,11 +25,11 @@ export interface AuthenticatedCookie {
   email: string;
 }
 
-// Mint a fresh owner and return the Cookie header a browser would send after
-// signing them in — the genuine (possibly chunked) sb-<host>-auth-token that the
-// middleware's getUser() will validate against the local stack.
-export async function createAuthenticatedCookieHeader(): Promise<AuthenticatedCookie> {
-  const { userId, email, password } = await createOwnerClient();
+// Sign the given credentials in through a real @supabase/ssr server client and
+// return the Cookie header a browser would send afterwards — the genuine
+// (possibly chunked) sb-<host>-auth-token that a server getUser() validates
+// against the local stack.
+async function mintCookieHeader(email: string, password: string): Promise<string> {
   const { url, anonKey } = getTestEnv();
 
   // In-memory cookie jar mirroring src/lib/supabase.ts's getAll/setAll. The ssr
@@ -55,15 +55,33 @@ export async function createAuthenticatedCookieHeader(): Promise<AuthenticatedCo
 
   const { error } = await client.auth.signInWithPassword({ email, password });
   if (error) {
-    throw new Error(`createAuthenticatedCookieHeader: signIn failed for ${email}: ${error.message}`);
+    throw new Error(`mintCookieHeader: signIn failed for ${email}: ${error.message}`);
   }
   if (jar.size === 0) {
     throw new Error(
-      "createAuthenticatedCookieHeader: no session cookies captured after signIn — did @supabase/ssr stop flushing on SIGNED_IN?",
+      "mintCookieHeader: no session cookies captured after signIn — did @supabase/ssr stop flushing on SIGNED_IN?",
     );
   }
 
-  return { cookieHeader: serializeJar(jar), userId, email };
+  return serializeJar(jar);
+}
+
+// Mint a fresh owner and return the Cookie header a browser would send after
+// signing them in — the genuine (possibly chunked) sb-<host>-auth-token that the
+// middleware's getUser() will validate against the local stack.
+export async function createAuthenticatedCookieHeader(): Promise<AuthenticatedCookie> {
+  const { userId, email, password } = await createOwnerClient();
+  const cookieHeader = await mintCookieHeader(email, password);
+  return { cookieHeader, userId, email };
+}
+
+// Like createAuthenticatedCookieHeader, but also returns the owner's anon-keyed
+// client so a test can drive an authenticated route AND verify its DB side-effect
+// as the SAME owner (a follow-up query under that owner's RLS).
+export async function createAuthenticatedOwner(): Promise<{ cookieHeader: string; owner: OwnerContext }> {
+  const owner = await createOwnerClient();
+  const cookieHeader = await mintCookieHeader(owner.email, owner.password);
+  return { cookieHeader, owner };
 }
 
 // A structurally-valid session cookie whose access token will never validate
