@@ -1,0 +1,21 @@
+---
+import Layout from "@/layouts/Layout.astro";
+import AddPetForm from "@/components/pets/AddPetForm";
+
+// Protected by middleware (PROTECTED_ROUTES includes "/pets"): an unauthenticated
+// request is redirected to /auth/signin before this frontmatter runs.
+---
+
+<Layout title="Dodaj zwierzę">
+  <div class="bg-cosmic flex min-h-screen items-start justify-center p-4">
+    <div class="mt-10 w-full max-w-lg rounded-2xl border border-white/10 bg-white/10 p-8 text-white backdrop-blur-xl">
+      <div class="mb-6 flex items-center justify-between">
+        <h1 class="bg-gradient-to-r from-blue-200 to-purple-200 bg-clip-text text-2xl font-bold text-transparent">
+          Dodaj zwierzę
+        </h1>
+        <a href="/pets" class="text-sm text-purple-300 hover:underline">← Moje zwierzęta</a>
+      </div>
+      <AddPetForm client:load />
+    </div>
+  </div>
+</Layout>

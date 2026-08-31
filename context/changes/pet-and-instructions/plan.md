@@ -311,28 +311,28 @@ None material at MVP scale (medium users, low QPS). RLS predicates are index-bac
 
 #### Automated
 
-- [x] 2.1 Type checking passes: `npx astro check`
-- [x] 2.2 Lint passes: `npm run lint`
-- [x] 2.3 API tests pass (zod rejection + happy-path insert side-effect): `npm test`
-- [x] 2.4 Build passes: `npm run build`
+- [x] 2.1 Type checking passes: `npx astro check` — dbbb46e
+- [x] 2.2 Lint passes: `npm run lint` — dbbb46e
+- [x] 2.3 API tests pass (zod rejection + happy-path insert side-effect): `npm test` — dbbb46e
+- [x] 2.4 Build passes: `npm run build` — dbbb46e
 
 #### Manual
 
-- [x] 2.5 Malformed payload → 400, DB unchanged
-- [x] 2.6 Valid payload → 201, pet + instructions appear for the owner
+- [x] 2.5 Malformed payload → 400, DB unchanged — dbbb46e
+- [x] 2.6 Valid payload → 201, pet + instructions appear for the owner — dbbb46e
 
 ### Phase 3: Add-pet form & pet list UI
 
 #### Automated
 
-- [ ] 3.1 Type checking passes: `npx astro check`
-- [ ] 3.2 Lint passes: `npm run lint`
-- [ ] 3.3 Build passes: `npm run build`
-- [ ] 3.4 Full test suite still green: `npm test`
+- [x] 3.1 Type checking passes: `npx astro check`
+- [x] 3.2 Lint passes: `npm run lint`
+- [x] 3.3 Build passes: `npm run build`
+- [x] 3.4 Full test suite still green: `npm test`
 
 #### Manual
 
-- [ ] 3.5 Add a pet with 2 instructions (one sensitive) → redirected to `/pets`, pet visible with correct fields
-- [ ] 3.6 Sensitive instruction stored with `is_sensitive = true`
-- [ ] 3.7 Logged out → `/pets` and `/pets/new` redirect to `/auth/signin`
-- [ ] 3.8 A second owner does not see the first owner's pets
+- [x] 3.5 Add a pet with 2 instructions (one sensitive) → redirected to `/pets`, pet visible with correct fields
+- [x] 3.6 Sensitive instruction stored with `is_sensitive = true`
+- [x] 3.7 Logged out → `/pets` and `/pets/new` redirect to `/auth/signin`
+- [x] 3.8 A second owner does not see the first owner's pets

@@ -3,7 +3,7 @@ change_id: pet-and-instructions
 title: Właściciel definiuje zwierzę z instrukcjami (S-01)
 status: implementing
 created: 2026-07-12
-updated: 2026-07-12
+updated: 2026-08-31
 ---
 
 ## Notes
