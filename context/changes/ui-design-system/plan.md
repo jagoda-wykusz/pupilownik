@@ -441,6 +441,44 @@ so 1.5/1.6 are not visible by simply loading a page. They were verified by remov
 the `bg-cosmic` class in DevTools and reading `getComputedStyle(document.body)`.
 From Phase 3 the auth screens no longer need this workaround.
 
+### Phase 2 — component list corrected against the design
+
+The plan listed `Card.tsx`, `SectionHeading.tsx` and `Divider.tsx`. Reading the
+artboards showed none of them exist on the auth screen: the form sits directly on a
+radial glow (`radial-gradient(120% 70% at 50% -8%, #F8E3EC 0%, #FAF6F3 46%)`) with no
+card — the 36px-radius container is the phone-frame mockup, and the white 20px card is
+the pet card (domain, S-01). `SectionHeading` belongs to a domain screen. `Divider`
+only separated the primary button from "Kontynuuj z Google", which this slice cut.
+
+Built instead, agreed with the user: `AuthScreen.astro` (the themed gradient ground)
+and `ScreenHeading.astro` (the 30px Quicksand greeting + subtitle). Divider dropped
+with no replacement. Same count, different composition — the principle held was: build
+only what a real screen consumes.
+
+### Phase 2 — primary button: glow replaced by a hover colour
+
+The design gives the primary button a tinted drop-shadow. Dropped on the user's
+request in favour of a flat fill that changes colour on hover.
+
+The first attempt mixed `--primary` toward `--foreground` with one shared formula. It
+failed in dark mode, and instructively: there the accent is a light pink and the
+foreground is near-white, so every mix between them lands within a few points per
+channel — invisible. Replaced with a per-theme `--primary-hover` token, which also lets
+dark move *lighter* (away from its dark ground) while light and contrast move darker.
+
+### Phase 2 — ThemeToggle reads the DOM, not mirrored state
+
+`useEffect` + `setState` to sync the applied theme tripped `react-hooks/set-state-in-effect`.
+Rewritten on `useSyncExternalStore`, which keeps the class on `<html>` as the single
+source of truth and fixed a real bug on the way: with no cookie set, changing the OS
+theme with the page open used to leave the button's label stale.
+
+### Phase 2 — manual verification used a throwaway preview route
+
+Nothing consumes these components until Phase 3, so 2.5-2.7 were checked on a temporary
+`/preview-tmp` route rendering all of them. Deleted before this commit; it must not
+appear in the diff.
+
 ## Progress
 
 > Convention: `- [ ]` pending, `- [x]` done. Append ` — <commit sha>` when a step lands. Do not rename step titles. See `references/progress-format.md`.
@@ -449,31 +487,31 @@ From Phase 3 the auth screens no longer need this workaround.
 
 #### Automated
 
-- [x] 1.1 Unit project runs with the Supabase stack down: `npx vitest run --project unit`
-- [x] 1.2 Full suite still passes with the stack up: `npm test`
-- [x] 1.3 Linting passes: `npm run lint`
-- [x] 1.4 Build passes and fonts are emitted: `npm run build`
+- [x] 1.1 Unit project runs with the Supabase stack down: `npx vitest run --project unit` — 6d99cd8
+- [x] 1.2 Full suite still passes with the stack up: `npm test` — 6d99cd8
+- [x] 1.3 Linting passes: `npm run lint` — 6d99cd8
+- [x] 1.4 Build passes and fonts are emitted: `npm run build` — 6d99cd8
 
 #### Manual
 
-- [x] 1.5 Each cookie value renders its palette on first paint, no flash
-- [x] 1.6 With no cookie, the OS dark-mode setting switches the app
-- [x] 1.7 Polish diacritics render in both families, not a fallback face
+- [x] 1.5 Each cookie value renders its palette on first paint, no flash — 6d99cd8
+- [x] 1.6 With no cookie, the OS dark-mode setting switches the app — 6d99cd8
+- [x] 1.7 Polish diacritics render in both families, not a fallback face — 6d99cd8
 
 ### Phase 2: Base component layer
 
 #### Automated
 
-- [ ] 2.1 Type checking passes: `npx astro check`
-- [ ] 2.2 Linting passes: `npm run lint`
-- [ ] 2.3 Build passes: `npm run build`
-- [ ] 2.4 Full suite still green: `npm test`
+- [x] 2.1 Type checking passes: `npx astro check`
+- [x] 2.2 Linting passes: `npm run lint`
+- [x] 2.3 Build passes: `npm run build`
+- [x] 2.4 Full suite still green: `npm test`
 
 #### Manual
 
-- [ ] 2.5 Each component matches the design at mobile width in all three themes
-- [ ] 2.6 Reveal toggle shows/hides the password and does not submit the form
-- [ ] 2.7 Keyboard-only reachable; focus ring visible on all three grounds
+- [x] 2.5 Each component matches the design at mobile width in all three themes
+- [x] 2.6 Reveal toggle shows/hides the password and does not submit the form
+- [x] 2.7 Keyboard-only reachable; focus ring visible on all three grounds
 
 ### Phase 3: Auth reskin & shared chrome
 

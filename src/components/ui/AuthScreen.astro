@@ -1,0 +1,25 @@
+---
+// The ground the auth screens sit on. The design has no card here — the form
+// floats directly on a warm radial glow that fades into the page background,
+// and the only white surfaces are the inputs themselves.
+//
+// Both stops are theme tokens, so the glow follows the palette: warm pink in
+// light, plum-brown in dark, and flat in high contrast (where --auth-glow equals
+// --background, collapsing the gradient rather than softening an edge that mode
+// exists to keep hard).
+
+interface Props {
+  class?: string;
+}
+
+const { class: className } = Astro.props;
+---
+
+<div
+  class:list={["flex min-h-screen flex-col items-center justify-center px-5 py-10", className]}
+  style="background-image: radial-gradient(120% 70% at 50% -8%, var(--auth-glow) 0%, var(--background) 46%);"
+>
+  <div class="w-full max-w-sm">
+    <slot />
+  </div>
+</div>

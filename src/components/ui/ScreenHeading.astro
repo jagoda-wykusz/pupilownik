@@ -1,0 +1,30 @@
+---
+// The design's screen-opening heading: a large Quicksand greeting over a muted
+// Nunito line explaining what the screen is for. Distinct from a section heading
+// (which the domain screens use) — this one opens a screen and appears once.
+
+interface Props {
+  title: string;
+  subtitle?: string;
+  /** Optional second line of the title, so "Cześć!" and "Miło Cię znów widzieć"
+   *  break exactly where the design breaks them rather than wherever the box ends. */
+  titleSecondLine?: string;
+}
+
+const { title, subtitle, titleSecondLine } = Astro.props;
+---
+
+<div class="mb-7">
+  <h1 class="font-heading text-foreground text-[30px] leading-[1.15] font-bold">
+    {title}
+    {
+      titleSecondLine && (
+        <>
+          <br />
+          {titleSecondLine}
+        </>
+      )
+    }
+  </h1>
+  {subtitle && <p class="text-muted-foreground mt-2 text-[15px]">{subtitle}</p>}
+</div>

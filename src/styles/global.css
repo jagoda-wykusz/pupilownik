@@ -33,6 +33,13 @@
   --border: #ecdfe5;
   --input: #ecdfe5;
   --ring: #9c5470;
+  /* Hover fill for the primary button. A per-theme token rather than one shared
+     formula: in dark mode --primary and --foreground are both light, so mixing
+     between them barely moves, and each theme needs its own direction of travel. */
+  --primary-hover: #7d475e;
+  /* Warm glow behind the auth screen. The design paints it as a radial gradient
+     fading into --background; high contrast flattens it to nothing on purpose. */
+  --auth-glow: #f8e3ec;
 
   /* The design defines no error colour. Rather than invent one, keep the value
      the project already shipped with. Revisit when a design covers error states. */
@@ -58,6 +65,10 @@
   --border: #443e49;
   --input: #443e49;
   --ring: #e59ab6;
+  /* Lighter, not darker: the ground here is dark, so moving toward white is what
+     reads as raised. */
+  --primary-hover: #efc2d3;
+  --auth-glow: #3a2a33;
 
   --destructive: oklch(0.704 0.191 22.216);
 }
@@ -83,6 +94,9 @@
   --border: #000000;
   --input: #000000;
   --ring: #8a0f49;
+  --primary-hover: #5a0a30;
+  /* Flat: a gradient would soften the edge this mode exists to keep hard. */
+  --auth-glow: #ffffff;
 }
 
 /* The server cannot read prefers-color-scheme, so a visitor who has never
@@ -109,6 +123,8 @@
     --border: #443e49;
     --input: #443e49;
     --ring: #e59ab6;
+    --primary-hover: #efc2d3;
+    --auth-glow: #3a2a33;
 
     --destructive: oklch(0.704 0.191 22.216);
   }
