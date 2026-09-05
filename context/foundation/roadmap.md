@@ -107,14 +107,14 @@ Foundations below assume these are present and do NOT re-scaffold them.
 
 ### S-02: Właściciel tworzy okres opieki ze slotami i generuje link
 
-- **Outcome:** właściciel może utworzyć okres opieki (zakres dat), który generuje sloty per pora dnia (np. rano/wieczór) dla każdego dnia, oraz wygenerować link zapraszający prowadzący wyłącznie do tego okresu.
+- **Outcome:** właściciel może utworzyć okres opieki (zakres dat), który generuje sloty per pora dnia (rano / popołudnie / wieczór) dla każdego dnia, oraz wygenerować link zapraszający prowadzący wyłącznie do tego okresu.
 - **Change ID:** care-period-and-invite-link
 - **PRD refs:** FR-004, FR-005, US-01 (część)
 - **Prerequisites:** S-01
 - **Parallel with:** —
 - **Blockers:** —
 - **Unknowns:**
-  - Granularność/zakres pór dnia — stały zestaw (rano/wieczór) czy konfigurowalny przez właściciela na v1? — Owner: użytkownik. Block: no.
+  - ~~Granularność/zakres pór dnia~~ — ROZSTRZYGNIĘTE 2026-09-06 przez użytkownika: **stały zestaw trzech pór — rano, popołudnie, wieczór.** Nie konfigurowalny w v1. Uwaga: wcześniejsza treść tego punktu zakładała dwie pory (rano/wieczór); są trzy, co zmienia liczbę slotów generowanych na dzień.
 - **Risk:** Wprowadza model dostępu przez nieodgadywalny token linku (bez konta opiekuna) — kontrakt, na którym opiera się guardrail „dostęp tylko dla osób z linku". Sloty generowane z zakresu dat × pory dnia muszą być deterministyczne, by S-03 mógł je bezpiecznie zajmować.
 - **Status:** proposed
 
