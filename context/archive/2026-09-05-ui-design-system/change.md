@@ -1,10 +1,10 @@
 ---
 change_id: ui-design-system
 title: System wizualny wg hi-fi designu + reskin ekranów auth (S-07)
-status: impl_reviewed
+status: archived
 created: 2026-09-05
 updated: 2026-09-06
-archived_at: null
+archived_at: 2026-09-06T00:55:00Z
 ---
 
 ## Notes

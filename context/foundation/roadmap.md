@@ -3,7 +3,7 @@ project: "Pupilownik"
 version: 1
 status: draft
 created: 2026-06-27
-updated: 2026-09-05
+updated: 2026-09-06
 prd_version: 1
 design_ref: "context/design/Pupilownik Hi-fi.html"
 main_goal: speed
@@ -37,7 +37,7 @@ Pupilownik pozwala właścicielowi zwierząt rozłożyć opiekę na okres nieobe
 | S-04 | owner-occupancy-view        | właściciel widzi pełną obsadę okresu — kto zajął którą porę      | S-03          | FR-006, US-01                 | proposed |
 | S-05 | caretaker-names-visibility  | opiekun widzi imiona innych opiekunów w obrębie okresu           | S-03          | FR-011                        | proposed |
 | S-06 | close-care-period           | właściciel zamyka/odwołuje okres i unieważnia link               | S-02          | FR-012                        | proposed |
-| S-07 | ui-design-system            | aplikacja wygląda wg hi-fi designu — system wizualny + reskin auth | —             | (UI wszystkich FR)            | proposed |
+| S-07 | ui-design-system            | aplikacja wygląda wg hi-fi designu — system wizualny + reskin auth | —             | (UI wszystkich FR)            | done     |
 
 ## Design reference
 
@@ -179,7 +179,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
   - Wybór warstwy komponentów: rozbudować istniejące shadcn/ui (obecne w starterze) czy własne komponenty na Tailwind 4 tokenach? — Owner: team. Block: no (rozstrzygane w `/10x-plan`).
   - Mechanizm trybu ciemnego (klasa `dark` Tailwind vs `prefers-color-scheme`) i czy jest w zakresie v1. — Owner: użytkownik. Block: no.
 - **Risk:** Poziomy, przekrojowy slice — ryzyko przeinwestowania w system komponentów zanim istnieją ekrany domenowe, oraz driftu między systemem a późniejszymi slice'ami. Trzymany minimalnie: tokeny + komponenty faktycznie użyte przez auth teraz, reszta dokładana przez slice'y domenowe wg designu. Nie blokuje ścieżki must-have (S-01→S-03), więc może iść równolegle, ale wcześnie daje spójny wygląd wszystkim kolejnym slice'om.
-- **Status:** proposed
+- **Status:** done
 
 ## Backlog Handoff
 
@@ -212,3 +212,4 @@ Foundations below assume these are present and do NOT re-scaffold them.
 
 - **F-01: (foundation) ustalony bezpieczny wzorzec persystencji: działający przepływ migracji Supabase, polityki Row-Level Security izolujące dane do właściciela-właściciela oraz typowany helper zapytań. Nie tworzy jeszcze tabel domenowych — ustanawia kontrakt „jak bezpiecznie dotykamy danych".** — Archived 2026-06-27 → `context/archive/2026-06-27-owner-data-rls-baseline/`. Lesson: —.
 - **S-01: zalogowany właściciel może dodać zwierzę (nazwa, gatunek / podstawowe dane) i zapisać instrukcje opieki jako wolny tekst z podziałem na część publiczną i część wrażliwą (odsłanianą później).** — Archived 2026-09-05 → `context/archive/2026-07-12-pet-and-instructions/`. Lesson: —.
+- **S-07: aplikacja wygląda zgodnie z hi-fi designem — ustanowiony system wizualny (tokeny kolorów, fonty Quicksand/Nunito, zaokrąglenia, cienie, tryb jasny/ciemny) oraz zestaw bazowych komponentów (przycisk, input z „Pokaż" hasła, karta, chip, badge pory, callout wrażliwych danych, nagłówek sekcji, panel-hero, baner sukcesu). Istniejące ekrany logowania/rejestracji (`src/pages/auth/signin.astro`, `signup.astro`) są przeskórowane do designu. Ekrany domenowe (pupile, okresy, kalendarz opiekuna, panel właściciela) **nie** powstają tutaj — są realizowane w swoich slice'ach (S-01…S-04) przy użyciu tego systemu (zob. Design reference).** — Archived 2026-09-06 → `context/archive/2026-09-05-ui-design-system/`. Lesson: „Wylicz konsumentów, zanim zmienisz coś współdzielonego" (`context/foundation/lessons.md`).
