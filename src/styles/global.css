@@ -1,82 +1,131 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/* Theme variants. `dark` and `contrast` are explicit classes stamped on <html>
+   during SSR by src/layouts/Layout.astro. Without a stamped class the bare
+   :root palette (light) applies, and the prefers-color-scheme block below can
+   take over — see the note on that block. */
 @custom-variant dark (&:is(.dark *));
+@custom-variant contrast (&:is(.contrast *));
 
+/* Palette source of truth: context/design/Pupilownik Hi-fi.html.
+   Values are the design's own hex, kept verbatim rather than converted, so a
+   colour can be traced back to the artboard it came from. Variable NAMES stay
+   shadcn's, so src/components/ui/button.tsx and any future `shadcn add` inherit
+   the design without knowing about it. */
 :root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  --radius: 1rem;
+
+  --background: #faf6f3;
+  --foreground: #2c2530;
+  --card: #ffffff;
+  --card-foreground: #2c2530;
+  --popover: #ffffff;
+  --popover-foreground: #2c2530;
+  --primary: #9c5470;
+  --primary-foreground: #ffffff;
+  --secondary: #f6eaef;
+  --secondary-foreground: #9c5470;
+  --muted: #f6eaef;
+  --muted-foreground: #8a8089;
+  --accent: #f6eaef;
+  --accent-foreground: #9c5470;
+  --border: #ecdfe5;
+  --input: #ecdfe5;
+  --ring: #9c5470;
+
+  /* The design defines no error colour. Rather than invent one, keep the value
+     the project already shipped with. Revisit when a design covers error states. */
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  --background: #211d24;
+  --foreground: #f2ecf0;
+  --card: #2c2832;
+  --card-foreground: #f2ecf0;
+  --popover: #2c2832;
+  --popover-foreground: #f2ecf0;
+  --primary: #e59ab6;
+  /* The dark accent is a light pink, so its label flips to the dark ground. */
+  --primary-foreground: #2a1f26;
+  --secondary: #3a2a33;
+  --secondary-foreground: #e59ab6;
+  --muted: #3a2a33;
+  --muted-foreground: #a79da4;
+  --accent: #3a2a33;
+  --accent-foreground: #e59ab6;
+  --border: #443e49;
+  --input: #443e49;
+  --ring: #e59ab6;
+
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+}
+
+/* High-contrast mode: pure black on pure white, deeper accent. It shares the
+   light mode's white ground, so --destructive is deliberately not redefined —
+   the :root value is already correct against this background. */
+.contrast {
+  --background: #ffffff;
+  --foreground: #000000;
+  --card: #ffffff;
+  --card-foreground: #000000;
+  --popover: #ffffff;
+  --popover-foreground: #000000;
+  --primary: #8a0f49;
+  --primary-foreground: #ffffff;
+  --secondary: #efe6ea;
+  --secondary-foreground: #8a0f49;
+  --muted: #efe6ea;
+  --muted-foreground: #2c2530;
+  --accent: #efe6ea;
+  --accent-foreground: #8a0f49;
+  --border: #000000;
+  --input: #000000;
+  --ring: #8a0f49;
+}
+
+/* The server cannot read prefers-color-scheme, so a visitor who has never
+   chosen a theme reaches us with no class on <html>. This block is the only
+   place the OS preference is honoured — and it is scoped so an EXPLICIT choice
+   always wins. Dropping the :not() guards would give a user who picked light on
+   a dark-mode machine a dark app. */
+@media (prefers-color-scheme: dark) {
+  :root:not(.light):not(.dark):not(.contrast) {
+    --background: #211d24;
+    --foreground: #f2ecf0;
+    --card: #2c2832;
+    --card-foreground: #f2ecf0;
+    --popover: #2c2832;
+    --popover-foreground: #f2ecf0;
+    --primary: #e59ab6;
+    --primary-foreground: #2a1f26;
+    --secondary: #3a2a33;
+    --secondary-foreground: #e59ab6;
+    --muted: #3a2a33;
+    --muted-foreground: #a79da4;
+    --accent: #3a2a33;
+    --accent-foreground: #e59ab6;
+    --border: #443e49;
+    --input: #443e49;
+    --ring: #e59ab6;
+
+    --destructive: oklch(0.704 0.191 22.216);
+  }
 }
 
 @theme inline {
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 8px);
+  --radius-md: calc(var(--radius) - 4px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+
+  /* --font-quicksand / --font-nunito are emitted by Astro's font pipeline
+     (see astro.config.mjs). Aliasing them by role keeps call sites reading
+     `font-heading` / `font-body` rather than naming the typeface. */
+  --font-heading: var(--font-quicksand);
+  --font-body: var(--font-nunito);
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -95,21 +144,12 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
-  --color-chart-1: var(--chart-1);
-  --color-chart-2: var(--chart-2);
-  --color-chart-3: var(--chart-3);
-  --color-chart-4: var(--chart-4);
-  --color-chart-5: var(--chart-5);
-  --color-sidebar: var(--sidebar);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-ring: var(--sidebar-ring);
 }
 
+/* Starter leftover, deliberately kept. The auth screens stop using it in Phase 3,
+   but dashboard.astro, pets/*.astro and Welcome.astro still hardcode light-on-dark
+   text; removing this ground would leave them white-on-off-white. It retires when
+   those screens are reskinned by their own slices (S-01/S-04). */
 @utility bg-cosmic {
   background-image: linear-gradient(to bottom, #0a0e1a, #0f1529, #0a0e1a);
 }
@@ -119,6 +159,6 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-body;
   }
 }
