@@ -549,16 +549,16 @@ horizontal slice should enumerate consumers before scoping, not after.
 
 #### Automated
 
-- [x] 3.1 Type checking passes: `npx astro check`
-- [x] 3.2 Linting passes: `npm run lint`
-- [x] 3.3 Build passes: `npm run build`
-- [x] 3.4 Full suite green including auth-gating: `npm test`
-- [x] 3.5 No orphaned references to the deleted components
+- [x] 3.1 Type checking passes: `npx astro check` — e175d16
+- [x] 3.2 Linting passes: `npm run lint` — e175d16
+- [x] 3.3 Build passes: `npm run build` — e175d16
+- [x] 3.4 Full suite green including auth-gating: `npm test` — e175d16
+- [x] 3.5 No orphaned references to the deleted components — e175d16
 
 #### Manual
 
-- [x] 3.6 Auth screens match the design at mobile and desktop in all three themes
-- [x] 3.7 Real sign-in works end to end; wrong password still surfaces the server error
-- [x] 3.8 Client-side validation messages appear in Polish
-- [x] 3.9 `/pets` and `/pets/new` still render legibly under the new chrome in all three themes
-- [x] 3.10 No flash of the wrong theme on a hard reload of any auth page
+- [x] 3.6 Auth screens match the design at mobile and desktop in all three themes — e175d16
+- [x] 3.7 Real sign-in works end to end; wrong password still surfaces the server error — e175d16
+- [x] 3.8 Client-side validation messages appear in Polish — e175d16
+- [x] 3.9 `/pets` and `/pets/new` still render legibly under the new chrome in all three themes — e175d16
+- [x] 3.10 No flash of the wrong theme on a hard reload of any auth page — e175d16
