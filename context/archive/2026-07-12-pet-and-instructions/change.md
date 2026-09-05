@@ -1,9 +1,10 @@
 ---
 change_id: pet-and-instructions
 title: Właściciel definiuje zwierzę z instrukcjami (S-01)
-status: impl_reviewed
+status: archived
 created: 2026-07-12
-updated: 2026-08-31
+updated: 2026-09-05
+archived_at: 2026-09-05T19:24:50Z
 ---
 
 ## Notes

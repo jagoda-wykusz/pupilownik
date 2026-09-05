@@ -3,7 +3,7 @@ project: "Pupilownik"
 version: 1
 status: draft
 created: 2026-06-27
-updated: 2026-07-12
+updated: 2026-09-05
 prd_version: 1
 design_ref: "context/design/Pupilownik Hi-fi.html"
 main_goal: speed
@@ -31,7 +31,7 @@ Pupilownik pozwala właścicielowi zwierząt rozłożyć opiekę na okres nieobe
 | ID   | Change ID                   | Outcome (user can …)                                             | Prerequisites | PRD refs                      | Status   |
 | ---- | --------------------------- | ---------------------------------------------------------------- | ------------- | ----------------------------- | -------- |
 | F-01 | owner-data-rls-baseline     | (foundation) bezpieczny wzorzec dostępu do danych właściciela    | —             | NFR (privacy), Access Control | done     |
-| S-01 | pet-and-instructions        | właściciel definiuje zwierzę z instrukcjami (publiczna+wrażliwa) | F-01          | FR-001, FR-002, FR-003, US-01 | proposed |
+| S-01 | pet-and-instructions        | właściciel definiuje zwierzę z instrukcjami (publiczna+wrażliwa) | F-01          | FR-001, FR-002, FR-003, US-01 | done     |
 | S-02 | care-period-and-invite-link | właściciel tworzy okres ze slotami i generuje link zapraszający  | S-01          | FR-004, FR-005, US-01         | proposed |
 | S-03 | caretaker-claims-slot       | opiekun otwiera link i zajmuje wolny slot (bez podwójnej obsady) | S-02          | FR-007, FR-008, FR-009, US-02 | proposed |
 | S-04 | owner-occupancy-view        | właściciel widzi pełną obsadę okresu — kto zajął którą porę      | S-03          | FR-006, US-01                 | proposed |
@@ -103,7 +103,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** Pierwszy slice domenowy; sprawdza wzorzec z F-01 na realnej encji. Podział public/sensitive instrukcji musi być w modelu danych od początku, bo S-03 na nim polega — wprowadzenie go później wymusiłoby migrację danych.
-- **Status:** proposed
+- **Status:** done
 
 ### S-02: Właściciel tworzy okres opieki ze slotami i generuje link
 
@@ -211,3 +211,4 @@ Foundations below assume these are present and do NOT re-scaffold them.
 ## Done
 
 - **F-01: (foundation) ustalony bezpieczny wzorzec persystencji: działający przepływ migracji Supabase, polityki Row-Level Security izolujące dane do właściciela-właściciela oraz typowany helper zapytań. Nie tworzy jeszcze tabel domenowych — ustanawia kontrakt „jak bezpiecznie dotykamy danych".** — Archived 2026-06-27 → `context/archive/2026-06-27-owner-data-rls-baseline/`. Lesson: —.
+- **S-01: zalogowany właściciel może dodać zwierzę (nazwa, gatunek / podstawowe dane) i zapisać instrukcje opieki jako wolny tekst z podziałem na część publiczną i część wrażliwą (odsłanianą później).** — Archived 2026-09-05 → `context/archive/2026-07-12-pet-and-instructions/`. Lesson: —.
