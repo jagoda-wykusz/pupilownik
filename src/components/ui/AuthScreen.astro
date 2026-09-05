@@ -40,7 +40,9 @@ const hasHero = Boolean(heroTitle);
         hasHero && (
           <div class="bg-secondary text-secondary-foreground hidden rounded-lg p-10 lg:block">
             <p class="font-heading text-[28px] leading-[1.15] font-bold">{heroTitle}</p>
-            {heroSubtitle && <p class="mt-3 text-[15px] opacity-80">{heroSubtitle}</p>}
+            {/* No opacity dimming: it costs real contrast, and worst in the mode that
+                exists to maximise it. The colour comes from the token alone. */}
+            {heroSubtitle && <p class="mt-3 text-[15px]">{heroSubtitle}</p>}
           </div>
         )
       }

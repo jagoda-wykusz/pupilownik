@@ -27,7 +27,11 @@
   --secondary: #f6eaef;
   --secondary-foreground: #9c5470;
   --muted: #f6eaef;
-  --muted-foreground: #8a8089;
+  /* Design value is #8A8089, which measures 3.53:1 on --background and 3.8:1 as a
+     placeholder on white — under the 4.5:1 needed for text. Darkened to the tone the
+     design already uses for field labels, so we stay inside its palette while passing
+     AA (~5.3:1). The dark and contrast themes needed no adjustment. */
+  --muted-foreground: #6f6570;
   --accent: #f6eaef;
   --accent-foreground: #9c5470;
   --border: #ecdfe5;

@@ -14,8 +14,13 @@ const { variant = "info" } = Astro.props;
 
 <style>
   /* Banner paints its own ground, so it stays legible on every page — including the
-     domain screens still on the starter's navy. Colours are mixed from theme tokens
-     rather than hardcoded, so it follows the palette in all three modes. */
+     domain screens still on the starter's navy.
+     `error` rides --destructive, which the theme already defines. `warning` and `info`
+     carry their own amber and blue: the design supplies no status palette, and mapping
+     them onto --primary / --secondary made a warning look like ordinary brand chrome.
+     These live here rather than in the token layer because this is the only status
+     surface in the app; promote them if a second one appears.
+     Every pair below clears 7:1. */
   .banner {
     padding: 0.75rem 1rem;
     font-size: 0.875rem;
@@ -27,19 +32,56 @@ const { variant = "info" } = Astro.props;
     text-decoration: underline;
     font-weight: 700;
   }
-  .banner--info {
-    background: var(--secondary);
-    color: var(--secondary-foreground);
-    border-color: var(--border);
-  }
-  .banner--warning {
-    background: color-mix(in srgb, var(--primary) 14%, var(--background));
-    color: var(--foreground);
-    border-color: var(--primary);
-  }
+
   .banner--error {
     background: color-mix(in srgb, var(--destructive) 12%, var(--background));
     color: var(--destructive);
     border-color: color-mix(in srgb, var(--destructive) 45%, transparent);
+  }
+
+  .banner--warning {
+    background: #fdf2d9;
+    color: #6b4a05;
+    border-color: #d9a420;
+  }
+  .banner--info {
+    background: #e3f0f8;
+    color: #0f4a66;
+    border-color: #2e86ab;
+  }
+
+  :global(.dark) .banner--warning {
+    background: #3a2f14;
+    color: #f0d48a;
+    border-color: #8a6a1e;
+  }
+  :global(.dark) .banner--info {
+    background: #17303b;
+    color: #a9d8ee;
+    border-color: #2e6e8a;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :global(:root:not(.light):not(.dark):not(.contrast)) .banner--warning {
+      background: #3a2f14;
+      color: #f0d48a;
+      border-color: #8a6a1e;
+    }
+    :global(:root:not(.light):not(.dark):not(.contrast)) .banner--info {
+      background: #17303b;
+      color: #a9d8ee;
+      border-color: #2e6e8a;
+    }
+  }
+
+  :global(.contrast) .banner--warning {
+    background: #fff8e1;
+    color: #4a3300;
+    border-color: #000000;
+  }
+  :global(.contrast) .banner--info {
+    background: #e8f4fb;
+    color: #00344a;
+    border-color: #000000;
   }
 </style>

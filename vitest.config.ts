@@ -1,5 +1,5 @@
 import path from "node:path";
-import { defineConfig } from "vitest/config";
+import { configDefaults, defineConfig } from "vitest/config";
 
 // Two projects, split by what they need to run.
 //
@@ -25,7 +25,10 @@ export default defineConfig({
           name: "integration",
           environment: "node",
           include: ["tests/**/*.test.ts"],
-          exclude: ["tests/unit/**"],
+          // Spread the defaults rather than replacing them: a bare `exclude` drops
+          // Vitest's own list (node_modules, dist), which only stays harmless while
+          // `include` is narrow.
+          exclude: [...configDefaults.exclude, "tests/unit/**"],
           setupFiles: ["./tests/setup.ts"],
           // Integration tests sign users up against the local Supabase stack; keep them
           // serial-friendly and give the network round-trips room.

@@ -60,8 +60,11 @@ decides. `npm test` covers the theme-resolution logic; the look is confirmed by 
 ## What We're NOT Doing
 
 - **No domain screens.** `/pets`, `/pets/new`, dashboard, caretaker calendar and owner panel keep
-  their current markup; S-01…S-04 own them (roadmap §Design reference). Only the chrome they
-  inherit through `Layout.astro` changes.
+  their current markup; S-01…S-04 own them (roadmap §Design reference).
+  **Corrected after implementation** (impl-review F1): the original claim that "only the chrome
+  they inherit through `Layout.astro` changes" turned out to be false. Those screens also consume
+  the token layer and two shared components, so they changed anyway — see
+  `## Implementation Addenda`. Their *markup* is untouched, which is the guarantee that held.
 - **No domain components.** Pet card, instruction row with time badge, sensitive-data callout and
   chip are in the design but land with the slices that use them — building them now is the
   over-investment the roadmap's risk note warns about.
@@ -510,6 +513,27 @@ use: `bg-cosmic`, `Topbar`, `FormField`/`PasswordToggle`, and (in Phase 2) a com
 inferred from the artboard frame rather than the screen. The root cause is the same each
 time — during planning I checked what the auth screens use, not what else uses it. A future
 horizontal slice should enumerate consumers before scoping, not after.
+
+### Post-review — the "no domain screens" guarantee was narrower than written
+
+Accepted from impl-review F1 rather than reverted. Three changes reached screens this slice
+claimed not to touch, because they are consumed rather than edited:
+
+- `--radius` 0.625rem → 1rem restyles every `rounded-lg`/`rounded-md` in the app — 12
+  occurrences across four out-of-scope files.
+- `Button`'s default size went h-9 → h-[54px] and the base class gained `font-heading`.
+  `AddPetForm.tsx:249` overrides only colours and padding, so its submit button silently
+  grew ~50% taller and switched typeface.
+- `ServerError` moved onto tokens in Phase 2, but `AddPetForm` renders it too — on the navy
+  ground where, by our own bg-cosmic reasoning, token colours do not belong. Red on navy
+  measures 3.8:1, under the 4.5:1 threshold.
+
+Accepted because these screens are reskinned by S-01/S-04 regardless, and forcing the old look
+on them would be work built to be thrown away. The user confirmed `/pets` and `/pets/new` remain
+legible. The one unverified spot is `ServerError` on navy, which needs a failed pet save to see.
+
+The wording in `## What We're NOT Doing` has been corrected so the plan does not mislead a later
+reader: markup was untouched; appearance was not.
 
 ## Progress
 
