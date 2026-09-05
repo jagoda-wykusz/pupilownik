@@ -73,8 +73,8 @@ orchestrator updates Status as artifacts appear on disk.
 
 | # | Phase name | Goal (one line) | Risks covered | Test types | Status | Change folder |
 |---|------------|-----------------|----------------|------------|--------|----------------|
-| 1 | Bootstrap runner + RLS owner-isolation | Prove an owner cannot read/modify another's rows; establish the reusable RLS-test harness every future table copies | #1 | vitest setup + integration vs local Supabase | implemented | context/changes/testing-rls-owner-isolation/ |
-| 2a | Auth gating | Protected routes gate unauthenticated access; auth/session flows behave; an invalid session cannot reach owner data | #2 | integration (routes + middleware) | implemented | context/changes/testing-auth-gating/ |
+| 1 | Bootstrap runner + RLS owner-isolation | Prove an owner cannot read/modify another's rows; establish the reusable RLS-test harness every future table copies | #1 | vitest setup + integration vs local Supabase | complete | context/archive/2026-06-28-testing-rls-owner-isolation/ |
+| 2a | Auth gating | Protected routes gate unauthenticated access; auth/session flows behave; an invalid session cannot reach owner data | #2 | integration (routes + middleware) | complete | context/changes/testing-auth-gating/ |
 | 2b | Input validation | API handlers reject malformed/forbidden input server-side (zod), not just the client | #7 | unit / integration on API handlers | not started | — |
 | 3 | Secret-leak & quality-gate wiring | Secrets never ship to the client; lock the cheap floor (lint/build/secret-grep) | #6 | deterministic build-artifact checks + gate wiring | not started | — |
 | 4 | Domain guardrails (gated) | Instruction visibility scoping, link-only access enforcement, atomic slot claim | #3, #4, #5 | TBD per slice | not started | — |
@@ -210,9 +210,12 @@ The recipe for proving a route is gated (Risk #2). Shipped in Phase 2
    modules resolve via shims wired in `vitest.config.ts` (honest stand-ins, not auth mocks).
 2. For the authenticated case, get a real session cookie from `createAuthenticatedCookieHeader()`
    (`tests/helpers/session.ts`) — it mints a fresh owner and captures the genuine (base64url,
-   possibly chunked) `sb-<host>-auth-token`. For the negative case, `createInvalidCookieHeader()`
-   forges a structurally-valid-but-untrusted session.
-3. Assert three surfaces, not just the redirect status:
+   possibly chunked) `sb-<host>-auth-token`. For the negative case, `corruptCookieHeader(cookieHeader)`
+   turns that captured header into a present-but-invalid session, keeping the captured
+   cookie name — never reconstruct the name, or the case can pass for the wrong reason.
+3. Assert three surfaces, not just the redirect status. Drive the no-cookie case with
+   `it.each(PROTECTED_ROUTES)` (exported from `src/middleware.ts`) so a newly gated prefix
+   is covered the moment it is added, instead of relying on a manual check:
    - **no cookie** — `response.status === 302`, `Location === "/auth/signin"`, and
      `nextCalled === false` (the route handler never ran → no owner data served).
    - **valid cookie** — `nextCalled === true` and `locals.user.id` is the signed-in user.

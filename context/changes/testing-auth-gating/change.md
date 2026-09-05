@@ -1,9 +1,9 @@
 ---
 change_id: testing-auth-gating
 title: Auth gating & session handling (Risk 2)
-status: implemented
+status: impl_reviewed
 created: 2026-07-12
-updated: 2026-07-12
+updated: 2026-09-05
 ---
 
 ## Notes

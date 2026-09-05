@@ -10,11 +10,6 @@ import { getTestEnv } from "../setup";
 // so these helpers produce the exact Cookie header the middleware expects, by
 // capturing what @supabase/ssr's createServerClient emits on a real sign-in.
 
-function cookieName(url: string): string {
-  const host = new URL(url).hostname;
-  return `sb-${host.split(".")[0]}-auth-token`;
-}
-
 function serializeJar(jar: Map<string, string>): string {
   return [...jar.entries()].map(([name, value]) => `${name}=${encodeURIComponent(value)}`).join("; ");
 }
@@ -84,12 +79,22 @@ export async function createAuthenticatedOwner(): Promise<{ cookieHeader: string
   return { cookieHeader, owner };
 }
 
-// A structurally-valid session cookie whose access token will never validate
-// server-side. Proves the gate rejects a present-but-invalid session (getUser
-// validates the JWT; presence alone is not enough), not just a missing one.
-export function createInvalidCookieHeader(): string {
-  const { url } = getTestEnv();
-  const name = cookieName(url);
+// Corrupt a REAL captured Cookie header into one whose access token will never
+// validate server-side. The cookie NAME comes from the captured header, never
+// reconstructed — so the negative case cannot silently start sending a cookie
+// nobody parses (which would pass for the wrong reason) if @supabase/ssr ever
+// changes its storage-key scheme. Proves the gate rejects a present-but-invalid
+// session (getUser validates the JWT; presence alone is not enough).
+export function corruptCookieHeader(header: string): string {
+  const first = header.split(";")[0]?.trim() ?? "";
+  const capturedName = first.split("=")[0] ?? "";
+  if (!capturedName) {
+    throw new Error(`corruptCookieHeader: no cookie name found in header: ${header}`);
+  }
+  // A large session is chunked (`<name>.0`, `.1`, …); corrupting one chunk would
+  // break reassembly rather than validation. Collapse to the single base name and
+  // carry one intact-but-untrusted session instead.
+  const name = capturedName.replace(/\.\d+$/, "");
   const bogusSession = {
     access_token: "invalid.invalid.invalid",
     token_type: "bearer",

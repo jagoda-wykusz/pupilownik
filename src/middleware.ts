@@ -1,7 +1,9 @@
 import { defineMiddleware } from "astro:middleware";
 import { createClient } from "@/lib/supabase";
 
-const PROTECTED_ROUTES = ["/dashboard", "/pets"];
+// Exported so the auth-gating suite drives every protected prefix from this one
+// list — a new route gets regression coverage without editing the test.
+export const PROTECTED_ROUTES = ["/dashboard", "/pets"];
 
 export const onRequest = defineMiddleware(async (context, next) => {
   const supabase = createClient(context.request.headers, context.cookies);
