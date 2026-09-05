@@ -1,7 +1,5 @@
 import React, { useState } from "react";
-import { Mail, Lock, LogIn } from "lucide-react";
-import { FormField } from "@/components/auth/FormField";
-import { PasswordToggle } from "@/components/auth/PasswordToggle";
+import { Input } from "@/components/ui/Input";
 import { SubmitButton } from "@/components/auth/SubmitButton";
 import { ServerError } from "@/components/auth/ServerError";
 
@@ -12,18 +10,17 @@ interface Props {
 export default function SignInForm({ serverError }: Props) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
 
   function validate() {
     const next: typeof errors = {};
     if (!email.trim()) {
-      next.email = "Email is required";
+      next.email = "Podaj adres e-mail";
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      next.email = "Enter a valid email address";
+      next.email = "Podaj poprawny adres e-mail";
     }
     if (!password) {
-      next.password = "Password is required";
+      next.password = "Podaj hasło";
     }
     setErrors(next);
     return Object.keys(next).length === 0;
@@ -41,47 +38,40 @@ export default function SignInForm({ serverError }: Props) {
 
   return (
     <form method="POST" action="/api/auth/signin" className="space-y-4" onSubmit={handleSubmit} noValidate>
-      <FormField
+      <Input
         id="email"
+        name="email"
         type="email"
-        label="Email"
+        label="E-MAIL"
         value={email}
         onChange={(v) => {
           setEmail(v);
           clearError("email");
         }}
-        placeholder="you@example.com"
+        placeholder="anna@example.com"
+        autoComplete="email"
         error={errors.email}
-        icon={<Mail className="size-4" />}
       />
 
-      <FormField
+      <Input
         id="password"
-        label="Password"
-        type={showPassword ? "text" : "password"}
+        name="password"
+        type="password"
+        label="HASŁO"
         value={password}
         onChange={(v) => {
           setPassword(v);
           clearError("password");
         }}
-        placeholder="Your password"
+        placeholder="••••••••"
+        autoComplete="current-password"
         error={errors.password}
-        icon={<Lock className="size-4" />}
-        endContent={
-          <PasswordToggle
-            visible={showPassword}
-            onToggle={() => {
-              setShowPassword(!showPassword);
-            }}
-          />
-        }
+        revealable
       />
 
       <ServerError message={serverError} />
 
-      <SubmitButton pendingText="Signing in..." icon={<LogIn className="size-4" />}>
-        Sign in
-      </SubmitButton>
+      <SubmitButton pendingText="Logowanie...">Zaloguj się</SubmitButton>
     </form>
   );
 }

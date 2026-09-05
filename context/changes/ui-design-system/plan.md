@@ -479,6 +479,38 @@ Nothing consumes these components until Phase 3, so 2.5-2.7 were checked on a te
 `/preview-tmp` route rendering all of them. Deleted before this commit; it must not
 appear in the diff.
 
+### Phase 3 — Topbar untouched; the toggle lives in AuthScreen
+
+The plan treated `Topbar` as shared chrome and put the theme toggle there. It is not
+shared: `src/components/Topbar.astro` is imported by exactly one file, `Welcome.astro`
+(the landing page), and appears on no auth screen. A toggle there would be unreachable
+from the screens this slice reskins, and detokenizing Topbar would render light-on-light
+text against Welcome's navy ground — the breakage the `bg-cosmic` decision exists to
+avoid. Agreed with the user: toggle mounted in `AuthScreen.astro`, Topbar left alone.
+`Banner` genuinely is shared (Layout renders it on every page) and paints its own ground,
+so it moved to tokens as planned.
+
+### Phase 3 — FormField / PasswordToggle kept, not deleted
+
+The plan had them deleted as superseded. They are still imported by
+`src/components/pets/AddPetForm.tsx` (S-01, out of scope), which sits on the navy ground
+where their light-on-dark styling is still correct. Deleting them breaks the build;
+migrating AddPetForm to the token-styled `Input` would leave it light-on-light. Kept and
+annotated with the condition for their removal — the same call already made for
+`bg-cosmic` and `Topbar`.
+
+Check 3.5 is therefore read as its intent rather than its letter: nothing references a
+deleted file, and the auth screens no longer reference either component. `AddPetForm` is
+a legitimate remaining consumer, not an orphan.
+
+### Phase 3 — the recurring shape of these adaptations
+
+Four times across this slice the plan assumed auth owned something the domain screens also
+use: `bg-cosmic`, `Topbar`, `FormField`/`PasswordToggle`, and (in Phase 2) a component list
+inferred from the artboard frame rather than the screen. The root cause is the same each
+time — during planning I checked what the auth screens use, not what else uses it. A future
+horizontal slice should enumerate consumers before scoping, not after.
+
 ## Progress
 
 > Convention: `- [ ]` pending, `- [x]` done. Append ` — <commit sha>` when a step lands. Do not rename step titles. See `references/progress-format.md`.
@@ -502,31 +534,31 @@ appear in the diff.
 
 #### Automated
 
-- [x] 2.1 Type checking passes: `npx astro check`
-- [x] 2.2 Linting passes: `npm run lint`
-- [x] 2.3 Build passes: `npm run build`
-- [x] 2.4 Full suite still green: `npm test`
+- [x] 2.1 Type checking passes: `npx astro check` — fdc2446
+- [x] 2.2 Linting passes: `npm run lint` — fdc2446
+- [x] 2.3 Build passes: `npm run build` — fdc2446
+- [x] 2.4 Full suite still green: `npm test` — fdc2446
 
 #### Manual
 
-- [x] 2.5 Each component matches the design at mobile width in all three themes
-- [x] 2.6 Reveal toggle shows/hides the password and does not submit the form
-- [x] 2.7 Keyboard-only reachable; focus ring visible on all three grounds
+- [x] 2.5 Each component matches the design at mobile width in all three themes — fdc2446
+- [x] 2.6 Reveal toggle shows/hides the password and does not submit the form — fdc2446
+- [x] 2.7 Keyboard-only reachable; focus ring visible on all three grounds — fdc2446
 
 ### Phase 3: Auth reskin & shared chrome
 
 #### Automated
 
-- [ ] 3.1 Type checking passes: `npx astro check`
-- [ ] 3.2 Linting passes: `npm run lint`
-- [ ] 3.3 Build passes: `npm run build`
-- [ ] 3.4 Full suite green including auth-gating: `npm test`
-- [ ] 3.5 No orphaned references to the deleted components
+- [x] 3.1 Type checking passes: `npx astro check`
+- [x] 3.2 Linting passes: `npm run lint`
+- [x] 3.3 Build passes: `npm run build`
+- [x] 3.4 Full suite green including auth-gating: `npm test`
+- [x] 3.5 No orphaned references to the deleted components
 
 #### Manual
 
-- [ ] 3.6 Auth screens match the design at mobile and desktop in all three themes
-- [ ] 3.7 Real sign-in works end to end; wrong password still surfaces the server error
-- [ ] 3.8 Client-side validation messages appear in Polish
-- [ ] 3.9 `/pets` and `/pets/new` still render legibly under the new chrome in all three themes
-- [ ] 3.10 No flash of the wrong theme on a hard reload of any auth page
+- [x] 3.6 Auth screens match the design at mobile and desktop in all three themes
+- [x] 3.7 Real sign-in works end to end; wrong password still surfaces the server error
+- [x] 3.8 Client-side validation messages appear in Polish
+- [x] 3.9 `/pets` and `/pets/new` still render legibly under the new chrome in all three themes
+- [x] 3.10 No flash of the wrong theme on a hard reload of any auth page

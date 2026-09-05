@@ -7,19 +7,46 @@
 // light, plum-brown in dark, and flat in high contrast (where --auth-glow equals
 // --background, collapsing the gradient rather than softening an edge that mode
 // exists to keep hard).
+//
+// The theme toggle lives here rather than in Topbar: Topbar is imported only by
+// the landing page, so a toggle there would be unreachable from the very screens
+// this slice reskins.
+import ThemeToggle from "@/components/ThemeToggle";
+import { resolveTheme, THEME_COOKIE } from "@/lib/theme";
 
 interface Props {
-  class?: string;
+  /** Renders the design's desktop two-column layout at lg and above, with this
+   *  text in the accent panel. Omit for a single centred column at every width. */
+  heroTitle?: string;
+  heroSubtitle?: string;
 }
 
-const { class: className } = Astro.props;
+const { heroTitle, heroSubtitle } = Astro.props;
+const theme = resolveTheme(Astro.cookies.get(THEME_COOKIE)?.value);
+const hasHero = Boolean(heroTitle);
 ---
 
 <div
-  class:list={["flex min-h-screen flex-col items-center justify-center px-5 py-10", className]}
+  class="flex min-h-screen flex-col items-center justify-center px-5 py-10"
   style="background-image: radial-gradient(120% 70% at 50% -8%, var(--auth-glow) 0%, var(--background) 46%);"
 >
-  <div class="w-full max-w-sm">
-    <slot />
+  <div class:list={["w-full", hasHero ? "max-w-4xl" : "max-w-sm"]}>
+    <div class="mb-6 flex items-center justify-end">
+      <ThemeToggle initialTheme={theme} client:load />
+    </div>
+
+    <div class:list={["gap-10", hasHero && "lg:grid lg:grid-cols-2 lg:items-center"]}>
+      {
+        hasHero && (
+          <div class="bg-secondary text-secondary-foreground hidden rounded-lg p-10 lg:block">
+            <p class="font-heading text-[28px] leading-[1.15] font-bold">{heroTitle}</p>
+            {heroSubtitle && <p class="mt-3 text-[15px] opacity-80">{heroSubtitle}</p>}
+          </div>
+        )
+      }
+      <div class="mx-auto w-full max-w-sm">
+        <slot />
+      </div>
+    </div>
   </div>
 </div>

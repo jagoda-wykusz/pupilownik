@@ -1,3 +1,5 @@
+// Kept for the same reason as FormField: AddPetForm (S-01) still composes it.
+// The auth screens now use the inline "Pokaż" affordance built into ui/Input.
 import { Eye, EyeOff } from "lucide-react";
 
 interface PasswordToggleProps {

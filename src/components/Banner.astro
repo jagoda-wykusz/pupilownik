@@ -13,6 +13,9 @@ const { variant = "info" } = Astro.props;
 </div>
 
 <style>
+  /* Banner paints its own ground, so it stays legible on every page — including the
+     domain screens still on the starter's navy. Colours are mixed from theme tokens
+     rather than hardcoded, so it follows the palette in all three modes. */
   .banner {
     padding: 0.75rem 1rem;
     font-size: 0.875rem;
@@ -22,21 +25,21 @@ const { variant = "info" } = Astro.props;
   .banner :global(a) {
     color: inherit;
     text-decoration: underline;
-    font-weight: 600;
+    font-weight: 700;
   }
   .banner--info {
-    background: #dbeafe;
-    color: #1e3a8a;
-    border-color: #3b82f6;
+    background: var(--secondary);
+    color: var(--secondary-foreground);
+    border-color: var(--border);
   }
   .banner--warning {
-    background: #fef3c7;
-    color: #78350f;
-    border-color: #f59e0b;
+    background: color-mix(in srgb, var(--primary) 14%, var(--background));
+    color: var(--foreground);
+    border-color: var(--primary);
   }
   .banner--error {
-    background: #fee2e2;
-    color: #7f1d1d;
-    border-color: #dc2626;
+    background: color-mix(in srgb, var(--destructive) 12%, var(--background));
+    color: var(--destructive);
+    border-color: color-mix(in srgb, var(--destructive) 45%, transparent);
   }
 </style>

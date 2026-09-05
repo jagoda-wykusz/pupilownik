@@ -131,7 +131,20 @@ relevant rollout phase ships; before that it reads "TBD — see §3 Phase N."
 
 ### 6.1 Adding a unit test
 
-- TBD — see §3 Phase 1 (runner bootstrap).
+Pure-logic tests live in `tests/unit/` and run under the **`unit`** Vitest project,
+which has no `setupFiles` — so they run with the local Supabase stack down:
+
+1. Put the test in `tests/unit/<subject>.test.ts`. Import the module under test via
+   the `@/` alias (shared with the integration project).
+2. Run just these: `npx vitest run --project unit`. `npm test` runs both projects.
+3. **Do not import app modules that reach for the network.** Anything that builds a
+   Supabase client, reads `.env.test`, or touches `astro:env/server` belongs in the
+   integration project instead — putting it here trades a fast test for a confusing
+   failure with no setup guidance.
+4. Keep the split honest: if a test needs a database, it is not a unit test. The value
+   of this project is that it stays runnable without Docker.
+
+See `tests/unit/theme.test.ts` for the canonical example.
 
 ### 6.2 Adding an integration test (RLS / Supabase)
 
@@ -191,6 +204,12 @@ capturing anything surprising the phase taught.)
   *survives/is unchanged*, not that an error is thrown. Only INSERT (and the with-check
   reassignment) raise a hard RLS error. `.env.test` carries a service-role key solely for
   the cascade test's `auth.admin.deleteUser`; it is fenced to that one file.
+- **S-07 (`ui-design-system`)**: splitting `vitest.config.ts` into `unit` + `integration`
+  projects was the only way to test pure logic without Docker — `tests/setup.ts` is a global
+  setup file whose `beforeAll` demands a live stack, so before the split every test file paid
+  that cost. Note what is deliberately NOT tested here: no assertions on Tailwind classes or
+  rendered colour (§7), only `resolveTheme`'s cookie → class rule, which is the slice's sole
+  piece of branching logic. The visual work was verified by eye against the design.
 - **Phase 2 (auth gating, `testing-auth-gating`)**: the Phase-1 harness yields an in-memory
   session, not cookies — driving the middleware needs the real `sb-<host>-auth-token` captured
   from an `@supabase/ssr` sign-in (`createAuthenticatedCookieHeader`), never a hand-forged JWT

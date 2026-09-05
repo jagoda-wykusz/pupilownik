@@ -1,3 +1,7 @@
+// Superseded by src/components/ui/Input.tsx for the auth screens, but kept alive
+// because src/components/pets/AddPetForm.tsx (S-01) still uses it — and that screen
+// sits on the starter's navy ground, where this component's light-on-dark styling is
+// still correct. It retires when S-01 reskins its own screens.
 import type { ReactNode } from "react";
 import { CircleAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
