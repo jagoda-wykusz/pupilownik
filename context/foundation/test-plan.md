@@ -74,7 +74,7 @@ orchestrator updates Status as artifacts appear on disk.
 | # | Phase name | Goal (one line) | Risks covered | Test types | Status | Change folder |
 |---|------------|-----------------|----------------|------------|--------|----------------|
 | 1 | Bootstrap runner + RLS owner-isolation | Prove an owner cannot read/modify another's rows; establish the reusable RLS-test harness every future table copies | #1 | vitest setup + integration vs local Supabase | complete | context/archive/2026-06-28-testing-rls-owner-isolation/ |
-| 2a | Auth gating | Protected routes gate unauthenticated access; auth/session flows behave; an invalid session cannot reach owner data | #2 | integration (routes + middleware) | complete | context/changes/testing-auth-gating/ |
+| 2a | Auth gating | Protected routes gate unauthenticated access; auth/session flows behave; an invalid session cannot reach owner data | #2 | integration (routes + middleware) | complete | context/archive/2026-07-12-testing-auth-gating/ |
 | 2b | Input validation | API handlers reject malformed/forbidden input server-side (zod), not just the client | #7 | unit / integration on API handlers | not started | — |
 | 3 | Secret-leak & quality-gate wiring | Secrets never ship to the client; lock the cheap floor (lint/build/secret-grep) | #6 | deterministic build-artifact checks + gate wiring | not started | — |
 | 4 | Domain guardrails (gated) | Instruction visibility scoping, link-only access enforcement, atomic slot claim | #3, #4, #5 | TBD per slice | not started | — |
