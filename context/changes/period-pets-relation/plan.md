@@ -792,14 +792,14 @@ and zero `<button>`s, `/periods/new` renders `<button>` chips and zero `<span>`s
 
 #### Automated
 
-- [x] 3.1 Type checking passes: `npx astro check`
-- [x] 3.2 Linting passes: `npm run lint`
-- [x] 3.3 Build passes: `npm run build`
-- [x] 3.4 Full suite green: `npm test`
+- [x] 3.1 Type checking passes: `npx astro check` — cc115c8
+- [x] 3.2 Linting passes: `npm run lint` — cc115c8
+- [x] 3.3 Build passes: `npm run build` — cc115c8
+- [x] 3.4 Full suite green: `npm test` — cc115c8
 
 #### Manual
 
-- [x] 3.5 `/periods` names each trip's pets without a visible query regression
-- [x] 3.6 `/periods/[id]` shows the trip's pets near its title
-- [x] 3.7 A trip whose only pet was deleted renders without crashing on both screens
-- [x] 3.8 Both screens render correctly in all three themes, mobile and desktop
+- [x] 3.5 `/periods` names each trip's pets without a visible query regression — cc115c8
+- [x] 3.6 `/periods/[id]` shows the trip's pets near its title — cc115c8
+- [x] 3.7 A trip whose only pet was deleted renders without crashing on both screens — cc115c8
+- [x] 3.8 Both screens render correctly in all three themes, mobile and desktop — cc115c8
