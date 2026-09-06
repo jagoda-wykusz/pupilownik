@@ -78,6 +78,7 @@ export type Database = {
           end_date: string
           id: string
           owner_id: string
+          revoked_at: string | null
           start_date: string
           title: string
           token_digest: string
@@ -87,6 +88,7 @@ export type Database = {
           end_date: string
           id?: string
           owner_id: string
+          revoked_at?: string | null
           start_date: string
           title: string
           token_digest: string
@@ -96,6 +98,7 @@ export type Database = {
           end_date?: string
           id?: string
           owner_id?: string
+          revoked_at?: string | null
           start_date?: string
           title?: string
           token_digest?: string
@@ -202,6 +205,7 @@ export type Database = {
           end_date: string
           id: string
           owner_id: string
+          revoked_at: string | null
           start_date: string
           title: string
           token_digest: string
@@ -236,6 +240,11 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      get_period_by_token: { Args: { p_token: string }; Returns: Json }
+      regenerate_period_token: {
+        Args: { p_period_id: string; p_token_digest: string }
+        Returns: string
       }
     }
     Enums: {

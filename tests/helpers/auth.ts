@@ -36,3 +36,17 @@ export async function createOwnerClient(): Promise<OwnerContext> {
 
   return { client, userId, email, password };
 }
+
+// Build an ANON-KEYED client with no session at all, so it carries the `anon` Postgres role.
+//
+// createOwnerClient() always signs up; the token model needs the opposite — a caller with no
+// identity, which is what a caretaker following an invite link actually is. Session
+// persistence is off so this client can never pick one up from a shared storage adapter and
+// silently assert as `authenticated`.
+export function createAnonClient(): SupabaseClient<Database> {
+  const { url, anonKey } = getTestEnv();
+
+  return createClient<Database>(url, anonKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+}

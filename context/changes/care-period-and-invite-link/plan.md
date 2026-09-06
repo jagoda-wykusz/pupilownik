@@ -568,6 +568,46 @@ Worth recording, because three of the four were not confirmed the way the plan a
   one transaction — rather than something this migration implements, and forcing a mid-function
   failure would need a contrived schema break. Accepted on that basis rather than proven.
 
+### Phase 2 — `regenerate_period_token` returns `uuid`, not the period row
+
+Written first as `returns public.care_periods`, mirroring `create_period_with_slots`. The
+cross-owner test caught why that is wrong here: a plpgsql function returning a composite
+answers `return null` with a *row of NULLs*, not NULL, so "RLS filtered the row out, nothing
+was regenerated" arrived at the caller as an object with eight null fields — a miss that looks
+like a hit. A scalar keeps the miss honestly null. Nothing is lost: the API route's response
+carries the raw token, which never came from the database.
+
+### Phase 2 — `anon` did hold table grants; Phase 1's comment said otherwise
+
+Phase 1's migration states there is "deliberately NO grant to anon" on `care_periods` and
+`care_slots`. Verifying manual check 2.8 showed that was not true — Supabase's ALTER DEFAULT
+PRIVILEGES had granted anon SELECT/INSERT/UPDATE/DELETE on both, the same mechanism the Phase 1
+addendum documented for *functions*. It is the table-level twin of that gap, missed because the
+comment was written from intent rather than from the catalog.
+
+Nothing leaked: no policy names anon, so deny-by-default returned zero rows, which is precisely
+the model `docs/reference/data-access.md` describes. But this slice's premise is that
+`get_period_by_token` is the only door, and that claim should not rest on one layer while the
+code describes two. `revoke all on table ... from anon` on both tables now makes it two.
+`get_period_by_token` is SECURITY DEFINER and runs as its owner, so the revoke does not reach
+it — confirmed by the suite and by the psql probe below.
+
+### Phase 2 — how the manual checks were evidenced
+
+Studio is still excluded from this project's reduced Supabase service set (see the Phase 1
+addendum), so 2.7 and 2.8 were evidenced from the catalog and from psql instead:
+
+- **2.6** — `select encode(sha256(convert_to('abc','UTF8')),'hex')` in psql returns
+  `ba7816bf…20015ad`, byte-identical to what `digestInviteToken("abc")` asserts in
+  `tests/unit/invite-token.test.ts`. App and database genuinely agree, and the agreement is now
+  pinned by a unit test rather than by a one-off comparison.
+- **2.7** — `has_function_privilege` over `pg_proc` for all five public functions:
+  `public` holds execute on none; anon holds it only on `get_period_by_token`; `service_role`
+  on none.
+- **2.8** — `set role anon` in psql: `get_period_by_token('<valid>')` returns the period with
+  its six slots, an unknown token returns NULL, and `select count(*) from public.care_periods`
+  returns 0 (and, after the revoke above, is refused outright).
+
 ## Progress
 
 > Convention: `- [ ]` pending, `- [x]` done. Append ` — <commit sha>` when a step lands. Do not rename step titles. See `references/progress-format.md`.
@@ -576,34 +616,34 @@ Worth recording, because three of the four were not confirmed the way the plan a
 
 #### Automated
 
-- [x] 1.1 Migration applies cleanly from scratch: `npm run db:reset` exits 0
-- [x] 1.2 Security advisors clean: `npx supabase db advisors --type security`
-- [x] 1.3 Types regenerate and typecheck: `npm run db:gen-types` then `npx astro check`
-- [x] 1.4 Isolation tests pass: `npm test`
-- [x] 1.5 Linting passes: `npm run lint`
+- [x] 1.1 Migration applies cleanly from scratch: `npm run db:reset` exits 0 — 246863d
+- [x] 1.2 Security advisors clean: `npx supabase db advisors --type security` — 246863d
+- [x] 1.3 Types regenerate and typecheck: `npm run db:gen-types` then `npx astro check` — 246863d
+- [x] 1.4 Isolation tests pass: `npm test` — 246863d
+- [x] 1.5 Linting passes: `npm run lint` — 246863d
 
 #### Manual
 
-- [x] 1.6 Studio shows RLS enabled with four policies on each new table
-- [x] 1.7 A 5-day period yields exactly 15 slots, no gaps or duplicates
-- [x] 1.8 A 32-day range is rejected by the CHECK constraint
-- [x] 1.9 A failed slot insert rolls back the period
+- [x] 1.6 Studio shows RLS enabled with four policies on each new table — 246863d
+- [x] 1.7 A 5-day period yields exactly 15 slots, no gaps or duplicates — 246863d
+- [x] 1.8 A 32-day range is rejected by the CHECK constraint — 246863d
+- [x] 1.9 A failed slot insert rolls back the period — 246863d
 
 ### Phase 2: The token model
 
 #### Automated
 
-- [ ] 2.1 Migration applies cleanly: `npm run db:reset` exits 0
-- [ ] 2.2 Security advisors clean: `npx supabase db advisors --type security`
-- [ ] 2.3 Types regenerate and typecheck: `npm run db:gen-types` then `npx astro check`
-- [ ] 2.4 Token-model assertions and Phase 1 suite pass: `npm test`
-- [ ] 2.5 Linting passes: `npm run lint`
+- [x] 2.1 Migration applies cleanly: `npm run db:reset` exits 0
+- [x] 2.2 Security advisors clean: `npx supabase db advisors --type security`
+- [x] 2.3 Types regenerate and typecheck: `npm run db:gen-types` then `npx astro check`
+- [x] 2.4 Token-model assertions and Phase 1 suite pass: `npm test`
+- [x] 2.5 Linting passes: `npm run lint`
 
 #### Manual
 
-- [ ] 2.6 App digest matches `encode(sha256(...),'hex')` computed in psql
-- [ ] 2.7 `revoke`/`grant` correct on both functions; `public` holds no execute grant
-- [ ] 2.8 As `anon` in psql: the function returns the period, direct table selects return nothing
+- [x] 2.6 App digest matches `encode(sha256(...),'hex')` computed in psql
+- [x] 2.7 `revoke`/`grant` correct on both functions; `public` holds no execute grant
+- [x] 2.8 As `anon` in psql: the function returns the period, direct table selects return nothing
 
 ### Phase 3: Owner API & UI
 
