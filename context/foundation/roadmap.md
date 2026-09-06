@@ -33,7 +33,7 @@ Pupilownik pozwala właścicielowi zwierząt rozłożyć opiekę na okres nieobe
 | F-01 | owner-data-rls-baseline     | (foundation) bezpieczny wzorzec dostępu do danych właściciela    | —             | NFR (privacy), Access Control | done     |
 | S-01 | pet-and-instructions        | właściciel definiuje zwierzę z instrukcjami (publiczna+wrażliwa) | F-01          | FR-001, FR-002, FR-003, US-01 | done     |
 | S-02 | care-period-and-invite-link | właściciel tworzy okres ze slotami i generuje link zapraszający  | S-01          | FR-004, FR-005, US-01         | done     |
-| S-08 | period-pets-relation        | właściciel wskazuje, które zwierzęta obejmuje wyjazd             | S-02          | FR-002, US-01                 | ready    |
+| S-08 | period-pets-relation        | właściciel wskazuje, które zwierzęta obejmuje wyjazd             | S-02          | FR-002, US-01                 | done     |
 | S-03 | caretaker-claims-slot       | opiekun otwiera link i zajmuje wolny slot (bez podwójnej obsady) | S-08          | FR-007, FR-008, FR-009, US-02 | proposed |
 | S-04 | owner-occupancy-view        | właściciel widzi pełną obsadę okresu — kto zajął którą porę      | S-03          | FR-006, US-01                 | proposed |
 | S-05 | caretaker-names-visibility  | opiekun widzi imiona innych opiekunów w obrębie okresu           | S-03          | FR-011                        | proposed |
@@ -129,7 +129,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** Odblokowuje FR-008 dla S-03, który bez tej relacji nie ma jak dosięgnąć instrukcji — nic nie łączy okresu ze zwierzęciem, a instrukcje wiszą na zwierzęciu. Zakres wyszedł po cichu z S-02 (selektor „KTÓRE ZWIERZĘTA" z ekranu „Nowy wyjazd + link"), więc to domknięcie długu, nie nowa funkcjonalność. Główne ryzyko techniczne: predykat RLS na tabeli łączącej musi sprawdzać OBA końce — właściciela okresu i właściciela zwierzęcia — bo pojedynczy warunek jest IDOR-em, który ujawni się dopiero wtedy, gdy S-03 dowiezie odsłanianie instrukcji.
-- **Status:** ready
+- **Status:** done
 
 ### S-03: Opiekun otwiera link i zajmuje wolny slot
 
@@ -230,3 +230,4 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **S-01: zalogowany właściciel może dodać zwierzę (nazwa, gatunek / podstawowe dane) i zapisać instrukcje opieki jako wolny tekst z podziałem na część publiczną i część wrażliwą (odsłanianą później).** — Archived 2026-09-05 → `context/archive/2026-07-12-pet-and-instructions/`. Lesson: —.
 - **S-07: aplikacja wygląda zgodnie z hi-fi designem — ustanowiony system wizualny (tokeny kolorów, fonty Quicksand/Nunito, zaokrąglenia, cienie, tryb jasny/ciemny) oraz zestaw bazowych komponentów (przycisk, input z „Pokaż" hasła, karta, chip, badge pory, callout wrażliwych danych, nagłówek sekcji, panel-hero, baner sukcesu). Istniejące ekrany logowania/rejestracji (`src/pages/auth/signin.astro`, `signup.astro`) są przeskórowane do designu. Ekrany domenowe (pupile, okresy, kalendarz opiekuna, panel właściciela) **nie** powstają tutaj — są realizowane w swoich slice'ach (S-01…S-04) przy użyciu tego systemu (zob. Design reference).** — Archived 2026-09-06 → `context/archive/2026-09-05-ui-design-system/`. Lesson: „Wylicz konsumentów, zanim zmienisz coś współdzielonego" (`context/foundation/lessons.md`).
 - **S-02: właściciel może utworzyć okres opieki (zakres dat), który generuje sloty per pora dnia (rano / popołudnie / wieczór) dla każdego dnia, oraz wygenerować link zapraszający prowadzący wyłącznie do tego okresu.** — Archived 2026-09-06 → `context/archive/2026-09-06-care-period-and-invite-link/`. Lesson: —.
+- **S-08: właściciel może wskazać, które ze swoich zwierząt obejmuje okres opieki, i widzi je na liście wyjazdów oraz w szczegółach okresu.** — Archived 2026-09-06 → `context/archive/2026-09-06-period-pets-relation/`. Lesson: „Ubij serwer dev, zanim uruchomisz `npm run build`” (`context/foundation/lessons.md`).
