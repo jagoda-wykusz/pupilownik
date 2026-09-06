@@ -19,7 +19,13 @@ export const PROTECTED_ROUTES = ["/dashboard", "/pets", "/periods"];
 // Applied by prefix so every future route under /invite inherits it. A path segment was
 // chosen over a URL fragment because the server has to resolve the token; the trade-off is
 // recorded in docs/reference/data-access.md.
+// Matched on a segment boundary, not a bare startsWith: "/invite" alone would also claim a
+// future "/invitations", which would then silently inherit no-store.
 const INVITE_PREFIX = "/invite";
+
+function isInviteRoute(pathname: string): boolean {
+  return pathname === INVITE_PREFIX || pathname.startsWith(`${INVITE_PREFIX}/`);
+}
 
 export const onRequest = defineMiddleware(async (context, next) => {
   const supabase = createClient(context.request.headers, context.cookies);
@@ -41,7 +47,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
 
   const response = await next();
 
-  if (context.url.pathname.startsWith(INVITE_PREFIX)) {
+  if (isInviteRoute(context.url.pathname)) {
     response.headers.set("Referrer-Policy", "no-referrer");
     response.headers.set("Cache-Control", "no-store");
   }

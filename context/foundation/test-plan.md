@@ -273,6 +273,14 @@ contributors should respect these unless the underlying assumption changes.
 - **Tailwind styling / exact class output** — brittle and low-signal. Re-evaluate if a
   visual regression ever causes a real incident. (Source: Phase 2 interview Q5.)
 
+- **The caretaker page's rendered HTML (S-02).** `/invite/[token]` is verified through HTTP
+  by hand, not by an automated test: an automated version would need a running dev server,
+  so it would fail `npm test` whenever the server is down, and this project has no e2e runner
+  by choice. What IS covered automatically is the part that decides the answer —
+  `resolveInviteView` (`tests/unit/invite-view.test.ts`) pins the uniform-failure rule
+  (identical status, title and body for unknown / tampered / malformed / revoked), and
+  `tests/rls/invite-token.test.ts` pins the SQL side. The template itself is not asserted.
+
 ## 8. Freshness Ledger
 
 - Strategy (§1–§5) last reviewed: 2026-06-28

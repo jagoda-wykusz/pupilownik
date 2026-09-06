@@ -54,9 +54,23 @@ export function formatWeekday(isoDate: string): string {
   return new Intl.DateTimeFormat("pl-PL", { weekday: "long", timeZone: "UTC" }).format(asUtcDate(isoDate));
 }
 
+function formatYear(isoDate: string): string {
+  return new Intl.DateTimeFormat("pl-PL", { year: "numeric", timeZone: "UTC" }).format(asUtcDate(isoDate));
+}
+
+// The year is printed once at the end when both dates share it, and at BOTH ends when they
+// do not. Taking the year from end_date alone attributed the start day to the wrong year —
+// "27 grudnia – 3 stycznia 2027" for a period starting in 2026. The 31-day cap does not
+// prevent it: an 8-day trip over New Year is enough, and this string is the authoritative
+// date range on the owner's detail screen and on the caretaker's page.
 export function formatRange(startDate: string, endDate: string): string {
-  const year = new Intl.DateTimeFormat("pl-PL", { year: "numeric", timeZone: "UTC" }).format(asUtcDate(endDate));
-  return `${formatDay(startDate)} – ${formatDay(endDate)} ${year}`;
+  const startYear = formatYear(startDate);
+  const endYear = formatYear(endDate);
+
+  if (startYear === endYear) {
+    return `${formatDay(startDate)} – ${formatDay(endDate)} ${endYear}`;
+  }
+  return `${formatDay(startDate)} ${startYear} – ${formatDay(endDate)} ${endYear}`;
 }
 
 // Inclusive: a period that starts and ends on the same day is one day long, and

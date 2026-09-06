@@ -116,6 +116,43 @@ describe("care_slots RLS owner-isolation", () => {
     expect(error).not.toBeNull();
   });
 
+  it("refuses a half-claimed slot — the two claim columns move together", async () => {
+    const { data: aSlots } = await a.client.from("care_slots").select("id").eq("period_id", aPeriodId).limit(1);
+    const aSlotId = aSlots?.[0]?.id;
+    if (!aSlotId) {
+      throw new Error("care_slots RLS test: A's period generated no slots");
+    }
+
+    // Either half alone is refused by care_slots_claim_complete. Without it, a row could
+    // record a claim time while every reader — all of which key on claimed_by_name — still
+    // called the slot free, and S-03's `update ... where claimed_by_name is null` would let
+    // a second caretaker take it.
+    const nameOnly = await a.client.from("care_slots").update({ claimed_by_name: "Ala" }).eq("id", aSlotId);
+    expect(nameOnly.error).not.toBeNull();
+
+    const timeOnly = await a.client
+      .from("care_slots")
+      .update({ claimed_at: new Date().toISOString() })
+      .eq("id", aSlotId);
+    expect(timeOnly.error).not.toBeNull();
+
+    // Both together is what S-03 will write, and it is allowed.
+    const both = await a.client
+      .from("care_slots")
+      .update({ claimed_by_name: "Ala", claimed_at: new Date().toISOString() })
+      .eq("id", aSlotId)
+      .select("id");
+    expect(both.error).toBeNull();
+    expect(both.data).toEqual([{ id: aSlotId }]);
+
+    // And releasing it clears both.
+    const released = await a.client
+      .from("care_slots")
+      .update({ claimed_by_name: null, claimed_at: null })
+      .eq("id", aSlotId);
+    expect(released.error).toBeNull();
+  });
+
   it("rejects a duplicate slot within the same period (unique constraint)", async () => {
     const { error } = await a.client.from("care_slots").insert({
       period_id: aPeriodId,

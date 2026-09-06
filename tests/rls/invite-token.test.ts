@@ -119,6 +119,11 @@ describe("invite token access model", () => {
     expect(Object.keys(payload ?? {}).sort()).toEqual(["period", "slots"]);
     // Nor the owner identity or the digest the link is compared against.
     expect(Object.keys(payload?.period ?? {}).sort()).toEqual(["end_date", "id", "start_date", "title"]);
+    // The SLOT keys matter most: adding `claimed_by_name` to the function's
+    // jsonb_build_object is the likeliest leak in this whole payload — a caretaker's identity
+    // belongs to S-04 (FR-006), and anyone holding the link can read this. Pinning the exact
+    // key set makes that a failing test rather than a silent widening.
+    expect(Object.keys(payload?.slots[0] ?? {}).sort()).toEqual(["id", "is_claimed", "slot_date", "time_of_day"]);
     expect(JSON.stringify(payload)).not.toContain("instruction");
   });
 
@@ -126,10 +131,35 @@ describe("invite token access model", () => {
     const periods = await anon.from("care_periods").select("id");
     const slots = await anon.from("care_slots").select("id");
 
-    // anon holds no grant on either table, so this is refused outright rather than merely
-    // filtered to zero rows. Either way, no row may come back.
-    expect(periods.data ?? []).toEqual([]);
-    expect(slots.data ?? []).toEqual([]);
+    // Assert the REFUSAL, not merely the absence of rows. `expect(data ?? []).toEqual([])`
+    // alone cannot tell the two layers apart: with the grant revoked PostgREST answers 42501
+    // and data is null; with it restored, RLS filters to zero rows and data is [] — and that
+    // assertion passes either way. The grant layer is the one this slice deliberately added
+    // on top of deny-by-default, so it needs an assertion that fails when it disappears.
+    expect(periods.error?.code).toBe("42501");
+    expect(slots.error?.code).toBe("42501");
+    expect(periods.data).toBeNull();
+    expect(slots.data).toBeNull();
+  });
+
+  // The two SECURITY INVOKER RPCs are owner-only. Their revoke/grant posture is the exact
+  // thing this project got wrong twice before (S-01's F3 was closed as fixed while describing
+  // a posture the database did not have), and nothing asserted it until now. RLS would stop
+  // anon one step later anyway — this closes the door instead of trusting the lock behind it.
+  it("anon cannot execute the owner-only RPCs", async () => {
+    const create = await anon.rpc("create_period_with_slots", {
+      p_title: "nope",
+      p_start_date: "2026-07-13",
+      p_end_date: "2026-07-15",
+      p_token_digest: "deadbeef",
+    });
+    expect(create.error?.code).toBe("42501");
+
+    const regenerate = await anon.rpc("regenerate_period_token", {
+      p_period_id: aPeriodId,
+      p_token_digest: "deadbeef",
+    });
+    expect(regenerate.error?.code).toBe("42501");
   });
 
   it("regeneration invalidates the old link and activates the new one", async () => {

@@ -1,7 +1,7 @@
 ---
 change_id: care-period-and-invite-link
 title: Okres opieki ze slotami + link zapraszający (S-02)
-status: implemented
+status: impl_reviewed
 created: 2026-09-06
 updated: 2026-09-06
 archived_at: null
@@ -32,6 +32,7 @@ RPC, JSON API route + React island. RLS recipe for a new table:
 UI uses the S-07 component layer (`src/components/ui/`), per roadmap §Design reference
 (design screen: "Nowy wyjazd + link").
 
+Full plan reviewed 2026-09-06: `reviews/impl-review.md` (10 findings, all fixed). Earlier,
 Phase 3 reviewed 2026-09-06: `reviews/impl-review-phase-3.md` (10 findings, 8 fixed,
 1 dismissed, 1 deferred). Status stays `implementing` — Phase 4 is not built yet. F6 is a
 binding Phase 4 requirement: `Referrer-Policy: no-referrer` + `Cache-Control: no-store` for

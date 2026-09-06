@@ -761,6 +761,46 @@ whenever the server is down. The equivalent assertions live at the RPC level in
 4.8 (three themes, mobile and desktop) was the one check no probe could stand in for; the
 user confirmed it by eye.
 
+### Full-plan impl-review fixes (reviews/impl-review.md)
+
+Ten findings across Phases 1, 2 and 4 plus cross-phase checks; all ten fixed. Three migrations
+became five. The ones that changed behaviour rather than tests:
+
+- **F1 (user-visible)** — `formatRange` took the year from `end_date` alone, so a period over
+  New Year rendered "27 grudnia – 3 stycznia 2027" with the start day in the wrong year.
+  Reachable with an 8-day trip, and this string is the authoritative date range on both the
+  owner's screen and the caretaker's. Now prints both years when they differ;
+  `tests/unit/period-format.test.ts` covers it plus a DST-transition range.
+- **F2** — `claimed_by_name` and `claimed_at` were independently nullable, so a half-claimed
+  row was representable. Nothing disagreed yet (every reader keys on the name, and
+  `claimed_at` was dead), but S-03's prescribed atomic claim `where claimed_by_name is null`
+  would have let a second caretaker overwrite a row already carrying a claim time — the unique
+  constraint cannot catch that, it is the same row. Added
+  `check ((claimed_by_name is null) = (claimed_at is null))` while the table holds no claims.
+- **F5** — the anon table-grant revoke was extended to `profiles`, `pets` and
+  `care_instructions`. This slice discovered that gap and closed it for its own two tables
+  only, leaving two postures for one rule. Public schema now has zero anon table grants; the
+  signup trigger still fires (it runs as the table owner — `auth.users` and `profiles` stay
+  equal through the suite).
+- **F6** — the caretaker page's uniform-failure decision moved out of the `.astro` frontmatter
+  into `resolveInviteView` (`src/lib/invite-view.ts`) and is now pinned by a unit test. A
+  status set inside an `if` and a title on a ternary are exactly what a later "let's tell them
+  it was revoked" edit breaks silently — the same shape phase 3's F2 had to be found by
+  reading.
+- **F8** — `get_period_by_token` now rejects any `p_token` that is not exactly 43 characters
+  before hashing. It is SECURITY DEFINER, anon-granted and unauthenticated, so an unbounded
+  input meant hashing megabytes before a guaranteed index miss.
+- **F10** — `/invite` is matched on a segment boundary; `/periods/[id]` reads `claimed_at`
+  instead of `claimed_by_name` (F2's constraint makes them equivalent, so the page keeps the
+  free/taken signal while losing the ability to render an identity at all); `CreatePeriodInput`
+  removed as dead.
+
+The test-only fixes (F3, F4, F7, F9) share one theme worth naming: **four assertions passed
+without guarding what they claimed.** The "only door" test would have passed with the grant
+layer removed, the payload test would have passed with a caretaker's name added to it, the
+span test never touched the boundary, and nothing at all asserted the RPC execute grants —
+the exact posture this project got wrong twice before. Tests 77 → 89.
+
 ## Progress
 
 > Convention: `- [ ]` pending, `- [x]` done. Append ` — <commit sha>` when a step lands. Do not rename step titles. See `references/progress-format.md`.

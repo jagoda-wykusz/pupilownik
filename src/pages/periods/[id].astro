@@ -28,7 +28,11 @@ interface SlotRow {
   id: string;
   slot_date: string;
   time_of_day: TimeOfDay;
-  claimed_by_name: string | null;
+  // claimed_at, not claimed_by_name: the page needs "is this taken", not who took it —
+  // that is S-04 (FR-006). The care_slots_claim_complete CHECK makes the two columns null
+  // together, so this is an exact substitute that cannot render an identity even by
+  // accident. Same standard /periods applies via its aggregate.
+  claimed_at: string | null;
 }
 interface PeriodRow {
   id: string;
@@ -47,7 +51,7 @@ if (periodId === null) {
 } else if (supabase) {
   const { data, error } = await supabase
     .from("care_periods")
-    .select("id, title, start_date, end_date, revoked_at, care_slots(id, slot_date, time_of_day, claimed_by_name)")
+    .select("id, title, start_date, end_date, revoked_at, care_slots(id, slot_date, time_of_day, claimed_at)")
     .eq("id", periodId)
     .maybeSingle();
   if (error) {
@@ -77,7 +81,7 @@ const byDay = [...new Set(slots.map((slot) => slot.slot_date))].sort().map((day)
     (slot) => slot !== undefined,
   ),
 }));
-const takenCount = slots.filter((slot) => slot.claimed_by_name !== null).length;
+const takenCount = slots.filter((slot) => slot.claimed_at !== null).length;
 ---
 
 <Layout title={period?.title ?? "Wyjazd"}>
@@ -131,13 +135,13 @@ const takenCount = slots.filter((slot) => slot.claimed_by_name !== null).length;
                       <li
                         class:list={[
                           "rounded-lg border-[1.5px] px-3 py-2 text-center text-[13px]",
-                          slot.claimed_by_name === null
+                          slot.claimed_at === null
                             ? "border-input text-muted-foreground"
                             : "border-primary bg-secondary text-secondary-foreground font-bold",
                         ]}
                       >
                         <span class="block">{TIME_OF_DAY_LABEL[slot.time_of_day]}</span>
-                        <span class="block text-[12px]">{slot.claimed_by_name === null ? "wolne" : "zajęte"}</span>
+                        <span class="block text-[12px]">{slot.claimed_at === null ? "wolne" : "zajęte"}</span>
                       </li>
                     ))}
                   </ul>

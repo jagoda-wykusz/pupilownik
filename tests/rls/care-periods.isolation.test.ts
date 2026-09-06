@@ -116,13 +116,16 @@ describe("care_periods RLS owner-isolation", () => {
   });
 
   it("rejects a period longer than 31 days", async () => {
-    // 2026-07-01 → 2026-08-05 is 36 days; the CHECK caps the span at 31 inclusive, which is
+    // 2026-07-01 → 2026-08-01 is 32 days — one past the cap, so this pins the BOUNDARY and
+    // not merely a wide span. Paired with "accepts exactly 31 days" in periods.post.test.ts,
+    // except that one is stopped by zod before Postgres sees it; this one reaches the CHECK.
+    // The CHECK caps the span at 31 inclusive, which is
     // what bounds how many slots one transaction can generate.
     const { error } = await a.client.from("care_periods").insert({
       owner_id: a.userId,
       title: "za długi",
       start_date: "2026-07-01",
-      end_date: "2026-08-05",
+      end_date: "2026-08-01",
       token_digest: crypto.randomUUID(),
     });
     expect(error).not.toBeNull();

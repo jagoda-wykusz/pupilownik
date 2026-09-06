@@ -4,6 +4,7 @@ import ThemeToggle from "@/components/ThemeToggle";
 import { createClient } from "@/lib/supabase";
 import { resolveTheme, THEME_COOKIE } from "@/lib/theme";
 import { formatDay, formatRange, formatWeekday, TIMES_OF_DAY, TIME_OF_DAY_LABEL } from "@/lib/period-format";
+import { resolveInviteView } from "@/lib/invite-view";
 import type { TimeOfDay } from "@/lib/period-format";
 
 // The caretaker's view. Deliberately NOT in PROTECTED_ROUTES: whoever holds the link has
@@ -53,14 +54,15 @@ if (supabase) {
   loadError = true;
 }
 
-// Unknown, tampered, malformed and revoked tokens all land here, with the same status and
-// the same copy. That uniformity is a security property, not a UX choice: a distinct
-// "this link was revoked" answer would confirm the period exists. The copy therefore
-// carries the "ask the owner" guidance that the response itself withholds.
-const inactive = !loadError && payload === null;
-if (inactive) {
-  Astro.response.status = 404;
-}
+// Unknown, tampered, malformed and revoked tokens all land on one page with one status and
+// one title. That uniformity is a security property, not a UX choice: a distinct "this link
+// was revoked" answer would confirm the period exists. The decision lives in
+// resolveInviteView so it is pinned by tests/unit/invite-view.test.ts rather than by an `if`
+// nobody checks — this exact shape (a status set inside a branch) is what the phase-3 review
+// had to catch by reading, because no test could.
+const view = resolveInviteView({ failed: loadError, periodTitle: payload?.period.title ?? null });
+const inactive = view.kind === "inactive";
+Astro.response.status = view.status;
 
 const slots = payload?.slots ?? [];
 const byDay = [...new Set(slots.map((slot) => slot.slot_date))].sort().map((day) => ({
@@ -72,7 +74,7 @@ const byDay = [...new Set(slots.map((slot) => slot.slot_date))].sort().map((day)
 const freeCount = slots.filter((slot) => !slot.is_claimed).length;
 ---
 
-<Layout title={payload ? `Opieka: ${payload.period.title}` : "Link nieaktywny"}>
+<Layout title={view.title}>
   <div class="bg-background min-h-screen px-5 py-8">
     <div class="mx-auto w-full max-w-2xl">
       <div class="mb-6 flex items-center justify-end">
@@ -80,7 +82,7 @@ const freeCount = slots.filter((slot) => !slot.is_claimed).length;
       </div>
 
       {
-        loadError && (
+        view.kind === "error" && (
           <p
             role="alert"
             class="border-destructive/40 bg-destructive/10 text-destructive rounded-lg border-[1.5px] px-4 py-3 text-[14px]"
@@ -93,7 +95,7 @@ const freeCount = slots.filter((slot) => !slot.is_claimed).length;
       {
         inactive && (
           <div class="border-border bg-card rounded-lg border-[1.5px] p-8 text-center">
-            <p class="font-heading text-foreground text-[20px] font-bold">Link nieaktywny</p>
+            <p class="font-heading text-foreground text-[20px] font-bold">{view.title}</p>
             <p class="text-muted-foreground mt-3 text-[15px]">
               Ten link nie działa. Poproś właściciela zwierzęcia o nowy — poprzedni mógł zostać zastąpiony.
             </p>

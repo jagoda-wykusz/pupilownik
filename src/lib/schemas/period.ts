@@ -30,5 +30,3 @@ export const createPeriodSchema = z
   });
 
 export const periodIdSchema = z.uuid();
-
-export type CreatePeriodInput = z.infer<typeof createPeriodSchema>;
