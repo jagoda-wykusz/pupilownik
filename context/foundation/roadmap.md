@@ -33,7 +33,8 @@ Pupilownik pozwala właścicielowi zwierząt rozłożyć opiekę na okres nieobe
 | F-01 | owner-data-rls-baseline     | (foundation) bezpieczny wzorzec dostępu do danych właściciela    | —             | NFR (privacy), Access Control | done     |
 | S-01 | pet-and-instructions        | właściciel definiuje zwierzę z instrukcjami (publiczna+wrażliwa) | F-01          | FR-001, FR-002, FR-003, US-01 | done     |
 | S-02 | care-period-and-invite-link | właściciel tworzy okres ze slotami i generuje link zapraszający  | S-01          | FR-004, FR-005, US-01         | done     |
-| S-03 | caretaker-claims-slot       | opiekun otwiera link i zajmuje wolny slot (bez podwójnej obsady) | S-02          | FR-007, FR-008, FR-009, US-02 | proposed |
+| S-08 | period-pets-relation        | właściciel wskazuje, które zwierzęta obejmuje wyjazd             | S-02          | FR-002, US-01                 | ready    |
+| S-03 | caretaker-claims-slot       | opiekun otwiera link i zajmuje wolny slot (bez podwójnej obsady) | S-08          | FR-007, FR-008, FR-009, US-02 | proposed |
 | S-04 | owner-occupancy-view        | właściciel widzi pełną obsadę okresu — kto zajął którą porę      | S-03          | FR-006, US-01                 | proposed |
 | S-05 | caretaker-names-visibility  | opiekun widzi imiona innych opiekunów w obrębie okresu           | S-03          | FR-011                        | proposed |
 | S-06 | close-care-period           | właściciel zamyka/odwołuje okres i unieważnia link               | S-02          | FR-012                        | proposed |
@@ -48,7 +49,7 @@ Hi-fi design (`context/design/Pupilownik Hi-fi.html`, tryby: jasny / ciemny / tr
 | Logowanie / Logowanie · desktop      | S-07 (reskin istniejących `signin`/`signup`)     |
 | Panel właściciela                    | S-04 (widok obsady okresu)                        |
 | Dodaj zwierzę + instrukcje           | S-01 (zwierzę + instrukcje public/sensitive)      |
-| Nowy wyjazd + link                   | S-02 (okres opieki + link zapraszający)           |
+| Nowy wyjazd + link                   | S-02 (okres + link) + S-08 (wybór zwierząt)       |
 | Kalendarz opiekuna (zapis na sloty)  | S-03 (opiekun zajmuje slot)                       |
 | Po zapisaniu · instrukcje            | S-03 (odsłonięcie wrażliwych instrukcji) / S-01   |
 
@@ -60,7 +61,7 @@ Navigation aid — groups items that share a Prerequisites chain. Canonical orde
 
 | Stream | Theme                          | Chain                                      | Note                                                                                    |
 | ------ | ------------------------------ | ------------------------------------------ | --------------------------------------------------------------------------------------- |
-| A      | Rdzeń: od zwierzęcia do zapisu | `F-01` → `S-01` → `S-02` → `S-03` → `S-04` | Ścieżka must-have; zawiera gwiazdę przewodnią `S-03`. Zgodna z celem `szybkość`.        |
+| A      | Rdzeń: od zwierzęcia do zapisu | `F-01` → `S-01` → `S-02` → `S-08` → `S-03` → `S-04` | Ścieżka must-have; zawiera gwiazdę przewodnią `S-03`. Zgodna z celem `szybkość`.        |
 | B      | Dodatki (nice-to-have)         | `S-05` / `S-06`                            | `S-06` dołącza do Stream A przy `S-02`, `S-05` przy `S-03`; równoległe względem siebie. |
 | C      | UI / system wizualny           | `S-07`                                     | Bez prerekwizytów; powinien wylądować wcześnie (równolegle z/przed `S-01`), bo slice'y domenowe konsumują jego komponenty. Ekrany domenowe realizują swoje slice'y wg designu (zob. Design reference). |
 
@@ -118,16 +119,30 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Risk:** Wprowadza model dostępu przez nieodgadywalny token linku (bez konta opiekuna) — kontrakt, na którym opiera się guardrail „dostęp tylko dla osób z linku". Sloty generowane z zakresu dat × pory dnia muszą być deterministyczne, by S-03 mógł je bezpiecznie zajmować.
 - **Status:** done
 
+### S-08: Okres opieki obejmuje wybrane zwierzęta
+
+- **Outcome:** właściciel może wskazać, które ze swoich zwierząt obejmuje okres opieki, i widzi je na liście wyjazdów oraz w szczegółach okresu.
+- **Change ID:** period-pets-relation
+- **PRD refs:** FR-002 (rozstrzygnięcie: „jeden okres może obejmować kilka zwierząt o różnych instrukcjach"), US-01 (część — okres wie, kogo dotyczy)
+- **Prerequisites:** S-02
+- **Parallel with:** S-06
+- **Blockers:** —
+- **Unknowns:** —
+- **Risk:** Odblokowuje FR-008 dla S-03, który bez tej relacji nie ma jak dosięgnąć instrukcji — nic nie łączy okresu ze zwierzęciem, a instrukcje wiszą na zwierzęciu. Zakres wyszedł po cichu z S-02 (selektor „KTÓRE ZWIERZĘTA" z ekranu „Nowy wyjazd + link"), więc to domknięcie długu, nie nowa funkcjonalność. Główne ryzyko techniczne: predykat RLS na tabeli łączącej musi sprawdzać OBA końce — właściciela okresu i właściciela zwierzęcia — bo pojedynczy warunek jest IDOR-em, który ujawni się dopiero wtedy, gdy S-03 dowiezie odsłanianie instrukcji.
+- **Status:** ready
+
 ### S-03: Opiekun otwiera link i zajmuje wolny slot
 
 - **Outcome:** opiekun może wejść przez link bez logowania, zobaczyć publiczną część instrukcji i kalendarz okresu, a następnie podać imię i zająć wolny slot; przydział jest atomowy (nigdy podwójna obsada), a po zajęciu odsłaniają się wrażliwe instrukcje. (Gwiazda przewodnia.)
 - **Change ID:** caretaker-claims-slot
 - **PRD refs:** FR-007, FR-008, FR-009, US-02, NFR (atomowość zajęcia slotu)
-- **Prerequisites:** S-02
+- **Prerequisites:** S-08
 - **Parallel with:** —
 - **Blockers:** —
 - **Unknowns:**
-  - Mechanizm gwarancji atomowości przy równoległym zajęciu (transakcja / unikalny constraint / `update ... where free`) — Owner: team. Block: no (rozstrzygane w `/10x-plan`, nie blokuje sekwencjonowania).
+  - ~~Mechanizm gwarancji atomowości przy równoległym zajęciu~~ — ROZSTRZYGNIĘTE 2026-09-06 w researchu: `update ... where id = $1 and claimed_by_name is null` pod READ COMMITTED daje dokładnie jednego zwycięzcę — przegrany blokuje się na wierszu, po commicie zwycięzcy ponownie sprawdza warunek WHERE i aktualizuje 0 wierszy. CHECK `care_slots_claim_complete` z S-02 czyni predykat „wolny" wiarygodnym. Uwaga: test współbieżności w tym harnessie dowodzi WYNIKU, nie zadziałania blokady wiersza.
+  - ~~Jednostka odsłonięcia wrażliwych instrukcji: zdarzenie czy osoba~~ — ROZSTRZYGNIĘTE 2026-09-06 przez użytkownika: **per OSOBA, która zajęła slot** (nie każdy posiadacz linku). Wymaga sekretu per zajęcie — digest w bazie, surowa wartość raz do przeglądarki — i pierwszego w tym repo cookie ustawianego serwerowo. Przyjmuje lekką tożsamość opiekuna, którą PRD odłożyło do v2 (`prd.md:116`), jako capability, nie konto. Ograniczenie techniczne: `get_period_by_token` jest `STABLE`, więc zajęcie musi być osobną funkcją `VOLATILE`.
+  - Pole `NOTATKA` z designu (wolny tekst na poziomie okresu, treścią zachodzący na `is_sensitive`) — wymaganie czy artefakt designu? Przypisane do tego slice'a 2026-09-06. Owner: użytkownik. Block: no.
 - **Risk:** Najbardziej ryzykowny slice i sedno produktu: równoczesne zajęcie tego samego slotu musi dać dokładnie jednego zwycięzcę, a wrażliwe instrukcje nie mogą wyciec przed zajęciem. Sekwencjonowany najwcześniej, jak pozwala łańcuch S-01→S-02 — zgodnie z gwiazdą przewodnią.
 - **Status:** proposed
 
@@ -188,7 +203,8 @@ Foundations below assume these are present and do NOT re-scaffold them.
 | F-01       | owner-data-rls-baseline     | Wzorzec dostępu do danych: migracje + RLS izolujące właściciela | yes                   | Run `/10x-plan owner-data-rls-baseline` |
 | S-01       | pet-and-instructions        | Definicja zwierzęcia + instrukcje (public/sensitive)            | no                    | Po F-01                                 |
 | S-02       | care-period-and-invite-link | Okres opieki ze slotami + link zapraszający                     | no                    | Po S-01                                 |
-| S-03       | caretaker-claims-slot       | Opiekun zajmuje slot przez link (atomowo)                       | no                    | Gwiazda przewodnia; po S-02             |
+| S-08       | period-pets-relation        | Relacja okres ↔ zwierzęta (odblokowuje instrukcje opiekuna)     | yes                   | Plan gotowy → `/10x-implement`          |
+| S-03       | caretaker-claims-slot       | Opiekun zajmuje slot przez link (atomowo)                       | no                    | Gwiazda przewodnia; po S-08             |
 | S-04       | owner-occupancy-view        | Widok obsady okresu dla właściciela                             | no                    | Po S-03                                 |
 | S-05       | caretaker-names-visibility  | Widoczność imion opiekunów w okresie                            | no                    | Nice-to-have; po S-03                   |
 | S-06       | close-care-period           | Zamknięcie/odwołanie okresu + unieważnienie linku               | no                    | Nice-to-have; po S-02                   |
