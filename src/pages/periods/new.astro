@@ -1,0 +1,25 @@
+---
+import Layout from "@/layouts/Layout.astro";
+import ThemeToggle from "@/components/ThemeToggle";
+import NewPeriodForm from "@/components/periods/NewPeriodForm";
+import { resolveTheme, THEME_COOKIE } from "@/lib/theme";
+
+// Protected by middleware (PROTECTED_ROUTES includes "/periods"): an unauthenticated
+// request is redirected to /auth/signin before this frontmatter runs.
+const theme = resolveTheme(Astro.cookies.get(THEME_COOKIE)?.value);
+---
+
+<Layout title="Nowy wyjazd">
+  <div class="bg-background min-h-screen px-5 py-8">
+    <div class="mx-auto w-full max-w-md">
+      <div class="mb-6 flex items-center justify-between gap-4">
+        <a href="/periods" class="text-primary text-[13px] font-bold hover:underline">← Moje wyjazdy</a>
+        <ThemeToggle initialTheme={theme} client:load />
+      </div>
+
+      <h1 class="font-heading text-foreground mb-6 text-[30px] leading-[1.15] font-bold">Nowy wyjazd</h1>
+
+      <NewPeriodForm origin={Astro.url.origin} client:load />
+    </div>
+  </div>
+</Layout>

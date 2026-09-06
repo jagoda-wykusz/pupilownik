@@ -608,6 +608,66 @@ addendum), so 2.7 and 2.8 were evidenced from the catalog and from psql instead:
   its six slots, an unknown token returns NULL, and `select count(*) from public.care_periods`
   returns 0 (and, after the revoke above, is refused outright).
 
+### Phase 3 — the one-time link is revealed on `/periods/new`, not after a redirect
+
+Manual rows 3.5 and 3.6 assume the create flow redirects to `/periods/[id]` and the invite
+link appears there. The raw token exists only in the `POST /api/periods` response body, so
+carrying it across a redirect means either the URL (browser history, `Referer`, access logs) or
+browser storage — the first contradicts this plan's own "the raw token exists exactly once"
+rule, the second adds a moving part that loses the link when storage is unavailable.
+
+The design reference settles it the other way: its "Nowy wyjazd + link" screen draws the
+"Link gotowy do wysłania" panel with its `Kopiuj` button **on the create screen**. Agreed with
+the user on that basis. On success the form is replaced by the invite panel plus a
+"Zobacz wyjazd →" link; `/periods/[id]` never shows a link it was not just handed, which is
+what 3.6 was really asking. Row titles are left verbatim per the Progress convention — read
+3.5 as "creating a period shows the right slot count and the one-time link warning".
+
+### Phase 3 — three files beyond the plan's five
+
+- `src/components/periods/InviteLinkPanel.tsx` — the reveal panel is needed in two places
+  (after create, after regenerate) and is the one component that must get the one-time warning
+  right. Duplicating it would be duplicating the warning.
+- `src/components/periods/RegenerateLinkButton.tsx` — the plan's `/periods/[id]` contract has
+  no island, but regeneration returns a raw token that must be shown without a page load, so
+  it cannot be a plain form post.
+- `src/lib/period-format.ts` — Polish day/range labels and the time-of-day labels, parsed and
+  formatted in **UTC**. A slot date read in the viewer's zone renders as the previous day
+  anywhere west of Greenwich. Phase 4's caretaker page needs the same labels.
+
+### Phase 3 — `/periods/[id]` answers a real 404
+
+RLS makes "not yours" and "does not exist" the same answer; the page matches it with
+`Astro.response.status = 404` and one shared not-found state, so a probe learns nothing from
+either. (Written first as `Astro.rewrite(request, 404)` — `rewrite` takes one argument and
+`astro check` did not catch the extra one.)
+
+### Phase 3 — API tests added beyond the Testing Strategy
+
+The plan's Testing Strategy lists no API-level test for this slice. `tests/api/periods.post.test.ts`
+adds one anyway, mirroring `pets.post.test.ts`: 401/400/404 paths on both routes, and — the
+reason it is worth the file — an assertion that the raw token in the 201 body genuinely opens
+the period through `createAnonClient()`, and that `token_digest` never appears in the response.
+That is the contract Phase 4 renders on top of, and nothing else pins it end to end.
+
+### Phase 3 — the span bound moved out of the zod module
+
+Reported during manual verification: clicking "Utwórz wyjazd i link" produced no link.
+Every layer checked out in isolation — the handler returns 201 with a working token, the page
+SSRs the form correctly, the island module compiles and its compiled `handleSubmit` is right —
+so no code defect explains it directly. What the check did surface is that
+`NewPeriodForm` imported `MAX_SPAN_DAYS` and `spanInDays` from `src/lib/schemas/period.ts`,
+which pulled **the whole of zod into the browser bundle for two values**. In dev that puts a
+brand-new dependency in the client graph the first time the page is opened, and Vite answers by
+re-optimising and forcing a full page reload — which, landing on or just after a click, looks
+exactly like "nothing happened". (Wiping `node_modules/.vite` reproduced the neighbouring
+symptom: a transient `Invalid hook call` from two React copies mid-reoptimisation.)
+
+Both values now live in `src/lib/period-format.ts`, which has no runtime imports; the schema
+imports them from there. `spanInDays` and `countDays` were the same function written twice, so
+only `countDays` survives. The island's client graph no longer contains zod, and a cold-cache
+dev start now serves `/periods/new` with no re-optimisation and no reload.
+
 ## Progress
 
 > Convention: `- [ ]` pending, `- [x]` done. Append ` — <commit sha>` when a step lands. Do not rename step titles. See `references/progress-format.md`.
@@ -633,35 +693,35 @@ addendum), so 2.7 and 2.8 were evidenced from the catalog and from psql instead:
 
 #### Automated
 
-- [x] 2.1 Migration applies cleanly: `npm run db:reset` exits 0
-- [x] 2.2 Security advisors clean: `npx supabase db advisors --type security`
-- [x] 2.3 Types regenerate and typecheck: `npm run db:gen-types` then `npx astro check`
-- [x] 2.4 Token-model assertions and Phase 1 suite pass: `npm test`
-- [x] 2.5 Linting passes: `npm run lint`
+- [x] 2.1 Migration applies cleanly: `npm run db:reset` exits 0 — 26cc515
+- [x] 2.2 Security advisors clean: `npx supabase db advisors --type security` — 26cc515
+- [x] 2.3 Types regenerate and typecheck: `npm run db:gen-types` then `npx astro check` — 26cc515
+- [x] 2.4 Token-model assertions and Phase 1 suite pass: `npm test` — 26cc515
+- [x] 2.5 Linting passes: `npm run lint` — 26cc515
 
 #### Manual
 
-- [x] 2.6 App digest matches `encode(sha256(...),'hex')` computed in psql
-- [x] 2.7 `revoke`/`grant` correct on both functions; `public` holds no execute grant
-- [x] 2.8 As `anon` in psql: the function returns the period, direct table selects return nothing
+- [x] 2.6 App digest matches `encode(sha256(...),'hex')` computed in psql — 26cc515
+- [x] 2.7 `revoke`/`grant` correct on both functions; `public` holds no execute grant — 26cc515
+- [x] 2.8 As `anon` in psql: the function returns the period, direct table selects return nothing — 26cc515
 
 ### Phase 3: Owner API & UI
 
 #### Automated
 
-- [ ] 3.1 Type checking passes: `npx astro check`
-- [ ] 3.2 Linting passes: `npm run lint`
-- [ ] 3.3 Build passes: `npm run build`
-- [ ] 3.4 Full suite green including auth-gating on `/periods`: `npm test`
+- [x] 3.1 Type checking passes: `npx astro check`
+- [x] 3.2 Linting passes: `npm run lint`
+- [x] 3.3 Build passes: `npm run build`
+- [x] 3.4 Full suite green including auth-gating on `/periods`: `npm test`
 
 #### Manual
 
-- [ ] 3.5 Creating a period shows the right slots and the one-time link warning
-- [ ] 3.6 Reloading `/periods/[id]` no longer shows the link
-- [ ] 3.7 Regenerating produces a new link and kills the previous one
-- [ ] 3.8 Logged out, `/periods` and `/periods/new` redirect to sign-in
-- [ ] 3.9 A second owner does not see the first owner's periods
-- [ ] 3.10 Screens match the design in all three themes
+- [x] 3.5 Creating a period shows the right slots and the one-time link warning
+- [x] 3.6 Reloading `/periods/[id]` no longer shows the link
+- [x] 3.7 Regenerating produces a new link and kills the previous one
+- [x] 3.8 Logged out, `/periods` and `/periods/new` redirect to sign-in
+- [x] 3.9 A second owner does not see the first owner's periods
+- [x] 3.10 Screens match the design in all three themes
 
 ### Phase 4: Caretaker landing page
 

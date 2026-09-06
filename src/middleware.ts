@@ -3,7 +3,9 @@ import { createClient } from "@/lib/supabase";
 
 // Exported so the auth-gating suite drives every protected prefix from this one
 // list — a new route gets regression coverage without editing the test.
-export const PROTECTED_ROUTES = ["/dashboard", "/pets"];
+// "/invite" is deliberately absent: the caretaker landing page must stay reachable
+// with no session at all, which is the whole point of the token model (S-02).
+export const PROTECTED_ROUTES = ["/dashboard", "/pets", "/periods"];
 
 export const onRequest = defineMiddleware(async (context, next) => {
   const supabase = createClient(context.request.headers, context.cookies);

@@ -1,0 +1,146 @@
+---
+import Layout from "@/layouts/Layout.astro";
+import ThemeToggle from "@/components/ThemeToggle";
+import RegenerateLinkButton from "@/components/periods/RegenerateLinkButton";
+import { createClient } from "@/lib/supabase";
+import { resolveTheme, THEME_COOKIE } from "@/lib/theme";
+import { formatDay, formatRange, formatWeekday, TIMES_OF_DAY, TIME_OF_DAY_LABEL } from "@/lib/period-format";
+import type { TimeOfDay } from "@/lib/period-format";
+
+// Protected by middleware (PROTECTED_ROUTES includes "/periods"). The read carries no
+// owner filter — RLS scopes it, so another owner's id resolves to nothing and lands on
+// the same 404 as an id that does not exist.
+//
+// The invite link is deliberately absent from this screen when nothing was just
+// minted: the raw token was never stored, so there is nothing to show. Regenerating is
+// the only way back to a working link, and that is what the island below offers.
+const supabase = createClient(Astro.request.headers, Astro.cookies);
+const theme = resolveTheme(Astro.cookies.get(THEME_COOKIE)?.value);
+const periodId = Astro.params.id ?? "";
+
+interface SlotRow {
+  id: string;
+  slot_date: string;
+  time_of_day: TimeOfDay;
+  claimed_by_name: string | null;
+}
+interface PeriodRow {
+  id: string;
+  title: string;
+  start_date: string;
+  end_date: string;
+  revoked_at: string | null;
+  care_slots: SlotRow[];
+}
+
+let period: PeriodRow | null = null;
+let loadError = false;
+
+if (supabase) {
+  const { data, error } = await supabase
+    .from("care_periods")
+    .select("id, title, start_date, end_date, revoked_at, care_slots(id, slot_date, time_of_day, claimed_by_name)")
+    .eq("id", periodId)
+    .maybeSingle();
+  if (error) {
+    loadError = true;
+  } else {
+    period = data;
+  }
+} else {
+  // Unconfigured Supabase is an error state, never an empty one.
+  loadError = true;
+}
+
+// RLS makes "not yours" and "does not exist" the same answer, and so does this page —
+// a real 404 status, not a soft empty state, so a probe learns nothing from either.
+const notFound = !loadError && !period;
+if (notFound) {
+  Astro.response.status = 404;
+}
+
+// Group by day so the screen reads as a calendar rather than a flat list. Slots within
+// a day follow the enum's declaration order, not whatever order PostgREST returned.
+const slots = period?.care_slots ?? [];
+const byDay = [...new Set(slots.map((slot) => slot.slot_date))].sort().map((day) => ({
+  day,
+  slots: TIMES_OF_DAY.map((time) => slots.find((slot) => slot.slot_date === day && slot.time_of_day === time)).filter(
+    (slot) => slot !== undefined,
+  ),
+}));
+const takenCount = slots.filter((slot) => slot.claimed_by_name !== null).length;
+---
+
+<Layout title={period?.title ?? "Wyjazd"}>
+  <div class="bg-background min-h-screen px-5 py-8">
+    <div class="mx-auto w-full max-w-2xl">
+      <div class="mb-6 flex items-center justify-between gap-4">
+        <a href="/periods" class="text-primary text-[13px] font-bold hover:underline">← Moje wyjazdy</a>
+        <ThemeToggle initialTheme={theme} client:load />
+      </div>
+
+      {
+        loadError && (
+          <p
+            role="alert"
+            class="border-destructive/40 bg-destructive/10 text-destructive rounded-lg border-[1.5px] px-4 py-3 text-[14px]"
+          >
+            Nie udało się wczytać wyjazdu. Odśwież stronę.
+          </p>
+        )
+      }
+
+      {
+        notFound && (
+          <div class="border-border bg-card rounded-lg border-[1.5px] p-8 text-center">
+            <p class="font-heading text-foreground text-[17px] font-bold">Nie znaleziono wyjazdu</p>
+            <p class="text-muted-foreground mt-2 text-[15px]">Ten wyjazd nie istnieje albo nie należy do Ciebie.</p>
+          </div>
+        )
+      }
+
+      {
+        period && (
+          <>
+            <h1 class="font-heading text-foreground text-[30px] leading-[1.15] font-bold">{period.title}</h1>
+            <p class="text-primary mt-1 text-[15px] font-semibold">{formatRange(period.start_date, period.end_date)}</p>
+            <p class="text-muted-foreground mt-2 text-[13px]">
+              {takenCount} z {slots.length} terminów zajętych
+              {period.revoked_at !== null && " · link został unieważniony"}
+            </p>
+
+            <h2 class="font-heading text-foreground mt-8 mb-3 text-[17px] font-bold">Terminy</h2>
+            <ul class="space-y-3">
+              {byDay.map((entry) => (
+                <li class="border-border bg-card rounded-lg border-[1.5px] p-4">
+                  <p class="text-foreground text-[15px] font-bold">
+                    {formatDay(entry.day)}
+                    <span class="text-muted-foreground ml-2 text-[13px] font-normal">{formatWeekday(entry.day)}</span>
+                  </p>
+                  <ul class="mt-3 grid grid-cols-3 gap-2">
+                    {entry.slots.map((slot) => (
+                      <li
+                        class:list={[
+                          "rounded-lg border-[1.5px] px-3 py-2 text-center text-[13px]",
+                          slot.claimed_by_name === null
+                            ? "border-input text-muted-foreground"
+                            : "border-primary bg-secondary text-secondary-foreground font-bold",
+                        ]}
+                      >
+                        <span class="block">{TIME_OF_DAY_LABEL[slot.time_of_day]}</span>
+                        <span class="block text-[12px]">{slot.claimed_by_name === null ? "wolne" : "zajęte"}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </li>
+              ))}
+            </ul>
+
+            <h2 class="font-heading text-foreground mt-8 mb-3 text-[17px] font-bold">Link dla opiekuna</h2>
+            <RegenerateLinkButton periodId={period.id} origin={Astro.url.origin} client:load />
+          </>
+        )
+      }
+    </div>
+  </div>
+</Layout>

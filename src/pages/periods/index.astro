@@ -1,0 +1,118 @@
+---
+import Layout from "@/layouts/Layout.astro";
+import ThemeToggle from "@/components/ThemeToggle";
+import { Button } from "@/components/ui/button";
+import { createClient } from "@/lib/supabase";
+import { resolveTheme, THEME_COOKIE } from "@/lib/theme";
+import { countDays, formatRange } from "@/lib/period-format";
+
+// Protected by middleware (PROTECTED_ROUTES includes "/periods"): an unauthenticated
+// request is redirected to /auth/signin before this frontmatter runs. The query below
+// carries no owner filter — RLS scopes it to the caller's own periods.
+const supabase = createClient(Astro.request.headers, Astro.cookies);
+const theme = resolveTheme(Astro.cookies.get(THEME_COOKIE)?.value);
+
+interface SlotRow {
+  claimed_by_name: string | null;
+}
+interface PeriodRow {
+  id: string;
+  title: string;
+  start_date: string;
+  end_date: string;
+  revoked_at: string | null;
+  care_slots: SlotRow[];
+}
+
+let periods: PeriodRow[] = [];
+let loadError = false;
+
+if (supabase) {
+  const { data, error } = await supabase
+    .from("care_periods")
+    .select("id, title, start_date, end_date, revoked_at, care_slots(claimed_by_name)")
+    .order("start_date", { ascending: false });
+  if (error) {
+    loadError = true;
+  } else {
+    periods = data;
+  }
+} else {
+  // A null client means Supabase is unconfigured — surface it as an error rather than
+  // an empty list, so a misconfiguration doesn't masquerade as "no periods".
+  loadError = true;
+}
+---
+
+<Layout title="Moje wyjazdy">
+  <div class="bg-background min-h-screen px-5 py-8">
+    <div class="mx-auto w-full max-w-2xl">
+      <div class="mb-6 flex items-center justify-between gap-4">
+        <h1 class="font-heading text-foreground text-[30px] leading-[1.15] font-bold">Moje wyjazdy</h1>
+        <ThemeToggle initialTheme={theme} client:load />
+      </div>
+
+      {
+        loadError && (
+          <p
+            role="alert"
+            class="border-destructive/40 bg-destructive/10 text-destructive rounded-lg border-[1.5px] px-4 py-3 text-[14px]"
+          >
+            Nie udało się wczytać wyjazdów. Odśwież stronę.
+          </p>
+        )
+      }
+
+      {
+        !loadError && periods.length === 0 && (
+          <div class="border-border bg-card rounded-lg border-[1.5px] p-8 text-center">
+            <p class="text-muted-foreground mb-4 text-[15px]">Nie masz jeszcze żadnego wyjazdu.</p>
+            <Button asChild>
+              <a href="/periods/new">Zaplanuj pierwszy wyjazd</a>
+            </Button>
+          </div>
+        )
+      }
+
+      {
+        periods.length > 0 && (
+          <>
+            <ul class="space-y-3">
+              {periods.map((period) => {
+                const taken = period.care_slots.filter((slot) => slot.claimed_by_name !== null).length;
+                return (
+                  <li>
+                    <a
+                      href={`/periods/${period.id}`}
+                      class="border-border bg-card hover:border-ring block rounded-lg border-[1.5px] p-5 transition-colors"
+                    >
+                      <div class="flex items-baseline justify-between gap-3">
+                        <span class="font-heading text-foreground text-[17px] font-bold">{period.title}</span>
+                        <span class="text-muted-foreground shrink-0 text-[13px]">
+                          {countDays(period.start_date, period.end_date)} dni
+                        </span>
+                      </div>
+                      <p class="text-primary mt-1 text-[13px] font-semibold">
+                        {formatRange(period.start_date, period.end_date)}
+                      </p>
+                      <p class="text-muted-foreground mt-2 text-[13px]">
+                        {taken} z {period.care_slots.length} terminów zajętych
+                        {period.revoked_at !== null && " · link nieaktywny"}
+                      </p>
+                    </a>
+                  </li>
+                );
+              })}
+            </ul>
+
+            <div class="mt-6">
+              <Button asChild className="w-full">
+                <a href="/periods/new">+ Nowy wyjazd</a>
+              </Button>
+            </div>
+          </>
+        )
+      }
+    </div>
+  </div>
+</Layout>
