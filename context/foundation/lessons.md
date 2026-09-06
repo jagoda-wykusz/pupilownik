@@ -17,3 +17,23 @@
   migruje świadomie, albo zostaje jawnie odnotowany w §What We're NOT Doing — nie może zostać
   pominięty milczeniem.
 - **Applies to**: plan, implement, impl-review
+
+## Weryfikuj posturę systemu z katalogu, nie z komentarza
+
+- **Context**: Każde twierdzenie o stanie systemu, którego nie widać w kodzie aplikacji —
+  granty i uprawnienia w bazie, polityki RLS, nagłówki odpowiedzi, volatility funkcji,
+  domyślne privileges. Dotyczy też każdego testu, który ma pilnować takiej warstwy.
+- **Problem**: W S-02 zdarzyło się to cztery razy. Trzy razy komentarz migracji opisywał
+  posturę grantów, której baza nie miała: `revoke ... from public` nie odbiera uprawnień rolom
+  `anon`/`authenticated`/`service_role`, bo Supabase nadaje je osobno przez ALTER DEFAULT
+  PRIVILEGES — a S-01 zamknął finding F3 jako naprawiony, opisując stan, którego nie osiągnął.
+  Ten sam błąd powtórzył się na poziomie tabel: komentarz twierdził „deliberately NO grant to
+  anon", a katalog pokazał pełny zestaw uprawnień. Czwarty raz był w teście: „anon nie może
+  czytać tabeli" przechodził, bo `expect(data ?? []).toEqual([])` nie odróżnia odmowy 42501 od
+  pustego wyniku po RLS — przeszedłby po usunięciu całej warstwy grantów, którą miał pilnować.
+- **Rule**: Nigdy nie przyjmuj twierdzenia o posturze systemu na podstawie komentarza, planu
+  ani intencji migracji. Odczytaj je z katalogu (`has_function_privilege`,
+  `information_schema.role_table_grants`, `pg_policies`, `pg_proc`) albo przypnij testem, który
+  UPADA, gdy postura znika. Asercja przechodząca również przy braku tej warstwy nie jest jej
+  testem, tylko jej opisem.
+- **Applies to**: plan, plan-review, implement, impl-review
