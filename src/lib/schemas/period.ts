@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { countDays, MAX_SPAN_DAYS, MAX_TITLE_LENGTH } from "@/lib/period-format";
+import { countDays, MAX_PETS_PER_PERIOD, MAX_SPAN_DAYS, MAX_TITLE_LENGTH } from "@/lib/period-format";
 
 // Server-side contract for creating a care period. The API route is the source of
 // truth — this schema is the single validation gate the handler (and the island, for
@@ -19,6 +19,13 @@ export const createPeriodSchema = z
       .max(MAX_TITLE_LENGTH, `Nazwa może mieć najwyżej ${MAX_TITLE_LENGTH} znaków`),
     start_date: z.iso.date("Podaj poprawną datę rozpoczęcia"),
     end_date: z.iso.date("Podaj poprawną datę zakończenia"),
+    // At least one pet is also enforced inside create_period_with_slots, which is the
+    // guarantee; this bound is what turns a violation into a clean 400 instead of surfacing
+    // the RPC's raise as a 500.
+    pet_ids: z
+      .array(z.uuid("Nieprawidłowy identyfikator zwierzęcia"))
+      .min(1, "Wybierz co najmniej jedno zwierzę")
+      .max(MAX_PETS_PER_PERIOD, `Wyjazd może obejmować najwyżej ${MAX_PETS_PER_PERIOD} zwierząt`),
   })
   .refine((value) => Date.parse(value.end_date) >= Date.parse(value.start_date), {
     message: "Data zakończenia nie może być wcześniejsza niż data rozpoczęcia",

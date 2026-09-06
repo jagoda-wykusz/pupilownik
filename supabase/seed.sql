@@ -67,3 +67,35 @@ values
     'Klucze i kontakt', 'Klucze u sąsiadki, mieszkanie 4. Telefon: 600 100 200.', true, 1
   )
 on conflict (id) do nothing;
+
+-- S-08: one care period for the test owner, linked to Burek, with its generated slots.
+-- Raw inserts rather than create_period_with_slots: that RPC is SECURITY INVOKER, and this
+-- file runs as `postgres`, so auth.uid() would be NULL and owner_id would not be set.
+-- Fixed UUIDs keep reset idempotent. token_digest is a fixed dummy hex — the raw invite
+-- token is never stored and is not recoverable, so a seeded period has no working link;
+-- regenerate one from the UI if you need to open /invite for the seeded trip.
+insert into public.care_periods (id, owner_id, title, start_date, end_date, token_digest)
+values (
+  '66666666-6666-6666-6666-666666666666',
+  '33333333-3333-3333-3333-333333333333',
+  'Weekend u rodziców', '2026-07-13', '2026-07-15',
+  'seedseedseedseedseedseedseedseedseedseedseedseedseedseedseedseed'
+)
+on conflict (id) do nothing;
+
+insert into public.care_period_pets (period_id, pet_id)
+values (
+  '66666666-6666-6666-6666-666666666666',
+  '44444444-4444-4444-4444-444444444444'
+)
+on conflict (period_id, pet_id) do nothing;
+
+-- 3 days x 3 times of day = 9 slots, all free.
+insert into public.care_slots (period_id, slot_date, time_of_day)
+select
+  '66666666-6666-6666-6666-666666666666',
+  day::date,
+  tod
+from generate_series(date '2026-07-13', date '2026-07-15', interval '1 day') as day
+cross join unnest(enum_range(null::public.time_of_day)) as tod
+on conflict (period_id, slot_date, time_of_day) do nothing;

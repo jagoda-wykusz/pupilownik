@@ -72,6 +72,39 @@ export type Database = {
           },
         ]
       }
+      care_period_pets: {
+        Row: {
+          created_at: string
+          period_id: string
+          pet_id: string
+        }
+        Insert: {
+          created_at?: string
+          period_id: string
+          pet_id: string
+        }
+        Update: {
+          created_at?: string
+          period_id?: string
+          pet_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "care_period_pets_period_id_fkey"
+            columns: ["period_id"]
+            isOneToOne: false
+            referencedRelation: "care_periods"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "care_period_pets_pet_id_fkey"
+            columns: ["pet_id"]
+            isOneToOne: false
+            referencedRelation: "pets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       care_periods: {
         Row: {
           created_at: string
@@ -196,6 +229,7 @@ export type Database = {
       create_period_with_slots: {
         Args: {
           p_end_date: string
+          p_pet_ids: string[]
           p_start_date: string
           p_title: string
           p_token_digest: string

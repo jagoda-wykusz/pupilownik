@@ -36,6 +36,12 @@ export const MAX_SPAN_DAYS = 31;
 // the user off a generic 400.
 export const MAX_TITLE_LENGTH = 120;
 
+// Upper bound on how many pets one trip may cover. Shared with the zod schema so the chip
+// selector can refuse before a request is made. The bound exists because an unbounded array
+// on a create endpoint is a DoS vector (S-01 impl-review F1), not because an owner is
+// expected to approach it.
+export const MAX_PETS_PER_PERIOD = 20;
+
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 function asUtcDate(isoDate: string): Date {

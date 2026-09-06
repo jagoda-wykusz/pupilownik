@@ -489,6 +489,54 @@ its grant posture too.
 - Access contract: `docs/reference/data-access.md`
 - Recurring rule: `context/foundation/lessons.md`
 
+## Implementation Addenda
+
+Adaptations made during implementation, recorded so a later review can tell drift
+from decision.
+
+### Phase 1 — the zod schema and the API route were pulled in from Phase 2
+
+The plan put `pet_ids` in `createPeriodSchema` and `p_pet_ids` in `POST /api/periods` in
+Phase 2, but made "full suite passes" a Phase 1 criterion. Those cannot both hold:
+`tests/api/periods.post.test.ts` drives the real route, the route calls
+`create_period_with_slots`, and dropping the 4-argument signature breaks it immediately.
+Phase 1 therefore also lands the schema field, the route argument, and
+`MAX_PETS_PER_PERIOD` in `period-format.ts` — agreed with the user rather than papered over.
+
+Phase 2 is now purely the UI layer: the chip multi-select island and supplying the owner's
+pets to the form. That leaves the two phases better balanced than the plan had them.
+
+### Phase 1 — the both-parents predicate was mutation-tested, not just asserted
+
+`lessons.md` says a test that passes when the layer is removed is not a test of that layer.
+So the conjunction was verified by breaking it, twice, against the local database:
+
+| Mutation | Result |
+| --- | --- |
+| INSERT policy reduced to the period half only | 2 failures — "refuses A's period + B's pet" and "the RPC rolls the whole create back"; the other 9 tests still passed |
+| INSERT policy reduced to the pet half only | 1 failure — "refuses B's period + A's pet" |
+
+Both halves are therefore genuinely load-bearing and genuinely guarded. The policy was
+restored with `db:reset` and re-verified from `pg_policies` before continuing.
+
+### Phase 1 — the verification query had the bug, not the migration
+
+The first catalog check reported that none of the four policies referenced `pets`, which
+looked like a broken conjunction. Dumping the stored predicate showed the policies were
+correct and the `LIKE '%pets p%'` pattern was wrong — Postgres deparses the alias as
+`pets t`. Worth recording because the instinct on a red check is to edit the migration; the
+right first move was to read the actual `qual` / `with_check` text.
+
+### Phase 1 — two smaller decisions
+
+- **Duplicate pet ids are deduplicated, not rejected.** `select distinct` in the RPC. A
+  repeated id in the array is a client slip, and the set is the meaning; the composite PK
+  would otherwise raise a unique violation the caller cannot act on.
+- **The pet-seeding guards check `error`, not `data`.** supabase-js types `data` as non-null
+  in the no-error branch, so `if (!data)` is statically dead and
+  `@typescript-eslint/no-unnecessary-condition` rejects it — the same rule that reverted F7
+  in the S-02 review.
+
 ## Progress
 
 > Convention: `- [ ]` pending, `- [x]` done. Append ` — <commit sha>` when a step lands. Do not rename step titles. See `references/progress-format.md`.
@@ -497,19 +545,19 @@ its grant posture too.
 
 #### Automated
 
-- [ ] 1.1 Migration applies cleanly from scratch: `npm run db:reset` exits 0
-- [ ] 1.2 Security advisors clean: `npx supabase db advisors --type security`
-- [ ] 1.3 Types regenerate with no drift: `npm run db:gen-types` then `npx astro check`
-- [ ] 1.4 Full suite passes including the new isolation file: `npm test`
-- [ ] 1.5 Linting passes: `npm run lint`
+- [x] 1.1 Migration applies cleanly from scratch: `npm run db:reset` exits 0
+- [x] 1.2 Security advisors clean: `npx supabase db advisors --type security`
+- [x] 1.3 Types regenerate with no drift: `npm run db:gen-types` then `npx astro check`
+- [x] 1.4 Full suite passes including the new isolation file: `npm test`
+- [x] 1.5 Linting passes: `npm run lint`
 
 #### Manual
 
-- [ ] 1.6 `has_function_privilege` confirms the recreated RPC and no leftover 4-arg overload
-- [ ] 1.7 No `anon` grant on `care_period_pets`
-- [ ] 1.8 `pg_policies` shows RLS enabled with four policies on the new table
-- [ ] 1.9 A 3-day period yields 9 slots and one join row per pet id
-- [ ] 1.10 Linking a pet the caller does not own rolls the entire create back
+- [x] 1.6 `has_function_privilege` confirms the recreated RPC and no leftover 4-arg overload
+- [x] 1.7 No `anon` grant on `care_period_pets`
+- [x] 1.8 `pg_policies` shows RLS enabled with four policies on the new table
+- [x] 1.9 A 3-day period yields 9 slots and one join row per pet id
+- [x] 1.10 Linking a pet the caller does not own rolls the entire create back
 
 ### Phase 2: Owner API & the pet selector
 

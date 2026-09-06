@@ -50,3 +50,31 @@ export function createAnonClient(): SupabaseClient<Database> {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 }
+
+export interface OwnerWithPetContext extends OwnerContext {
+  petId: string;
+}
+
+// An owner who already has one pet.
+//
+// Every care period now needs at least one pet (S-08), and no helper produced one — three
+// test files would otherwise each grow their own pet-seeding boilerplate. The pet is inserted
+// through the owner's OWN client, so RLS applies and the row is genuinely theirs; never
+// service-role, which would make the surrounding isolation assertions tautological.
+export async function createOwnerWithPet(name = "Burek"): Promise<OwnerWithPetContext> {
+  const owner = await createOwnerClient();
+
+  const { data, error } = await owner.client
+    .from("pets")
+    .insert({ owner_id: owner.userId, name, species: "dog" })
+    .select("id")
+    .single();
+
+  // Check `error`, not `data`: supabase-js types data as non-null in the no-error branch of
+  // its discriminated response, so a `!data` guard is statically dead and lint rejects it.
+  if (error) {
+    throw new Error(`createOwnerWithPet: inserting pet "${name}" failed: ${error.message}`);
+  }
+
+  return { ...owner, petId: data.id };
+}

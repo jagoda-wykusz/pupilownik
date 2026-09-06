@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { digestInviteToken, generateInviteToken } from "@/lib/invite-token";
-import { createAnonClient, createOwnerClient, type OwnerContext } from "../helpers/auth";
+import { createAnonClient, createOwnerWithPet, type OwnerWithPetContext } from "../helpers/auth";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/db/database.types";
 
@@ -20,8 +20,8 @@ interface TokenPayload {
 
 describe("invite token access model", () => {
   let anon: SupabaseClient<Database>;
-  let a: OwnerContext;
-  let b: OwnerContext;
+  let a: OwnerWithPetContext;
+  let b: OwnerWithPetContext;
 
   let aToken: string;
   let aPeriodId: string;
@@ -30,7 +30,7 @@ describe("invite token access model", () => {
   let revokedToken: string;
 
   async function seedPeriod(
-    owner: OwnerContext,
+    owner: OwnerWithPetContext,
     title: string,
     start: string,
     end: string,
@@ -41,6 +41,7 @@ describe("invite token access model", () => {
       p_start_date: start,
       p_end_date: end,
       p_token_digest: await digestInviteToken(token),
+      p_pet_ids: [owner.petId],
     });
     expect(error).toBeNull();
     if (!data) {
@@ -57,8 +58,8 @@ describe("invite token access model", () => {
 
   beforeAll(async () => {
     anon = createAnonClient();
-    a = await createOwnerClient();
-    b = await createOwnerClient();
+    a = await createOwnerWithPet("A-Burek");
+    b = await createOwnerWithPet("B-Mru");
 
     // 3 days x 3 times of day = 9 slots.
     ({ id: aPeriodId, token: aToken } = await seedPeriod(a, "A-wyjazd", "2026-07-13", "2026-07-15"));
@@ -152,6 +153,9 @@ describe("invite token access model", () => {
       p_start_date: "2026-07-13",
       p_end_date: "2026-07-15",
       p_token_digest: "deadbeef",
+      // Must match the current signature exactly — a stale argument list would fail with a
+      // "function does not exist" error and the test would pass for the wrong reason.
+      p_pet_ids: [aPeriodId],
     });
     expect(create.error?.code).toBe("42501");
 

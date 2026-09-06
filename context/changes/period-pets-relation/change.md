@@ -1,7 +1,7 @@
 ---
 change_id: period-pets-relation
 title: Period pets relation
-status: planned
+status: implementing
 created: 2026-09-06
 updated: 2026-09-06
 archived_at: null

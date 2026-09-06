@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
-import { createOwnerClient, type OwnerContext } from "../helpers/auth";
+import { createOwnerWithPet, type OwnerWithPetContext } from "../helpers/auth";
 
 // Risk #1 — owner-isolation on public.care_slots (S-02).
 //
@@ -11,18 +11,21 @@ import { createOwnerClient, type OwnerContext } from "../helpers/auth";
 // Seeding goes through create_period_with_slots rather than a raw insert, so these tests
 // also prove the generation RPC produces the right rows under the caller's own RLS.
 describe("care_slots RLS owner-isolation", () => {
-  let a: OwnerContext;
-  let b: OwnerContext;
+  let a: OwnerWithPetContext;
+  let b: OwnerWithPetContext;
   let aPeriodId: string;
   let bPeriodId: string;
   let bSlotId: string;
 
-  async function seedPeriod(owner: OwnerContext, title: string, start: string, end: string): Promise<string> {
+  async function seedPeriod(owner: OwnerWithPetContext, title: string, start: string, end: string): Promise<string> {
     const { data, error } = await owner.client.rpc("create_period_with_slots", {
       p_title: title,
       p_start_date: start,
       p_end_date: end,
       p_token_digest: crypto.randomUUID(),
+      // Every period needs at least one pet since S-08; the owner's own pet keeps the
+      // insert inside the caller's RLS.
+      p_pet_ids: [owner.petId],
     });
     expect(error).toBeNull();
     if (!data) {
@@ -32,8 +35,8 @@ describe("care_slots RLS owner-isolation", () => {
   }
 
   beforeAll(async () => {
-    a = await createOwnerClient();
-    b = await createOwnerClient();
+    a = await createOwnerWithPet("A-Burek");
+    b = await createOwnerWithPet("B-Mru");
 
     // 3 days x 3 times of day = 9 slots each.
     aPeriodId = await seedPeriod(a, "A-wyjazd", "2026-07-13", "2026-07-15");

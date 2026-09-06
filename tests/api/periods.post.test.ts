@@ -67,21 +67,37 @@ async function call(
   return { status: response.status, body };
 }
 
-const VALID = JSON.stringify({ title: "Wyjazd", start_date: "2026-07-13", end_date: "2026-07-15" });
+// A valid payload needs a pet id since S-08, and the id is only known once the owner exists,
+// so this is a builder rather than a constant.
+function validBody(petIds: string[]): string {
+  return JSON.stringify({ title: "Wyjazd", start_date: "2026-07-13", end_date: "2026-07-15", pet_ids: petIds });
+}
 
 describe("POST /api/periods — validated atomic create + token minting", () => {
   let cookieHeader: string;
   let owner: OwnerContext;
+  let petId: string;
 
   beforeAll(async () => {
     const authed = await createAuthenticatedOwner();
     cookieHeader = authed.cookieHeader;
     owner = authed.owner;
+    // Inserted through the owner's own client, so RLS applies and the pet is genuinely
+    // theirs — the create RPC would roll back otherwise.
+    const pet = await owner.client
+      .from("pets")
+      .insert({ owner_id: owner.userId, name: "Burek", species: "dog" })
+      .select("id")
+      .single();
+    if (pet.error) {
+      throw new Error(`periods.post test: seeding a pet failed: ${pet.error.message}`);
+    }
+    petId = pet.data.id;
   });
 
   it("refuses an unauthenticated call (401) and writes nothing", async () => {
     const before = await owner.client.from("care_periods").select("id");
-    const { status } = await call(createPeriod, "/api/periods", { rawBody: VALID });
+    const { status } = await call(createPeriod, "/api/periods", { rawBody: validBody([petId]) });
 
     expect(status).toBe(401);
 
@@ -102,7 +118,7 @@ describe("POST /api/periods — validated atomic create + token minting", () => 
     const { status, body } = await call(createPeriod, "/api/periods", {
       cookieHeader,
       userId: owner.userId,
-      rawBody: JSON.stringify({ start_date: "2026-07-13", end_date: "2026-07-15" }),
+      rawBody: JSON.stringify({ start_date: "2026-07-13", end_date: "2026-07-15", pet_ids: [petId] }),
     });
 
     expect(status).toBe(400);
@@ -113,7 +129,7 @@ describe("POST /api/periods — validated atomic create + token minting", () => 
     const { status } = await call(createPeriod, "/api/periods", {
       cookieHeader,
       userId: owner.userId,
-      rawBody: JSON.stringify({ title: "Wyjazd", start_date: "2026-07-15", end_date: "2026-07-13" }),
+      rawBody: JSON.stringify({ title: "Wyjazd", start_date: "2026-07-15", end_date: "2026-07-13", pet_ids: [petId] }),
     });
     expect(status).toBe(400);
   });
@@ -123,7 +139,7 @@ describe("POST /api/periods — validated atomic create + token minting", () => 
       cookieHeader,
       userId: owner.userId,
       // 32 days inclusive.
-      rawBody: JSON.stringify({ title: "Wyjazd", start_date: "2026-07-01", end_date: "2026-08-01" }),
+      rawBody: JSON.stringify({ title: "Wyjazd", start_date: "2026-07-01", end_date: "2026-08-01", pet_ids: [petId] }),
     });
     expect(status).toBe(400);
   });
@@ -137,7 +153,7 @@ describe("POST /api/periods — validated atomic create + token minting", () => 
       cookieHeader,
       userId: owner.userId,
       // 2026-07-01 .. 2026-07-31 inclusive = 31 days.
-      rawBody: JSON.stringify({ title: "Wyjazd", start_date: "2026-07-01", end_date: "2026-07-31" }),
+      rawBody: JSON.stringify({ title: "Wyjazd", start_date: "2026-07-01", end_date: "2026-07-31", pet_ids: [petId] }),
     });
 
     expect(status).toBe(201);
@@ -151,7 +167,7 @@ describe("POST /api/periods — validated atomic create + token minting", () => 
     const { status, body } = await call(createPeriod, "/api/periods", {
       cookieHeader,
       userId: owner.userId,
-      rawBody: VALID,
+      rawBody: validBody([petId]),
     });
 
     expect(status).toBe(201);
@@ -183,10 +199,19 @@ describe("POST /api/periods/[id]/token — regeneration", () => {
     cookieHeader = authed.cookieHeader;
     owner = authed.owner;
 
+    const pet = await owner.client
+      .from("pets")
+      .insert({ owner_id: owner.userId, name: "Burek", species: "dog" })
+      .select("id")
+      .single();
+    if (pet.error) {
+      throw new Error(`periods.post test: seeding a pet failed: ${pet.error.message}`);
+    }
+
     const { body } = await call(createPeriod, "/api/periods", {
       cookieHeader,
       userId: owner.userId,
-      rawBody: VALID,
+      rawBody: validBody([pet.data.id]),
     });
     const payload = body as { period: { id: string }; inviteToken: string };
     periodId = payload.period.id;

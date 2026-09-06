@@ -34,7 +34,7 @@ export const POST: APIRoute = async (context) => {
     return jsonResponse({ error: "Validation failed", issues: parsed.error.issues }, 400);
   }
 
-  const { title, start_date, end_date } = parsed.data;
+  const { title, start_date, end_date, pet_ids } = parsed.data;
   const inviteToken = generateInviteToken();
 
   const { data, error } = await supabase.rpc("create_period_with_slots", {
@@ -42,6 +42,7 @@ export const POST: APIRoute = async (context) => {
     p_start_date: start_date,
     p_end_date: end_date,
     p_token_digest: await digestInviteToken(inviteToken),
+    p_pet_ids: pet_ids,
   });
 
   if (error) {
