@@ -127,13 +127,20 @@ if (supabase) {
                           rather than render an empty line. Chips rather than a joined
                           string: each pet reads as its own object, which is what the card
                           is listing. ui/Chip without onToggle renders a <span> — the whole
-                          card is an <a>, and a nested <button> would be invalid HTML. */}
+                          card is an <a>, and a nested <button> would be invalid HTML.
+                          `pets` is read directly while the aggregates one line up use
+                          `[0]?.count ?? 0` — not an oversight. A to-many embed is always an
+                          array (empty, never null); a `count` aggregate is an embed that CAN
+                          come back empty, and then `[0]` is undefined. Different shapes,
+                          different guards. */}
                       {period.pets.length > 0 ? (
-                        <div class="mt-1.5 flex flex-wrap gap-[10px]">
+                        <ul class="mt-1.5 flex flex-wrap gap-[10px]" aria-label="Zwierzęta w tym wyjeździe">
                           {period.pets.map((pet) => (
-                            <Chip>{pet.name}</Chip>
+                            <li>
+                              <Chip>{pet.name}</Chip>
+                            </li>
                           ))}
-                        </div>
+                        </ul>
                       ) : (
                         <p class="text-muted-foreground mt-1 text-[13px]">Bez przypisanych zwierząt</p>
                       )}

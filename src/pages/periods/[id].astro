@@ -128,13 +128,16 @@ const takenCount = slots.filter((slot) => slot.claimed_at !== null).length;
             <h1 class="font-heading text-foreground text-[30px] leading-[1.15] font-bold">{period.title}</h1>
             <p class="text-primary mt-1 text-[15px] font-semibold">{formatRange(period.start_date, period.end_date)}</p>
             {/* Read-only chips, the same component the create form uses for its selector —
-                see the list page for the empty-set reasoning. */}
+                see the list page for the empty-set reasoning, and for why `pets` needs no
+                null guard where the list's aggregates do. */}
             {period.pets.length > 0 ? (
-              <div class="mt-1.5 flex flex-wrap gap-[10px]">
+              <ul class="mt-1.5 flex flex-wrap gap-[10px]" aria-label="Zwierzęta w tym wyjeździe">
                 {period.pets.map((pet) => (
-                  <Chip>{pet.name}</Chip>
+                  <li>
+                    <Chip>{pet.name}</Chip>
+                  </li>
                 ))}
-              </div>
+              </ul>
             ) : (
               <p class="text-muted-foreground mt-1 text-[15px]">Bez przypisanych zwierząt</p>
             )}

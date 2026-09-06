@@ -20,27 +20,40 @@ import { cn } from "@/lib/utils";
 
 interface ChipProps {
   children: ReactNode;
-  /** Accent fill and border. Meaningless for a read-only chip, which is always muted. */
+  /** Accent fill and border. Meaningless for a read-only chip, which is always accented —
+   *  that is the one state the design draws, and the only one that survives a --card ground. */
   selected?: boolean;
   /** Supplying this makes the chip a real toggle button. Omit it for a label. */
   onToggle?: () => void;
-  /** Only used when `onToggle` is present, so the control announces what it belongs to. */
-  "aria-describedby"?: string;
 }
+
+// No className passthrough and no prop spread, on purpose (phase-3 impl-review F2). A spread
+// placed after className lets a caller silently override the whole geometry, and a chip whose
+// shape is negotiable is not a shared component. Field-level aria belongs on the group wrapper
+// that owns the error, which is where NewPeriodForm keeps it.
 
 const BASE =
   "flex items-center gap-2 rounded-[24px] border-[1.5px] px-[14px] py-[9px] font-heading text-[14px] font-bold";
 
-export function Chip({ children, selected = false, onToggle, ...aria }: ChipProps) {
-  const tone = selected
-    ? "border-primary bg-secondary text-secondary-foreground"
-    : "border-input bg-card text-muted-foreground";
+// The design draws its chips in exactly one tone, and this is it. Measured against the tokens
+// in global.css: text 4.58:1 on light, 6.18:1 on dark; pill edge 5.36:1 on --card.
+const ACCENT = "border-primary bg-secondary text-secondary-foreground";
 
+// The unselected half of the toggle, and ONLY that. Deliberately not reused read-only: its edge
+// measures 1.29:1 (light, #ecdfe5 on #ffffff) and 1.40:1 (dark, #443e49 on #2c2832), both under
+// the 3:1 non-text threshold — and on /periods the card behind the chip is --card as well, so
+// the pill stops reading as a pill at all. Phase-3 impl-review F1.
+const MUTED = "border-input bg-card text-muted-foreground";
+
+export function Chip({ children, selected = false, onToggle }: ChipProps) {
   // A label is a <span>: read-only pets are not buttons, and announcing them as such would
-  // promise an interaction that does not exist.
+  // promise an interaction that does not exist. It always takes ACCENT — with no sibling to
+  // contrast against, "these pets are on this trip" IS the design's selected state.
   if (!onToggle) {
-    return <span className={cn(BASE, tone)}>{children}</span>;
+    return <span className={cn(BASE, ACCENT)}>{children}</span>;
   }
+
+  const tone = selected ? ACCENT : MUTED;
 
   return (
     <button
@@ -54,7 +67,6 @@ export function Chip({ children, selected = false, onToggle, ...aria }: ChipProp
         "focus-visible:ring-ring/50 focus-visible:ring-[3px]",
         !selected && "hover:border-ring",
       )}
-      {...aria}
     >
       {children}
     </button>

@@ -746,8 +746,12 @@ Consumers were enumerated before the extraction, per that rule:
 
 This also closes the gap phase-2 review F9 recorded from the other side: S-07's roadmap outcome
 named a chip component among what it established and shipped only what the auth screens needed.
-Verified over HTTP on all three routes: the two owner screens render read-only `<span>` chips
-and zero `<button>`s, `/periods/new` renders `<button>` chips and zero `<span>`s.
+Verified over HTTP on all three routes. State the measurement, not a generalisation of it
+(phase-3 impl-review F5): what was counted is elements carrying the chip's own geometry
+(`rounded-[24px]`). On both owner screens that count is two `<span>`s and zero `<button>`s; on
+`/periods/new` it is two `<button>`s and zero `<span>`s. `/periods/[id]` does render a real
+`<button>` outside the chips — `RegenerateLinkButton` — and `/periods` renders `Button asChild`
+as anchors; neither is in scope for this claim.
 
 ## Progress
 

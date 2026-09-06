@@ -242,13 +242,20 @@ capturing anything surprising the phase taught.)
   surfaces are necessary but not sufficient: the predicate is a conjunction (`caller owns the
   period AND the pet`), and a single-parent version passes every one of those four. What
   catches it is a pair of with-check cases in opposite directions — A's period + B's pet, and
-  B's period + A's pet. Two further lessons: (1) **mutation-test a conjunction, do not assume
-  it** — breaking each half in turn showed exactly which cases guard which, and confirmed both
+  B's period + A's pet. Say what the missing half actually costs, not just that a test would
+  miss it: with only the period half, an owner can attach **another owner's pet** to their own
+  trip — a classic IDOR, and one that stays invisible until S-03 ships the instruction reveal,
+  at which point that pet's care instructions are handed to the attacker's caretakers.
+  Two further lessons: (1) **mutation-test a conjunction, do not assume it** — breaking each half in turn showed exactly which cases guard which, and confirmed both
   are load-bearing; (2) **verify the mutation actually applied** — one run was a silent no-op
   because prettier had reformatted the call being patched, and the test "passed", which would
   have read as "the test does not guard this". Also note the enforcement asymmetry recorded in
   §7: SELECT and DELETE are deliberately unpinned because the application cannot produce the
-  row they would need.
+  row they would need. One more fact S-03 must not rediscover: **a period with zero pets is
+  representable by design.** "At least one pet" is enforced only inside
+  `create_period_with_slots`, so a pre-relation row, a raw insert, or deleting the last linked
+  pet all leave a petless period standing. Every screen that reads a period's pets has to
+  render that state rather than assume a non-empty list.
 
 ### 6.7 Adding a protected-route (middleware gating) test
 
