@@ -1,7 +1,7 @@
 ---
 change_id: care-period-and-invite-link
 title: Okres opieki ze slotami + link zapraszający (S-02)
-status: implementing
+status: implemented
 created: 2026-09-06
 updated: 2026-09-06
 archived_at: null

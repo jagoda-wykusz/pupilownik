@@ -758,7 +758,8 @@ whenever the server is down. The equivalent assertions live at the RPC level in
 `tests/rls/invite-token.test.ts`. Recorded as a §7 "deliberately not tested" note in
 `test-plan.md`.
 
-Only 4.8 (three themes, mobile and desktop) still needs a human eye.
+4.8 (three themes, mobile and desktop) was the one check no probe could stand in for; the
+user confirmed it by eye.
 
 ## Progress
 
@@ -819,15 +820,15 @@ Only 4.8 (three themes, mobile and desktop) still needs a human eye.
 
 #### Automated
 
-- [x] 4.1 Type checking passes: `npx astro check`
-- [x] 4.2 Linting passes: `npm run lint`
-- [x] 4.3 Build passes: `npm run build`
-- [x] 4.4 Full suite green including the `/invite` non-gating case: `npm test`
+- [x] 4.1 Type checking passes: `npx astro check` — d8d2654
+- [x] 4.2 Linting passes: `npm run lint` — d8d2654
+- [x] 4.3 Build passes: `npm run build` — d8d2654
+- [x] 4.4 Full suite green including the `/invite` non-gating case: `npm test` — d8d2654
 
 #### Manual
 
-- [x] 4.5 A valid link opens logged-out and shows the period and slots
-- [x] 4.6 A tampered token yields the same page as an unknown token
-- [x] 4.7 A regenerated link invalidates the old one for the anonymous visitor
-- [x] 4.8 The page renders correctly in all three themes, mobile and desktop
-- [x] 4.9 The owner, signed in, can open the same link
+- [x] 4.5 A valid link opens logged-out and shows the period and slots — d8d2654
+- [x] 4.6 A tampered token yields the same page as an unknown token — d8d2654
+- [x] 4.7 A regenerated link invalidates the old one for the anonymous visitor — d8d2654
+- [x] 4.8 The page renders correctly in all three themes, mobile and desktop — d8d2654
+- [x] 4.9 The owner, signed in, can open the same link — d8d2654
