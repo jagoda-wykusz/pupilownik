@@ -12,8 +12,12 @@ import { countDays, MAX_PETS_PER_PERIOD, MAX_SPAN_DAYS, MAX_TITLE_LENGTH } from 
 
 export const createPeriodSchema = z
   .object({
+    // Every message here is user-facing: the route returns the first issue's message and the
+    // island renders it verbatim, so a field must carry a Polish message at the TYPE level
+    // too. `.min(1, …)` only fires when the key is present but empty — a MISSING key hits the
+    // type check first and would otherwise surface zod's English default.
     title: z
-      .string()
+      .string("Nazwa wyjazdu jest wymagana")
       .trim()
       .min(1, "Nazwa wyjazdu jest wymagana")
       .max(MAX_TITLE_LENGTH, `Nazwa może mieć najwyżej ${MAX_TITLE_LENGTH} znaków`),
@@ -23,7 +27,7 @@ export const createPeriodSchema = z
     // guarantee; this bound is what turns a violation into a clean 400 instead of surfacing
     // the RPC's raise as a 500.
     pet_ids: z
-      .array(z.uuid("Nieprawidłowy identyfikator zwierzęcia"))
+      .array(z.uuid("Nieprawidłowy identyfikator zwierzęcia"), "Wybierz co najmniej jedno zwierzę")
       .min(1, "Wybierz co najmniej jedno zwierzę")
       .max(MAX_PETS_PER_PERIOD, `Wyjazd może obejmować najwyżej ${MAX_PETS_PER_PERIOD} zwierząt`),
   })

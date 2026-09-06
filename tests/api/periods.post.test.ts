@@ -112,7 +112,9 @@ describe("POST /api/periods — validated atomic create + token minting", () => 
     });
 
     expect(status).toBe(400);
-    expect((body as { error?: string }).error).toBe("Validation failed");
+    // The message is user-facing and rendered verbatim by the island, so assert it says
+    // something about the missing field rather than an internal marker.
+    expect((body as { error?: string }).error).toContain("Nazwa wyjazdu jest wymagana");
   });
 
   it("rejects reversed dates (400) rather than letting the CHECK raise a 500", async () => {

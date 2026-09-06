@@ -590,6 +590,66 @@ records as existing for exactly one call in one file, or a deliberately invalid 
 `seed.sql`, which reaches every developer's database. Recorded in `test-plan.md` §7 with that
 reasoning rather than left as an unexplained gap.
 
+### Phase 2 — reduced to design polish, because the F1 fix absorbed items 1-4
+
+Phase 2's four Changes Required had already landed by the time this phase opened: items 1
+and 2 (the zod field and the route argument) in Phase 1 by the documented adaptation, and
+items 3 and 4 (the chip selector and supplying the owner's pets to the form) in the phase-1
+impl-review F1 fix, because every alternative there invented data. What remained was the one
+thing neither of those touched: whether the selector actually matches the design.
+
+**It did not, in one respect.** The design's `KTÓRE ZWIERZĘTA` chip is a pill —
+`border-radius: 24px`, `padding: 9px 14px`, `flex` with an `8px` gap — and mine used the
+shared `rounded-lg` (`--radius`, 16px) with `px-4 py-2`. Colours were already exact: the
+design's `rgb(246,234,239)` and `rgb(156,84,112)` are `--secondary` and `--primary`
+verbatim. Geometry corrected against the extracted design values.
+
+Three things recorded rather than fixed:
+
+- **No shared chip component exists.** `src/components/ui/` has AuthScreen, ScreenHeading,
+  LibBadge, button and Input — no chip, despite S-07's roadmap outcome naming one among the
+  components it established. S-07 shipped only what the auth screens needed. The chip stays
+  inline: one consumer does not justify creating a shared surface, and `lessons.md` cautions
+  in exactly that direction.
+- **The design's chip holds a circular pet photo.** `public.pets` is
+  `(id, owner_id, name, species, breed, age, created_at)` — no photo column. That half of the
+  chip is not implementable and is out of scope here; it would need a schema change plus
+  storage, which no FR covers.
+- **The design draws only the SELECTED chip state** (both its chips are picked), so the
+  unselected variant is ours: the muted counterpart on the same tokens.
+
+Verified through HTTP in all three themes plus the no-choice default: the chip renders with
+the corrected geometry, both pet names appear, and the theme class lands on `<html>`
+(`light` / `dark` / `contrast`). Note the limit of that evidence — SSR only ever renders the
+UNSELECTED state, because selection is client-side. The selected chip is verified by token
+derivation, not by render; manual check 2.9 is what closes it.
+
+### Phase 2 — how the manual checks were evidenced, and one defect they surfaced
+
+- **2.5, 2.6, 2.8** were proved through HTTP against the running dev server before the gate:
+  one pet yields one join row; two pets yield two join rows and the same 9 slots; an owner
+  with no pets gets the "Dodaj pierwsze zwierzę" route out and no selector.
+- **2.7 and 2.9 rest on the owner's eye, not on evidence I could gather.** The client-side
+  refusal happens before any request, and the selected chip state never renders server-side
+  (selection is client-side), so SSR only ever shows the unselected variant. Its colours were
+  derived from tokens — the design's `rgb(246,234,239)` and `rgb(156,84,112)` are `--secondary`
+  and `--primary` verbatim — but nobody had seen it rendered. Confirmed by the user.
+
+**A defect surfaced during the gate, and it was mine.** The owner reported "Dane są
+niepoprawne — sprawdź pola i spróbuj ponownie" after filling the form and asked whether that
+was expected. It was not: the phase-1 review's F3 fix added specific server-side messages
+(most importantly "Wybrane zwierzę nie należy do Ciebie albo nie istnieje", which only RLS can
+determine) and the island discarded them for a generic sentence. The owner could not see what
+was wrong.
+
+Fixing the passthrough exposed a second layer: for a MISSING key zod emits its own English
+default ("Invalid input: expected string, received undefined"), because a custom `.min(1, …)`
+message only fires once the key is present. Rendering `error` verbatim would therefore have
+put English internals in front of an owner. Messages are now set at the TYPE level too, and
+`tests/unit/period-schema.test.ts` pins the contract across 13 rejection paths — this is the
+kind of property that breaks silently, since adding a field without a type-level message would
+regress it and nothing else would notice.
+
 ## Progress
 
 > Convention: `- [ ]` pending, `- [x]` done. Append ` — <commit sha>` when a step lands. Do not rename step titles. See `references/progress-format.md`.
@@ -616,18 +676,18 @@ reasoning rather than left as an unexplained gap.
 
 #### Automated
 
-- [ ] 2.1 Type checking passes: `npx astro check`
-- [ ] 2.2 Linting passes: `npm run lint`
-- [ ] 2.3 Build passes: `npm run build`
-- [ ] 2.4 Full suite green including the repaired route test: `npm test`
+- [x] 2.1 Type checking passes: `npx astro check`
+- [x] 2.2 Linting passes: `npm run lint`
+- [x] 2.3 Build passes: `npm run build`
+- [x] 2.4 Full suite green including the repaired route test: `npm test`
 
 #### Manual
 
-- [ ] 2.5 Creating a trip with one pet produces the right join rows
-- [ ] 2.6 Creating a trip with two pets produces two join rows and the same slot count
-- [ ] 2.7 Submitting with no pet selected is refused client-side with a field message
-- [ ] 2.8 An owner with no pets sees a route to add one, not a dead form
-- [ ] 2.9 The selector matches the design's chip states in all three themes
+- [x] 2.5 Creating a trip with one pet produces the right join rows
+- [x] 2.6 Creating a trip with two pets produces two join rows and the same slot count
+- [x] 2.7 Submitting with no pet selected is refused client-side with a field message
+- [x] 2.8 An owner with no pets sees a route to add one, not a dead form
+- [x] 2.9 The selector matches the design's chip states in all three themes
 
 ### Phase 3: Owner read screens, contracts & the S-03 hand-off
 

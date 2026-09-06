@@ -31,7 +31,12 @@ export const POST: APIRoute = async (context) => {
 
   const parsed = createPeriodSchema.safeParse(payload);
   if (!parsed.success) {
-    return jsonResponse({ error: "Validation failed", issues: parsed.error.issues }, 400);
+    // The message is user-facing: the island renders `error` verbatim, so every 400 from
+    // this route has to carry a sentence an owner can act on. `issues` stays for debugging.
+    return jsonResponse(
+      { error: parsed.error.issues[0]?.message ?? "Dane są niepoprawne", issues: parsed.error.issues },
+      400,
+    );
   }
 
   const { title, start_date, end_date, pet_ids } = parsed.data;

@@ -106,7 +106,12 @@ export default function NewPeriodForm({ origin, pets }: Props) {
         return;
       }
       if (res.status === 400) {
-        setServerError("Dane są niepoprawne — sprawdź pola i spróbuj ponownie.");
+        // Show what the server actually said. It knows things the client cannot — most of
+        // all whether a chosen pet is really the owner's, which only RLS can answer — and a
+        // generic "check the fields" hides exactly that. Every 400 from /api/periods carries
+        // a user-facing Polish sentence in `error`.
+        const body = (await res.json().catch(() => null)) as { error?: string } | null;
+        setServerError(body?.error ?? "Dane są niepoprawne — sprawdź pola i spróbuj ponownie.");
       } else {
         setServerError("Nie udało się utworzyć wyjazdu. Spróbuj ponownie.");
       }
@@ -164,8 +169,18 @@ export default function NewPeriodForm({ origin, pets }: Props) {
                   );
                   clearError("pet_ids");
                 }}
+                // Geometry taken from the design's KTÓRE ZWIERZĘTA chip: 24px radius (a
+                // pill, not the shared --radius), 9px/14px padding, flex with an 8px gap.
+                // The design's chip also holds a circular pet photo — `pets` has no photo
+                // column, so that half is not implementable and is recorded as out of scope.
+                // The design draws only the SELECTED state (both its chips are picked), so
+                // the unselected variant below is ours: the muted counterpart on the same
+                // tokens. No shared chip component exists in src/components/ui/ despite
+                // S-07's roadmap outcome naming one, and one consumer does not justify
+                // creating a shared surface.
                 className={cn(
-                  "rounded-lg border-[1.5px] px-4 py-2 text-[14px] font-bold transition-colors",
+                  "flex items-center gap-2 rounded-[24px] border-[1.5px] px-[14px] py-[9px]",
+                  "text-[14px] font-bold transition-colors",
                   selected
                     ? "border-primary bg-secondary text-secondary-foreground"
                     : "border-input bg-card text-muted-foreground hover:border-ring",
