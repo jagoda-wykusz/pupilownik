@@ -2,6 +2,7 @@
 import Layout from "@/layouts/Layout.astro";
 import ThemeToggle from "@/components/ThemeToggle";
 import RegenerateLinkButton from "@/components/periods/RegenerateLinkButton";
+import { Chip } from "@/components/ui/Chip";
 import { createClient } from "@/lib/supabase";
 import { periodIdSchema } from "@/lib/schemas/period";
 import { resolveTheme, THEME_COOKIE } from "@/lib/theme";
@@ -34,6 +35,10 @@ interface SlotRow {
   // accident. Same standard /periods applies via its aggregate.
   claimed_at: string | null;
 }
+interface PetRow {
+  id: string;
+  name: string;
+}
 interface PeriodRow {
   id: string;
   title: string;
@@ -41,6 +46,7 @@ interface PeriodRow {
   end_date: string;
   revoked_at: string | null;
   care_slots: SlotRow[];
+  pets: PetRow[];
 }
 
 let period: PeriodRow | null = null;
@@ -51,7 +57,11 @@ if (periodId === null) {
 } else if (supabase) {
   const { data, error } = await supabase
     .from("care_periods")
-    .select("id, title, start_date, end_date, revoked_at, care_slots(id, slot_date, time_of_day, claimed_at)")
+    // `pets(...)` resolves the many-to-many through care_period_pets; see the list page for
+    // why this embed is bounded and not a repeat of impl-review F8.
+    .select(
+      "id, title, start_date, end_date, revoked_at, care_slots(id, slot_date, time_of_day, claimed_at), pets(id, name)",
+    )
     .eq("id", periodId)
     .maybeSingle();
   if (error) {
@@ -117,6 +127,17 @@ const takenCount = slots.filter((slot) => slot.claimed_at !== null).length;
           <>
             <h1 class="font-heading text-foreground text-[30px] leading-[1.15] font-bold">{period.title}</h1>
             <p class="text-primary mt-1 text-[15px] font-semibold">{formatRange(period.start_date, period.end_date)}</p>
+            {/* Read-only chips, the same component the create form uses for its selector —
+                see the list page for the empty-set reasoning. */}
+            {period.pets.length > 0 ? (
+              <div class="mt-1.5 flex flex-wrap gap-[10px]">
+                {period.pets.map((pet) => (
+                  <Chip>{pet.name}</Chip>
+                ))}
+              </div>
+            ) : (
+              <p class="text-muted-foreground mt-1 text-[15px]">Bez przypisanych zwierząt</p>
+            )}
             <p class="text-muted-foreground mt-2 text-[13px]">
               {takenCount} z {slots.length} terminów zajętych
               {period.revoked_at !== null && " · link został unieważniony"}

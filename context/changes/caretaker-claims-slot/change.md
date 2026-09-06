@@ -42,7 +42,13 @@ so S-03 does not rediscover them:
    mieszkanie 4…"), so it needs the same reveal rule S-03 is writing. S-02 dropped it silently
    along with the pet selector; the relation change parks it here rather than repeating that
    silence.
-2. **A period with ZERO pets is representable, by decision.** The relation change enforces
+2. **The relation now exists — `public.care_period_pets`, shipped by `period-pets-relation`.**
+   A period reaches its pets, and through them `care_instructions`, so FR-008 is implementable.
+   The path is `care_periods → care_period_pets → pets → care_instructions`, and PostgREST
+   resolves the many-to-many automatically, so a `pets(...)` embed needs no mention of the join
+   table. Sensitivity is a per-ROW flag (`is_sensitive`), so the reveal is a row filter, not a
+   field mask.
+3. **A period with ZERO pets is representable, by decision.** The relation change enforces
    "at least one pet" only inside `create_period_with_slots`, so a raw insert, a pre-relation
    row, or deleting the last linked pet all produce one. Nothing is corrupt — the period is
    merely useless. **S-03's caretaker page must tolerate it** rather than assume at least one

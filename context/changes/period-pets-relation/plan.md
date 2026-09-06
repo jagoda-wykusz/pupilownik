@@ -698,6 +698,57 @@ was dropped from the 400 body (`F6`).
   `species` has nowhere to appear: the design puts a circular pet photo in the chip and `pets`
   has no photo column, so the chip shows the name alone.
 
+### Phase 3 — the pet embed needs no mention of the join table
+
+PostgREST resolves the many-to-many itself: `pets(id, name)` on `care_periods` traverses
+`care_period_pets` from its two foreign keys, so neither owner screen names the join table.
+Verified against the local stack before writing it into the pages — the nested form
+`care_period_pets(pets(...))` also works but nests the payload for no gain.
+
+The embed sits alongside the `total` / `taken` aggregates on the list, and the `taken` filter
+still applies to its own alias only. This is **not** a repeat of impl-review F8: that finding
+was about a row count scaling with slots (up to 93 per period); pets per trip is a household.
+Both pages say so in a comment, or the next reviewer reads it as a regression.
+
+Both screens render "Bez przypisanych zwierząt" rather than an empty line when a trip has no
+pets — a state the plan's Critical Implementation Details says is representable by design.
+Proved end to end: creating a trip with one pet, deleting that pet, then loading both screens
+returns 200 with the fallback and the trip's title intact.
+
+Registered in `contract-surfaces.md`: `care_period_pets` (with the both-parents predicate
+named as the load-bearing part), `MAX_PETS_PER_PERIOD`, `PERIOD_MESSAGES`,
+`createOwnerWithPet()` and `createAuthenticatedOwnerWithPet()`. The
+`create_period_with_slots` row was already corrected during the phase-1 review (F9).
+
+`test-plan.md` §6.6 records what this slice taught the RLS recipe: §6.5's four denial surfaces
+are necessary but not sufficient for a two-parent predicate — a single-parent version passes
+all four, and only the two opposite-direction with-check cases catch it. Plus the two method
+notes: mutation-test a conjunction rather than assuming it, and verify the mutation actually
+applied (one run here was a silent no-op after prettier reformatted the patched call).
+
+The S-03 hand-off in `caretaker-claims-slot/change.md` now records that the relation exists and
+names the full path to instructions, so that slice does not re-derive it.
+
+**Deviation — pets render as chips, not a joined string.** The plan says both screens show pet
+"names" without prescribing a form; the first cut joined them with `" & "`, which reads as one
+label rather than as several pets. Replacing it made a third screen want the chip styling that
+had been sitting inline in `NewPeriodForm.tsx`, which is the threshold `lessons.md` rule 1
+names — so the styling was extracted to `src/components/ui/Chip.tsx` instead of copied.
+
+Consumers were enumerated before the extraction, per that rule:
+
+| Consumer | Decision |
+|---|---|
+| `NewPeriodForm.tsx` pet selector | migrated — interactive variant (`onToggle` → `<button aria-pressed>`) |
+| `/periods`, `/periods/[id]` | migrated — read-only variant (`<span>`; the list card is itself an `<a>`, so a nested `<button>` would be invalid HTML) |
+| `pets/index.astro:100` sensitive-count badge | **not migrated** — pill-shaped but hardcoded amber, S-01 styling this change's §What We're NOT Doing keeps out of scope |
+| slot cells in `/periods/[id]` and `/invite/[token]` | not a chip — `rounded-lg` rectangles the roadmap calls "badge pory" |
+
+This also closes the gap phase-2 review F9 recorded from the other side: S-07's roadmap outcome
+named a chip component among what it established and shipped only what the auth screens needed.
+Verified over HTTP on all three routes: the two owner screens render read-only `<span>` chips
+and zero `<button>`s, `/periods/new` renders `<button>` chips and zero `<span>`s.
+
 ## Progress
 
 > Convention: `- [ ]` pending, `- [x]` done. Append ` — <commit sha>` when a step lands. Do not rename step titles. See `references/progress-format.md`.
@@ -741,14 +792,14 @@ was dropped from the 400 body (`F6`).
 
 #### Automated
 
-- [ ] 3.1 Type checking passes: `npx astro check`
-- [ ] 3.2 Linting passes: `npm run lint`
-- [ ] 3.3 Build passes: `npm run build`
-- [ ] 3.4 Full suite green: `npm test`
+- [x] 3.1 Type checking passes: `npx astro check`
+- [x] 3.2 Linting passes: `npm run lint`
+- [x] 3.3 Build passes: `npm run build`
+- [x] 3.4 Full suite green: `npm test`
 
 #### Manual
 
-- [ ] 3.5 `/periods` names each trip's pets without a visible query regression
-- [ ] 3.6 `/periods/[id]` shows the trip's pets near its title
-- [ ] 3.7 A trip whose only pet was deleted renders without crashing on both screens
-- [ ] 3.8 Both screens render correctly in all three themes, mobile and desktop
+- [x] 3.5 `/periods` names each trip's pets without a visible query regression
+- [x] 3.6 `/periods/[id]` shows the trip's pets near its title
+- [x] 3.7 A trip whose only pet was deleted renders without crashing on both screens
+- [x] 3.8 Both screens render correctly in all three themes, mobile and desktop

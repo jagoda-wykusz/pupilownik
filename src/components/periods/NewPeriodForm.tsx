@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/button";
+import { Chip } from "@/components/ui/Chip";
 import { ServerError } from "@/components/auth/ServerError";
 import { InviteLinkPanel } from "@/components/periods/InviteLinkPanel";
 import { countDays, MAX_SPAN_DAYS, MAX_TITLE_LENGTH } from "@/lib/period-format";
-import { cn } from "@/lib/utils";
 
 // Create-period island (client:load). Mirrors SignInForm's shape — local state,
 // client-side validation for UX only — on the S-07 component layer, not the
@@ -175,44 +175,20 @@ export default function NewPeriodForm({ origin, pets }: Props) {
           aria-describedby={errors.pet_ids ? "pets-error" : undefined}
           className="flex flex-wrap gap-[10px]"
         >
-          {pets.map((pet) => {
-            const selected = petIds.includes(pet.id);
-            return (
-              <button
-                key={pet.id}
-                type="button"
-                aria-pressed={selected}
-                onClick={() => {
-                  setPetIds((current) =>
-                    current.includes(pet.id) ? current.filter((id) => id !== pet.id) : [...current, pet.id],
-                  );
-                  clearError("pet_ids");
-                }}
-                // Geometry taken from the design's KTÓRE ZWIERZĘTA chip: 24px radius (a
-                // pill, not the shared --radius), 9px/14px padding, flex with an 8px gap.
-                // The design's chip also holds a circular pet photo — `pets` has no photo
-                // column, so that half is not implementable and is recorded as out of scope.
-                // The design draws only the SELECTED state (both its chips are picked), so
-                // the unselected variant below is ours: the muted counterpart on the same
-                // tokens. No shared chip component exists in src/components/ui/ despite
-                // S-07's roadmap outcome naming one, and one consumer does not justify
-                // creating a shared surface.
-                className={cn(
-                  "flex items-center gap-2 rounded-[24px] border-[1.5px] px-[14px] py-[9px]",
-                  // font-heading = Quicksand, which the design specifies for the chip label.
-                  // A bare <button> would inherit font-body (Nunito) from the base layer;
-                  // ui/button.tsx sets font-heading explicitly for the same reason.
-                  "font-heading text-[14px] font-bold transition-colors",
-                  "focus-visible:ring-ring/50 outline-none focus-visible:ring-[3px]",
-                  selected
-                    ? "border-primary bg-secondary text-secondary-foreground"
-                    : "border-input bg-card text-muted-foreground hover:border-ring",
-                )}
-              >
-                {pet.name}
-              </button>
-            );
-          })}
+          {pets.map((pet) => (
+            <Chip
+              key={pet.id}
+              selected={petIds.includes(pet.id)}
+              onToggle={() => {
+                setPetIds((current) =>
+                  current.includes(pet.id) ? current.filter((id) => id !== pet.id) : [...current, pet.id],
+                );
+                clearError("pet_ids");
+              }}
+            >
+              {pet.name}
+            </Chip>
+          ))}
         </div>
         {errors.pet_ids && (
           // role="alert" is load-bearing: the message appears after a blocked submit, and a

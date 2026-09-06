@@ -2,6 +2,7 @@
 import Layout from "@/layouts/Layout.astro";
 import ThemeToggle from "@/components/ThemeToggle";
 import { Button } from "@/components/ui/button";
+import { Chip } from "@/components/ui/Chip";
 import { createClient } from "@/lib/supabase";
 import { resolveTheme, THEME_COOKIE } from "@/lib/theme";
 import { countDays, formatRange } from "@/lib/period-format";
@@ -20,6 +21,10 @@ const PERIODS_PAGE_SIZE = 100;
 interface CountRow {
   count: number;
 }
+interface PetRow {
+  id: string;
+  name: string;
+}
 interface PeriodRow {
   id: string;
   title: string;
@@ -28,6 +33,7 @@ interface PeriodRow {
   revoked_at: string | null;
   total: CountRow[];
   taken: CountRow[];
+  pets: PetRow[];
 }
 
 let periods: PeriodRow[] = [];
@@ -42,7 +48,13 @@ if (supabase) {
   // still come back, with taken = 0.
   const { data, error } = await supabase
     .from("care_periods")
-    .select("id, title, start_date, end_date, revoked_at, total:care_slots(count), taken:care_slots(count)")
+    // `pets(...)` traverses care_period_pets automatically — PostgREST resolves the
+    // many-to-many from the join table's two foreign keys, so the join table never appears
+    // here. Unlike the slot rows impl-review F8 removed, this embed is bounded by pets per
+    // trip (a household, not 93 slots), so it is not a repeat of that finding.
+    .select(
+      "id, title, start_date, end_date, revoked_at, total:care_slots(count), taken:care_slots(count), pets(id, name)",
+    )
     .not("taken.claimed_by_name", "is", null)
     .order("start_date", { ascending: false })
     .limit(PERIODS_PAGE_SIZE);
@@ -110,6 +122,21 @@ if (supabase) {
                       <p class="text-primary mt-1 text-[13px] font-semibold">
                         {formatRange(period.start_date, period.end_date)}
                       </p>
+                      {/* A trip with no pets is representable by design (see the plan's
+                          Critical Implementation Details), so this has to say something
+                          rather than render an empty line. Chips rather than a joined
+                          string: each pet reads as its own object, which is what the card
+                          is listing. ui/Chip without onToggle renders a <span> — the whole
+                          card is an <a>, and a nested <button> would be invalid HTML. */}
+                      {period.pets.length > 0 ? (
+                        <div class="mt-1.5 flex flex-wrap gap-[10px]">
+                          {period.pets.map((pet) => (
+                            <Chip>{pet.name}</Chip>
+                          ))}
+                        </div>
+                      ) : (
+                        <p class="text-muted-foreground mt-1 text-[13px]">Bez przypisanych zwierząt</p>
+                      )}
                       <p class="text-muted-foreground mt-2 text-[13px]">
                         {takenCount} z {totalCount} terminów zajętych
                         {period.revoked_at !== null && " · link nieaktywny"}

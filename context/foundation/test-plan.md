@@ -237,6 +237,19 @@ capturing anything surprising the phase taught.)
   deliberately NOT tested: the caretaker page is verified through HTTP by hand (§7 — no e2e
   runner), because an automated version would depend on a running dev server.
 
+- **S-08 (`period-pets-relation`)**: the first table in this schema whose ownership is
+  transitive through TWO parents, and the recipe changes because of it. §6.5's four denial
+  surfaces are necessary but not sufficient: the predicate is a conjunction (`caller owns the
+  period AND the pet`), and a single-parent version passes every one of those four. What
+  catches it is a pair of with-check cases in opposite directions — A's period + B's pet, and
+  B's period + A's pet. Two further lessons: (1) **mutation-test a conjunction, do not assume
+  it** — breaking each half in turn showed exactly which cases guard which, and confirmed both
+  are load-bearing; (2) **verify the mutation actually applied** — one run was a silent no-op
+  because prettier had reformatted the call being patched, and the test "passed", which would
+  have read as "the test does not guard this". Also note the enforcement asymmetry recorded in
+  §7: SELECT and DELETE are deliberately unpinned because the application cannot produce the
+  row they would need.
+
 ### 6.7 Adding a protected-route (middleware gating) test
 
 The recipe for proving a route is gated (Risk #2). Shipped in Phase 2
