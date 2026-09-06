@@ -110,8 +110,14 @@ export default function NewPeriodForm({ origin, pets }: Props) {
         // all whether a chosen pet is really the owner's, which only RLS can answer — and a
         // generic "check the fields" hides exactly that. Every 400 from /api/periods carries
         // a user-facing Polish sentence in `error`.
-        const body = (await res.json().catch(() => null)) as { error?: string } | null;
-        setServerError(body?.error ?? "Dane są niepoprawne — sprawdź pola i spróbuj ponownie.");
+        const body: unknown = await res.json().catch(() => null);
+        // Checked, not cast: a 400 from an intermediary could carry a non-string `error`, and
+        // handing an object to ServerError would make React throw on an invalid child.
+        const message =
+          typeof body === "object" && body !== null && "error" in body && typeof body.error === "string"
+            ? body.error
+            : "Dane są niepoprawne — sprawdź pola i spróbuj ponownie.";
+        setServerError(message);
       } else {
         setServerError("Nie udało się utworzyć wyjazdu. Spróbuj ponownie.");
       }
@@ -154,8 +160,21 @@ export default function NewPeriodForm({ origin, pets }: Props) {
       />
 
       <div>
-        <p className="text-muted-foreground mb-1.5 ml-1 text-xs font-bold tracking-wide">KTÓRE ZWIERZĘTA</p>
-        <div className="flex flex-wrap gap-2">
+        <p id="pets-label" className="text-muted-foreground mb-1.5 ml-1 text-xs font-bold tracking-wide">
+          KTÓRE ZWIERZĘTA
+        </p>
+        {/* role="group" + aria-labelledby so a screen-reader user hears WHAT is being chosen,
+            not just "Burek, toggle button" — the pattern AddPetForm already uses for its
+            species control. aria-describedby ties the field error to the group, the way
+            ui/Input does for a single field. Row gap is the design's 10px (the chip's own
+            8px inner gap is inert here: the chip has one child, since `pets` has no photo
+            column). */}
+        <div
+          role="group"
+          aria-labelledby="pets-label"
+          aria-describedby={errors.pet_ids ? "pets-error" : undefined}
+          className="flex flex-wrap gap-[10px]"
+        >
           {pets.map((pet) => {
             const selected = petIds.includes(pet.id);
             return (
@@ -180,7 +199,11 @@ export default function NewPeriodForm({ origin, pets }: Props) {
                 // creating a shared surface.
                 className={cn(
                   "flex items-center gap-2 rounded-[24px] border-[1.5px] px-[14px] py-[9px]",
-                  "text-[14px] font-bold transition-colors",
+                  // font-heading = Quicksand, which the design specifies for the chip label.
+                  // A bare <button> would inherit font-body (Nunito) from the base layer;
+                  // ui/button.tsx sets font-heading explicitly for the same reason.
+                  "font-heading text-[14px] font-bold transition-colors",
+                  "focus-visible:ring-ring/50 outline-none focus-visible:ring-[3px]",
                   selected
                     ? "border-primary bg-secondary text-secondary-foreground"
                     : "border-input bg-card text-muted-foreground hover:border-ring",
@@ -191,7 +214,14 @@ export default function NewPeriodForm({ origin, pets }: Props) {
             );
           })}
         </div>
-        {errors.pet_ids && <p className="text-destructive mt-1.5 ml-1 text-[13px]">{errors.pet_ids}</p>}
+        {errors.pet_ids && (
+          // role="alert" is load-bearing: the message appears after a blocked submit, and a
+          // screen-reader user needs it announced rather than merely present (ServerError
+          // carries the same comment).
+          <p id="pets-error" role="alert" className="text-destructive mt-1.5 ml-1 text-[13px]">
+            {errors.pet_ids}
+          </p>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-3">

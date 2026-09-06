@@ -26,17 +26,21 @@ export const POST: APIRoute = async (context) => {
   try {
     payload = await context.request.json();
   } catch {
-    return jsonResponse({ error: "Invalid JSON body" }, 400);
+    return jsonResponse({ error: "Nie udało się odczytać danych formularza" }, 400);
   }
 
   const parsed = createPeriodSchema.safeParse(payload);
   if (!parsed.success) {
-    // The message is user-facing: the island renders `error` verbatim, so every 400 from
-    // this route has to carry a sentence an owner can act on. `issues` stays for debugging.
-    return jsonResponse(
-      { error: parsed.error.issues[0]?.message ?? "Dane są niepoprawne", issues: parsed.error.issues },
-      400,
-    );
+    // The message is user-facing: the island renders `error` verbatim, so every 400 from this
+    // route has to carry a sentence an owner can act on. Prefer an issue with a field path —
+    // a root-level issue (a body that is not an object at all) is the one case whose message
+    // comes from the schema's shape rather than a field, and both are Polish by construction
+    // (see PERIOD_MESSAGES). `issues` is dropped: nothing read it, and it shipped zod's
+    // English internals alongside the Polish sentence.
+    // `issues` is never empty on a failed parse, and TS types `issues[0]` as present, so the
+    // fallback is the find() miss — a body that produced only root-level issues.
+    const issue = parsed.error.issues.find((i) => i.path.length > 0) ?? parsed.error.issues[0];
+    return jsonResponse({ error: issue.message }, 400);
   }
 
   const { title, start_date, end_date, pet_ids } = parsed.data;
@@ -65,8 +69,17 @@ export const POST: APIRoute = async (context) => {
     //   23503 the pet id does not exist at all
     //   23502 a NULL slipped into the array (belt-and-braces; the RPC filters them)
     //   P0001 the RPC's own "at least one pet" raise
-    if (["42501", "23503", "23502", "P0001"].includes(error.code)) {
+    // A pet that is not the caller's (the join insert failing the RLS with-check) or one that
+    // does not exist. Both answer the same sentence on purpose — it asserts no existence fact
+    // either way, so it is not an oracle.
+    if (["42501", "23503"].includes(error.code)) {
       return jsonResponse({ error: "Wybrane zwierzę nie należy do Ciebie albo nie istnieje" }, 400);
+    }
+    // The RPC's own "at least one pet" raise, and a NULL slipping into the array. zod catches
+    // both first, so these are belt-and-braces — but answering them with the sentence above
+    // would tell an owner their pet is not theirs when in fact they named none.
+    if (["P0001", "23502"].includes(error.code)) {
+      return jsonResponse({ error: "Wybierz co najmniej jedno zwierzę" }, 400);
     }
     return jsonResponse({ error: "Nie udało się utworzyć wyjazdu" }, 500);
   }

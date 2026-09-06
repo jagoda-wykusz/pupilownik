@@ -294,6 +294,16 @@ contributors should respect these unless the underlying assumption changes.
   risk: these two clauses are defense-in-depth against corrupt data a privileged process
   would have to create first.
 
+- **Polish, user-facing validation messages on `/api/pets` and `/api/periods/[id]/token`
+  (S-01 debt).** `/api/periods` now returns a zod issue's message and its island renders it
+  verbatim, pinned by `tests/unit/period-schema.test.ts` against an exported message set. The
+  other two routes still answer `{ error: "Validation failed" }`, and `AddPetForm` discards it
+  for a generic sentence — the same defect, still live. It is NOT fixed here because copying
+  the passthrough alone would leak English: `src/lib/schemas/pet.ts` carries messages on two
+  fields only, so `species` would surface `Invalid option: expected one of "dog"|"cat"|"other"`.
+  Fixing it properly means Polish messages at the type level in that schema plus the membership
+  test extended to cover it — its own unit of work, in S-01's scope, not this change's.
+
 ## 8. Freshness Ledger
 
 - Strategy (§1–§5) last reviewed: 2026-06-28

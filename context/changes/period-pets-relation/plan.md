@@ -650,6 +650,54 @@ put English internals in front of an owner. Messages are now set at the TYPE lev
 kind of property that breaks silently, since adding a field without a type-level message would
 regress it and nothing else would notice.
 
+### Phase 2 — impl-review fixes (reviews/impl-review-phase-2.md)
+
+Nine findings; seven fixed, one recorded as another slice's debt, one recorded here.
+
+**The two that matter are both self-inflicted, and both of the same kind.**
+
+`F1` — the contract "every 400 from this route carries a Polish sentence" was written into two
+comments and was false. Type-level messages were added to the four FIELDS but not to the object
+SHAPE, so a body that is valid JSON but not an object (`null`, `"x"`, `42`, `[]`) produced zod's
+English default with an empty path, and the island rendered it. `"Invalid JSON body"` was the
+second English branch. Both now answer in Polish; the route prefers a field-level issue and
+falls back to the shape's message.
+
+`F2` — `tests/unit/period-schema.test.ts` was written specifically to prevent English messages
+reaching an owner, and it was built on a heuristic that misses zod's whole `invalid_format`
+family: `z.uuid()` defaults to "Invalid UUID" and `z.iso.date()` to "Invalid ISO date", neither
+matching any of its three regexes. Deleting a message argument left the test green. It now
+asserts MEMBERSHIP in `PERIOD_MESSAGES`, exported from the schema, which fails on every zod
+default — known or not. Mutation-tested three ways: removing the uuid message fails 1 case, the
+date message 3, the object message 4.
+
+Worth recording about that mutation run: the third mutation was at first a **no-op** — prettier
+had reformatted the multi-argument `.object(…)` call, so the search string never matched and the
+test "passed". Verifying that the mutation had actually been applied is what stopped a false
+conclusion that the test did not guard the shape.
+
+Also fixed: the chip group is now `role="group"` with `aria-labelledby` and `aria-describedby`,
+its error carries `role="alert"`, and the chip has a `focus-visible` ring — all patterns
+`AddPetForm`, `ui/Input` and `ui/button` already had (`F3`). The row gap is the design's 10px,
+not the 8px I had, and the chip label is `font-heading` (Quicksand) as the design specifies
+rather than the inherited Nunito (`F4`) — the geometry pass this phase existed for had left the
+one visible gap wrong while its comment justified the chip's INNER gap, which is inert because
+the chip has a single child. Error-code mapping now answers "Wybierz co najmniej jedno zwierzę"
+for `P0001`/`23502` instead of telling an owner a pet is not theirs (`F7`), and the island
+validates the response body's `error` instead of casting it (`F8`). The unused `issues` array
+was dropped from the 400 body (`F6`).
+
+**Recorded, not fixed:**
+
+- `F5` — `/api/pets` and `/api/periods/[id]/token` still answer `"Validation failed"`, and
+  `AddPetForm` discards it for a generic sentence: the same defect, still live. Not fixed here
+  because copying the passthrough alone would leak English — `schemas/pet.ts` carries messages
+  on two fields only. Recorded in `test-plan.md` §7 as S-01's debt with the reason.
+- `F9` — `PetOption` is `{ id, name }` where the plan's Phase 2 contract said
+  `{ id, name, species }[]`. The narrowing landed in the Phase 1 F1 fix and was never recorded.
+  `species` has nowhere to appear: the design puts a circular pet photo in the chip and `pets`
+  has no photo column, so the chip shows the name alone.
+
 ## Progress
 
 > Convention: `- [ ]` pending, `- [x]` done. Append ` — <commit sha>` when a step lands. Do not rename step titles. See `references/progress-format.md`.
@@ -676,18 +724,18 @@ regress it and nothing else would notice.
 
 #### Automated
 
-- [x] 2.1 Type checking passes: `npx astro check`
-- [x] 2.2 Linting passes: `npm run lint`
-- [x] 2.3 Build passes: `npm run build`
-- [x] 2.4 Full suite green including the repaired route test: `npm test`
+- [x] 2.1 Type checking passes: `npx astro check` — bd93988
+- [x] 2.2 Linting passes: `npm run lint` — bd93988
+- [x] 2.3 Build passes: `npm run build` — bd93988
+- [x] 2.4 Full suite green including the repaired route test: `npm test` — bd93988
 
 #### Manual
 
-- [x] 2.5 Creating a trip with one pet produces the right join rows
-- [x] 2.6 Creating a trip with two pets produces two join rows and the same slot count
-- [x] 2.7 Submitting with no pet selected is refused client-side with a field message
-- [x] 2.8 An owner with no pets sees a route to add one, not a dead form
-- [x] 2.9 The selector matches the design's chip states in all three themes
+- [x] 2.5 Creating a trip with one pet produces the right join rows — bd93988
+- [x] 2.6 Creating a trip with two pets produces two join rows and the same slot count — bd93988
+- [x] 2.7 Submitting with no pet selected is refused client-side with a field message — bd93988
+- [x] 2.8 An owner with no pets sees a route to add one, not a dead form — bd93988
+- [x] 2.9 The selector matches the design's chip states in all three themes — bd93988
 
 ### Phase 3: Owner read screens, contracts & the S-03 hand-off
 
