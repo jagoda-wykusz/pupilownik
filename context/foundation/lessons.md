@@ -37,3 +37,22 @@
   UPADA, gdy postura znika. Asercja przechodząca również przy braku tej warstwy nie jest jej
   testem, tylko jej opisem.
 - **Applies to**: plan, plan-review, implement, impl-review
+
+## Ubij serwer dev, zanim uruchomisz `npm run build`
+
+- **Context**: Każda weryfikacja fazy w tym repo wykonywana przy działającym `npm run dev` —
+  a `npm run build` jest kryterium sukcesu w KAŻDYM planie, więc trafia się to za każdym
+  razem. Dotyczy też `rm -rf node_modules/.vite` i każdej innej operacji na tym katalogu.
+- **Problem**: W S-02 i S-08 zdarzyło się to trzy razy i za każdym razem diagnoza szła w złą
+  stronę. `astro dev` i `astro build` dzielą `node_modules/.vite`; build przebudowuje cache
+  zoptymalizowanych zależności, a działający serwer dev zostaje z URL-ami, których już nie ma
+  („The file does not exist at .../deps/lucide-react.js?v=6391e524"). Objawy są mylące, bo
+  **build kończy się sukcesem** — psuje się dev: `TypeError: Cannot read properties of null
+  (reading 'useHostTransitionStatus')`, `jsxDEV is not a function`, albo SSR zwraca 200 z
+  pustym ciałem i znikają wszystkie formularze. Dwa razy odesłałem użytkownika na twardy
+  reload, zanim zrozumiałem przyczynę; raz szukałem błędu w kodzie, którego tam nie było.
+- **Rule**: Zanim uruchomisz `npm run build` — albo cokolwiek ruszy `node_modules/.vite` —
+  ubij serwer dev. Gdy dev zaczyna się psuć (null-owy hook Reacta, `jsxDEV is not a function`,
+  puste SSR), najpierw zrestartuj serwer i poszukaj w logu „does not exist … optimize deps
+  directory"; nie diagnozuj kodu, dopóki tego nie wykluczysz.
+- **Applies to**: implement, impl-review
