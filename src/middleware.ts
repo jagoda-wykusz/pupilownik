@@ -7,6 +7,20 @@ import { createClient } from "@/lib/supabase";
 // with no session at all, which is the whole point of the token model (S-02).
 export const PROTECTED_ROUTES = ["/dashboard", "/pets", "/periods"];
 
+// The caretaker's invite link carries its secret in the path, which makes the RESPONSE a
+// second place the token can escape from. Two headers close that:
+//
+// - `Referrer-Policy: no-referrer` — without it, the first outbound link, third-party font
+//   or messenger link-preview crawler on the invite page sends the full path, token
+//   included, in the Referer header.
+// - `Cache-Control: no-store` — keeps the rendered period out of shared caches and out of
+//   the back-button cache on a borrowed device.
+//
+// Applied by prefix so every future route under /invite inherits it. A path segment was
+// chosen over a URL fragment because the server has to resolve the token; the trade-off is
+// recorded in docs/reference/data-access.md.
+const INVITE_PREFIX = "/invite";
+
 export const onRequest = defineMiddleware(async (context, next) => {
   const supabase = createClient(context.request.headers, context.cookies);
 
@@ -25,5 +39,12 @@ export const onRequest = defineMiddleware(async (context, next) => {
     }
   }
 
-  return next();
+  const response = await next();
+
+  if (context.url.pathname.startsWith(INVITE_PREFIX)) {
+    response.headers.set("Referrer-Policy", "no-referrer");
+    response.headers.set("Cache-Control", "no-store");
+  }
+
+  return response;
 });

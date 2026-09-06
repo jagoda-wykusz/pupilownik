@@ -715,6 +715,51 @@ Ten findings, all triaged. Eight fixed, one dismissed, one deferred:
 Worth recording plainly: **F1 is exactly the class of defect manual check 3.5 should have
 caught**, and 3.5 was ticked as passing.
 
+### Phase 4 — the invite headers landed here, from the Phase 3 review
+
+F6 of the Phase 3 impl-review is implemented as part of this phase, not as a follow-up:
+`src/middleware.ts` sends `Referrer-Policy: no-referrer` and `Cache-Control: no-store` for
+the `/invite` prefix. Without the first, the caretaker page's first outbound link or
+third-party asset carries the full path — token included — in `Referer`.
+
+Three cases in `auth-gating.test.ts` pin it: the route is not gated, the two headers are
+present, and they are scoped to `/invite` rather than sprayed across the app. The last one
+matters because a blanket `no-store` on every route would be a silent performance change.
+
+What the headers do NOT fix is recorded in `data-access.md`: the token is still in browser
+history and in the access log of anything proxying the request. The link is a bearer
+credential.
+
+### Phase 4 — a load failure is not an inactive link
+
+`get_period_by_token` returning NULL and the call itself failing are rendered differently:
+NULL is the uniform "link nieaktywny" 404, a transport/permission error is an error state
+saying the link is fine and to retry. Collapsing them would tell a visitor to go ask the
+owner for a replacement that would work no better — S-01 impl-review F5 applied to the
+caretaker side. The null-client (unconfigured Supabase) path joins the error branch, not
+the inactive one.
+
+### Phase 4 — how 4.5–4.7 and 4.9 were evidenced
+
+Driven through HTTP against the running dev server with a real minted token, in one pass:
+
+| Case | Status | Referrer-Policy | Cache-Control | Renders |
+| --- | --- | --- | --- | --- |
+| valid, no session | 200 | no-referrer | no-store | title + 9 slots, no instructions |
+| tampered (one char) | 404 | no-referrer | no-store | "Link nieaktywny" |
+| unknown token | 404 | no-referrer | no-store | "Link nieaktywny" |
+| valid, owner signed in | 200 | no-referrer | no-store | title + 9 slots |
+| old token after regenerate | 404 | no-referrer | no-store | "Link nieaktywny" |
+| new token after regenerate | 200 | no-referrer | no-store | title + 9 slots |
+
+Tampered and unknown are byte-identical, which is the property that matters. The probe was
+deliberately NOT kept as a test: it needs a running dev server, so it would fail `npm test`
+whenever the server is down. The equivalent assertions live at the RPC level in
+`tests/rls/invite-token.test.ts`. Recorded as a §7 "deliberately not tested" note in
+`test-plan.md`.
+
+Only 4.8 (three themes, mobile and desktop) still needs a human eye.
+
 ## Progress
 
 > Convention: `- [ ]` pending, `- [x]` done. Append ` — <commit sha>` when a step lands. Do not rename step titles. See `references/progress-format.md`.
@@ -774,15 +819,15 @@ caught**, and 3.5 was ticked as passing.
 
 #### Automated
 
-- [ ] 4.1 Type checking passes: `npx astro check`
-- [ ] 4.2 Linting passes: `npm run lint`
-- [ ] 4.3 Build passes: `npm run build`
-- [ ] 4.4 Full suite green including the `/invite` non-gating case: `npm test`
+- [x] 4.1 Type checking passes: `npx astro check`
+- [x] 4.2 Linting passes: `npm run lint`
+- [x] 4.3 Build passes: `npm run build`
+- [x] 4.4 Full suite green including the `/invite` non-gating case: `npm test`
 
 #### Manual
 
-- [ ] 4.5 A valid link opens logged-out and shows the period and slots
-- [ ] 4.6 A tampered token yields the same page as an unknown token
-- [ ] 4.7 A regenerated link invalidates the old one for the anonymous visitor
-- [ ] 4.8 The page renders correctly in all three themes, mobile and desktop
-- [ ] 4.9 The owner, signed in, can open the same link
+- [x] 4.5 A valid link opens logged-out and shows the period and slots
+- [x] 4.6 A tampered token yields the same page as an unknown token
+- [x] 4.7 A regenerated link invalidates the old one for the anonymous visitor
+- [x] 4.8 The page renders correctly in all three themes, mobile and desktop
+- [x] 4.9 The owner, signed in, can open the same link

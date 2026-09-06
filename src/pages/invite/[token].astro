@@ -1,0 +1,157 @@
+---
+import Layout from "@/layouts/Layout.astro";
+import ThemeToggle from "@/components/ThemeToggle";
+import { createClient } from "@/lib/supabase";
+import { resolveTheme, THEME_COOKIE } from "@/lib/theme";
+import { formatDay, formatRange, formatWeekday, TIMES_OF_DAY, TIME_OF_DAY_LABEL } from "@/lib/period-format";
+import type { TimeOfDay } from "@/lib/period-format";
+
+// The caretaker's view. Deliberately NOT in PROTECTED_ROUTES: whoever holds the link has
+// no account, and that is the whole access model (docs/reference/data-access.md §token
+// model). The middleware adds Referrer-Policy: no-referrer and Cache-Control: no-store for
+// this prefix, because the token travels in the path.
+//
+// The read goes through the ordinary request-scoped client. A logged-out visitor has no
+// session, so the call runs as `anon`; a signed-in owner opening their own link runs as
+// `authenticated`. get_period_by_token is granted to both, so no new client type is needed
+// and nothing here has to know which one it is.
+//
+// This page is READ-ONLY. Claiming a slot is S-03, occupancy by name is S-04, and
+// instructions are S-03's guardrail — the function returns none of them, so there is
+// nothing here to accidentally render.
+const supabase = createClient(Astro.request.headers, Astro.cookies);
+const theme = resolveTheme(Astro.cookies.get(THEME_COOKIE)?.value);
+const token = Astro.params.token ?? "";
+
+interface TokenSlot {
+  id: string;
+  slot_date: string;
+  time_of_day: TimeOfDay;
+  is_claimed: boolean;
+}
+interface TokenPayload {
+  period: { id: string; title: string; start_date: string; end_date: string };
+  slots: TokenSlot[];
+}
+
+let payload: TokenPayload | null = null;
+let loadError = false;
+
+if (supabase) {
+  const { data, error } = await supabase.rpc("get_period_by_token", { p_token: token });
+  if (error) {
+    // A transport/permission failure is NOT the same as an unresolved token. Surfacing it
+    // as "link nieaktywny" would tell the visitor to ask for a new link that would work
+    // no better (S-01 impl-review F5, applied to the caretaker side).
+    loadError = true;
+  } else {
+    // The function returns NULL for unknown, malformed and revoked tokens alike — see the
+    // uniform-failure note below.
+    payload = data as TokenPayload | null;
+  }
+} else {
+  loadError = true;
+}
+
+// Unknown, tampered, malformed and revoked tokens all land here, with the same status and
+// the same copy. That uniformity is a security property, not a UX choice: a distinct
+// "this link was revoked" answer would confirm the period exists. The copy therefore
+// carries the "ask the owner" guidance that the response itself withholds.
+const inactive = !loadError && payload === null;
+if (inactive) {
+  Astro.response.status = 404;
+}
+
+const slots = payload?.slots ?? [];
+const byDay = [...new Set(slots.map((slot) => slot.slot_date))].sort().map((day) => ({
+  day,
+  slots: TIMES_OF_DAY.map((time) => slots.find((slot) => slot.slot_date === day && slot.time_of_day === time)).filter(
+    (slot) => slot !== undefined,
+  ),
+}));
+const freeCount = slots.filter((slot) => !slot.is_claimed).length;
+---
+
+<Layout title={payload ? `Opieka: ${payload.period.title}` : "Link nieaktywny"}>
+  <div class="bg-background min-h-screen px-5 py-8">
+    <div class="mx-auto w-full max-w-2xl">
+      <div class="mb-6 flex items-center justify-end">
+        <ThemeToggle initialTheme={theme} client:load />
+      </div>
+
+      {
+        loadError && (
+          <p
+            role="alert"
+            class="border-destructive/40 bg-destructive/10 text-destructive rounded-lg border-[1.5px] px-4 py-3 text-[14px]"
+          >
+            Nie udało się teraz wczytać wyjazdu. Odśwież stronę za chwilę — link jest w porządku.
+          </p>
+        )
+      }
+
+      {
+        inactive && (
+          <div class="border-border bg-card rounded-lg border-[1.5px] p-8 text-center">
+            <p class="font-heading text-foreground text-[20px] font-bold">Link nieaktywny</p>
+            <p class="text-muted-foreground mt-3 text-[15px]">
+              Ten link nie działa. Poproś właściciela zwierzęcia o nowy — poprzedni mógł zostać zastąpiony.
+            </p>
+          </div>
+        )
+      }
+
+      {
+        payload && (
+          <>
+            <p class="text-muted-foreground text-[13px] font-bold tracking-wide">POMOC W OPIECE</p>
+            <h1 class="font-heading text-foreground mt-1 text-[30px] leading-[1.15] font-bold">
+              {payload.period.title}
+            </h1>
+            <p class="text-primary mt-1 text-[15px] font-semibold">
+              {formatRange(payload.period.start_date, payload.period.end_date)}
+            </p>
+            <p class="text-muted-foreground mt-2 text-[15px]">
+              {freeCount === 0
+                ? "Wszystkie terminy są już zajęte."
+                : `Wolnych terminów: ${freeCount} z ${slots.length}.`}
+            </p>
+
+            <h2 class="font-heading text-foreground mt-8 mb-3 text-[17px] font-bold">Terminy</h2>
+            <ul class="space-y-3">
+              {byDay.map((entry) => (
+                <li class="border-border bg-card rounded-lg border-[1.5px] p-4">
+                  <p class="text-foreground text-[15px] font-bold">
+                    {formatDay(entry.day)}
+                    <span class="text-muted-foreground ml-2 text-[13px] font-normal">{formatWeekday(entry.day)}</span>
+                  </p>
+                  <ul class="mt-3 grid grid-cols-3 gap-2">
+                    {entry.slots.map((slot) => (
+                      <li
+                        class:list={[
+                          "rounded-lg border-[1.5px] px-3 py-2 text-center text-[13px]",
+                          slot.is_claimed
+                            ? "border-primary bg-secondary text-secondary-foreground font-bold"
+                            : "border-input text-muted-foreground",
+                        ]}
+                      >
+                        <span class="block">{TIME_OF_DAY_LABEL[slot.time_of_day]}</span>
+                        <span class="block text-[12px]">{slot.is_claimed ? "zajęte" : "wolne"}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </li>
+              ))}
+            </ul>
+
+            {/* Deliberately no claim button: taking a slot is S-03. Saying so beats a
+                caretaker wondering where to click. */}
+            <p class="text-muted-foreground mt-6 text-[13px] leading-[1.5]">
+              Zapisywanie się na terminy będzie dostępne wkrótce. Na razie ustal z właścicielem, który termin bierzesz.
+            </p>
+          </>
+        )
+      }
+    </div>
+  </div>
+</Layout>

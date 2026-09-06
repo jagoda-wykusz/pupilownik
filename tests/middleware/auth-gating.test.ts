@@ -40,6 +40,33 @@ describe("auth gating (middleware)", () => {
     expect((locals.user as { id?: string } | null)?.id).toBe(userId);
   });
 
+  // The caretaker path is PUBLIC by requirement, not by accident (S-02, FR-005). A future
+  // edit adding "/invite" — or a broader prefix that swallows it — to PROTECTED_ROUTES would
+  // break the product silently: the owner's link would bounce every caretaker to a sign-in
+  // page they have no account for. Nothing else catches that.
+  it("/invite/<token> is NOT gated — no session reaches the route untouched", async () => {
+    const { response, nextCalled } = await runMiddleware({ pathname: "/invite/whatever" });
+
+    expect(nextCalled).toBe(true);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Location")).toBeNull();
+  });
+
+  // The token travels in the path, so the response must not become a second way to leak it.
+  it("/invite/<token> responses carry no-referrer and no-store", async () => {
+    const { response } = await runMiddleware({ pathname: "/invite/whatever" });
+
+    expect(response.headers.get("Referrer-Policy")).toBe("no-referrer");
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
+  });
+
+  it("those headers are scoped to /invite and not sprayed across the app", async () => {
+    const { response } = await runMiddleware({ pathname: "/" });
+
+    expect(response.headers.get("Referrer-Policy")).toBeNull();
+    expect(response.headers.get("Cache-Control")).toBeNull();
+  });
+
   it("present-but-invalid session cookie → still redirects to signin", async () => {
     const { cookieHeader } = await createAuthenticatedCookieHeader();
 

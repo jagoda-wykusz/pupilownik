@@ -38,10 +38,12 @@ terms, not test names. The Source column cites the *evidence that surfaced
 this risk* — never a specific file as "where the failure lives" (see §1
 principle #3).
 
-Note on maturity: only **auth** and the **F-01 data foundation** (profiles +
-owner-isolation RLS + signup trigger) are implemented today. Risks #3–#5 are
-real PRD guardrails but live in code that does not exist yet (slices S-01..S-03);
-they are tracked here and activate as those slices ship (see §3 Phase 4).
+Note on maturity: **auth**, the **F-01 data foundation** (profiles +
+owner-isolation RLS + signup trigger), **S-01** (pets + instructions) and **S-02**
+(care periods, slots, invite-link token model) are implemented today. Risk #5 is
+therefore live and covered (see the row below). Risks #3 and #4 remain real PRD
+guardrails living in code that does not exist yet (S-03); they activate as that
+slice ships (see §3 Phase 4).
 
 | # | Risk (failure scenario) | Impact | Likelihood | Source (evidence — not anchor) |
 |---|--------------------------|--------|------------|---------------------------------|
@@ -49,7 +51,7 @@ they are tracked here and activate as those slices ship (see §3 Phase 4).
 | 2 | A protected route stops being gated, or signup/signin/session handling lets an unauthenticated user reach owner data | High | Med | interview Q1; PRD §Access Control; hot-spot dir `src/` (`middleware` + auth routes) |
 | 3 | *(forward — S-03)* Two caretakers claim the same slot; allocation is not atomic, producing a double-booking | High | Med | PRD §NFR (atomic claim), §Business Logic; interview Q3 |
 | 4 | *(forward — S-01/S-03)* Sensitive instructions (address, access codes) are shown before a slot is claimed, or to someone outside the invite link | High | Med | PRD FR-008, §NFR; interview Q1 |
-| 5 | *(forward — S-02/S-03)* The link-only (no-auth) caretaker path grants more than its scope, or a leaked/guessed token exposes a period | High | Med | PRD FR-005/FR-007; interview Q3; abuse lens (IDOR / bearer token) |
+| 5 | The link-only (no-auth) caretaker path grants more than its scope, or a leaked/guessed token exposes a period | High | Med | PRD FR-005/FR-007; interview Q3; abuse lens (IDOR / bearer token). **Active since S-02.** Covered by `tests/rls/invite-token.test.ts` (the SECURITY DEFINER function is the only anon door), `tests/api/periods.post.test.ts` (the minted token opens the period; no digest in the response) and `tests/middleware/auth-gating.test.ts` (`/invite` public by requirement, and its no-referrer/no-store headers) |
 | 6 | A Secret/service-role key or sensitive instruction text escapes into the client bundle, logs, or error bodies | High | Low–Med | AGENTS hard rule "server-only secrets"; abuse lens (secret/PII leakage) |
 | 7 | An API handler trusts client input (missing or weak zod), accepting malformed or forbidden data | Med | Med | AGENTS rule "validate input with zod"; abuse lens (untrusted input) |
 
@@ -217,6 +219,23 @@ capturing anything surprising the phase taught.)
   pure-Node Vitest via honest shims for `astro:env/server` / `astro:middleware` — no Container
   API (it won't auto-load our middleware) and no running server needed. `getUser()` is the
   correct call and is never mocked.
+
+- **S-02 (`care-period-and-invite-link`)**: this slice added a second access model, and
+  the §6.5 recipe does not reach it. `get_period_by_token` is `SECURITY DEFINER` and
+  bypasses RLS by design, so there is no policy behind it to catch a mistake in its body —
+  `tests/rls/invite-token.test.ts` is its only automated guard, and it needs a primitive the
+  harness did not have: `createAnonClient()` (`tests/helpers/auth.ts`), a client with **no
+  session**, so it genuinely carries the `anon` role. Three things that recipe taught:
+  (1) asserting "anon sees nothing" is not enough — assert the failures are *indistinguishable*
+  from each other, because a distinct answer for a revoked token confirms the period exists;
+  (2) `revoke ... from public` does not revoke from `anon`/`authenticated`/`service_role` on
+  Supabase (ALTER DEFAULT PRIVILEGES grants those separately), and the same gap exists at
+  table level, so assert privileges from the catalog rather than trusting the migration's
+  intent; (3) a plpgsql function returning a composite answers `return null` with a row of
+  NULLs, not NULL, so an RLS miss reads as a hit at the client — return a scalar when the
+  caller needs to tell "nothing happened" apart from "here it is". Also note what is
+  deliberately NOT tested: the caretaker page is verified through HTTP by hand (§7 — no e2e
+  runner), because an automated version would depend on a running dev server.
 
 ### 6.7 Adding a protected-route (middleware gating) test
 
