@@ -72,6 +72,74 @@ export type Database = {
           },
         ]
       }
+      care_periods: {
+        Row: {
+          created_at: string
+          end_date: string
+          id: string
+          owner_id: string
+          start_date: string
+          title: string
+          token_digest: string
+        }
+        Insert: {
+          created_at?: string
+          end_date: string
+          id?: string
+          owner_id: string
+          start_date: string
+          title: string
+          token_digest: string
+        }
+        Update: {
+          created_at?: string
+          end_date?: string
+          id?: string
+          owner_id?: string
+          start_date?: string
+          title?: string
+          token_digest?: string
+        }
+        Relationships: []
+      }
+      care_slots: {
+        Row: {
+          claimed_at: string | null
+          claimed_by_name: string | null
+          created_at: string
+          id: string
+          period_id: string
+          slot_date: string
+          time_of_day: Database["public"]["Enums"]["time_of_day"]
+        }
+        Insert: {
+          claimed_at?: string | null
+          claimed_by_name?: string | null
+          created_at?: string
+          id?: string
+          period_id: string
+          slot_date: string
+          time_of_day: Database["public"]["Enums"]["time_of_day"]
+        }
+        Update: {
+          claimed_at?: string | null
+          claimed_by_name?: string | null
+          created_at?: string
+          id?: string
+          period_id?: string
+          slot_date?: string
+          time_of_day?: Database["public"]["Enums"]["time_of_day"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "care_slots_period_id_fkey"
+            columns: ["period_id"]
+            isOneToOne: false
+            referencedRelation: "care_periods"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pets: {
         Row: {
           age: string | null
@@ -122,6 +190,29 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      create_period_with_slots: {
+        Args: {
+          p_end_date: string
+          p_start_date: string
+          p_title: string
+          p_token_digest: string
+        }
+        Returns: {
+          created_at: string
+          end_date: string
+          id: string
+          owner_id: string
+          start_date: string
+          title: string
+          token_digest: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "care_periods"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       create_pet_with_instructions: {
         Args: {
           p_age: string
@@ -149,6 +240,7 @@ export type Database = {
     }
     Enums: {
       pet_species: "dog" | "cat" | "other"
+      time_of_day: "morning" | "afternoon" | "evening"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -280,6 +372,7 @@ export const Constants = {
   public: {
     Enums: {
       pet_species: ["dog", "cat", "other"],
+      time_of_day: ["morning", "afternoon", "evening"],
     },
   },
 } as const
