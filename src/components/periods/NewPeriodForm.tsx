@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { ServerError } from "@/components/auth/ServerError";
 import { InviteLinkPanel } from "@/components/periods/InviteLinkPanel";
 import { countDays, MAX_SPAN_DAYS, MAX_TITLE_LENGTH } from "@/lib/period-format";
+import { cn } from "@/lib/utils";
 
 // Create-period island (client:load). Mirrors SignInForm's shape — local state,
 // client-side validation for UX only — on the S-07 component layer, not the
@@ -20,16 +21,28 @@ interface Created {
   token: string;
 }
 
+export interface PetOption {
+  id: string;
+  name: string;
+}
+
 interface Props {
   /** Absolute origin, so the minted link is pasteable. See InviteLinkPanel. */
   origin: string;
+  /** The owner's pets, SSR-supplied. A trip must cover at least one (S-08), and the
+   *  server enforces it — this control exists so the owner chooses rather than the app
+   *  guessing on their behalf. */
+  pets: PetOption[];
 }
 
-export default function NewPeriodForm({ origin }: Props) {
+export default function NewPeriodForm({ origin, pets }: Props) {
   const [title, setTitle] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
-  const [errors, setErrors] = useState<{ title?: string; start_date?: string; end_date?: string }>({});
+  const [petIds, setPetIds] = useState<string[]>(pets.length === 1 ? [pets[0].id] : []);
+  const [errors, setErrors] = useState<{ title?: string; start_date?: string; end_date?: string; pet_ids?: string }>(
+    {},
+  );
   const [serverError, setServerError] = useState<string | null>(null);
   const [created, setCreated] = useState<Created | null>(null);
   // Own state rather than SubmitButton's useFormStatus: that hook only reports for a
@@ -44,6 +57,9 @@ export default function NewPeriodForm({ origin }: Props) {
       next.title = "Nazwa wyjazdu jest wymagana";
     } else if (title.trim().length > MAX_TITLE_LENGTH) {
       next.title = `Nazwa może mieć najwyżej ${MAX_TITLE_LENGTH} znaków`;
+    }
+    if (petIds.length === 0) {
+      next.pet_ids = "Wybierz co najmniej jedno zwierzę";
     }
     if (!startDate) {
       next.start_date = "Podaj datę rozpoczęcia";
@@ -77,7 +93,7 @@ export default function NewPeriodForm({ origin }: Props) {
       const res = await fetch("/api/periods", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: title.trim(), start_date: startDate, end_date: endDate }),
+        body: JSON.stringify({ title: title.trim(), start_date: startDate, end_date: endDate, pet_ids: petIds }),
       });
 
       if (res.status === 401) {
@@ -131,6 +147,37 @@ export default function NewPeriodForm({ origin }: Props) {
         placeholder="Weekend u rodziców"
         error={errors.title}
       />
+
+      <div>
+        <p className="text-muted-foreground mb-1.5 ml-1 text-xs font-bold tracking-wide">KTÓRE ZWIERZĘTA</p>
+        <div className="flex flex-wrap gap-2">
+          {pets.map((pet) => {
+            const selected = petIds.includes(pet.id);
+            return (
+              <button
+                key={pet.id}
+                type="button"
+                aria-pressed={selected}
+                onClick={() => {
+                  setPetIds((current) =>
+                    current.includes(pet.id) ? current.filter((id) => id !== pet.id) : [...current, pet.id],
+                  );
+                  clearError("pet_ids");
+                }}
+                className={cn(
+                  "rounded-lg border-[1.5px] px-4 py-2 text-[14px] font-bold transition-colors",
+                  selected
+                    ? "border-primary bg-secondary text-secondary-foreground"
+                    : "border-input bg-card text-muted-foreground hover:border-ring",
+                )}
+              >
+                {pet.name}
+              </button>
+            );
+          })}
+        </div>
+        {errors.pet_ids && <p className="text-destructive mt-1.5 ml-1 text-[13px]">{errors.pet_ids}</p>}
+      </div>
 
       <div className="grid grid-cols-2 gap-3">
         <Input

@@ -1,5 +1,5 @@
 import { createServerClient } from "@supabase/ssr";
-import { createOwnerClient, type OwnerContext } from "./auth";
+import { createOwnerClient, createOwnerWithPet, type OwnerContext, type OwnerWithPetContext } from "./auth";
 import { getTestEnv } from "../setup";
 
 // Session-cookie helpers for the auth-gating suite.
@@ -85,6 +85,17 @@ export async function createAuthenticatedOwner(): Promise<{ cookieHeader: string
 // nobody parses (which would pass for the wrong reason) if @supabase/ssr ever
 // changes its storage-key scheme. Proves the gate rejects a present-but-invalid
 // session (getUser validates the JWT; presence alone is not enough).
+// As above, but the owner already has one pet. A care period needs at least one (S-08), so
+// every route test that creates a period needs this composition; without it each test file
+// grows its own pet-seeding copy, which is what createOwnerWithPet was introduced to prevent.
+export async function createAuthenticatedOwnerWithPet(
+  name = "Burek",
+): Promise<{ cookieHeader: string; owner: OwnerWithPetContext }> {
+  const owner = await createOwnerWithPet(name);
+  const cookieHeader = await mintCookieHeader(owner.email, owner.password);
+  return { cookieHeader, owner };
+}
+
 export function corruptCookieHeader(header: string): string {
   const first = header.split(";")[0]?.trim() ?? "";
   const capturedName = first.split("=")[0] ?? "";

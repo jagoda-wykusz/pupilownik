@@ -281,6 +281,19 @@ contributors should respect these unless the underlying assumption changes.
   (identical status, title and body for unknown / tampered / malformed / revoked), and
   `tests/rls/invite-token.test.ts` pins the SQL side. The template itself is not asserted.
 
+- **The SELECT and DELETE halves of `care_period_pets`'s owner predicate (S-08).** All four
+  policies are a conjunction over both parents (caller owns the period AND the pet), and the
+  INSERT and UPDATE halves are pinned by mutation-tested cases in
+  `tests/rls/care-period-pets.isolation.test.ts` — dropping either half fails exactly the
+  case written for it. SELECT and DELETE are **not** pinned, deliberately: proving them needs
+  a row whose two parents have different owners, and the application cannot produce one
+  (INSERT and UPDATE both refuse it, and there is no pet-ownership-transfer path). The only
+  producers are a `service_role` write — which would widen a fence §6.6 records as existing
+  for exactly one call in one file — or a deliberately invalid row in `seed.sql`, which would
+  land in every developer's database and show up in the UI. Both cost more than the residual
+  risk: these two clauses are defense-in-depth against corrupt data a privileged process
+  would have to create first.
+
 ## 8. Freshness Ledger
 
 - Strategy (§1–§5) last reviewed: 2026-06-28

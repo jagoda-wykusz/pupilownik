@@ -537,6 +537,59 @@ right first move was to read the actual `qual` / `with_check` text.
   `@typescript-eslint/no-unnecessary-condition` rejects it — the same rule that reverted F7
   in the S-02 review.
 
+### Phase 1 — impl-review fixes (reviews/impl-review-phase-1.md)
+
+Nine findings, all triaged. Seven fixed, one deliberately skipped with the reason recorded,
+one justified in place.
+
+**The critical one was mine, and it was the unpriced half of the phase-boundary adaptation.**
+Pulling the zod field and the route argument into Phase 1 made the suite pass, but it moved
+the SERVER-side requirement ahead of its CLIENT-side supplier: `NewPeriodForm.tsx` still
+posted three fields, so every submit from `/periods/new` got a 400 on `pet_ids`. Reproduced
+through HTTP with the island's exact body before fixing. Both review agents found it
+independently; the suite could not, because nothing tests the island's request shape.
+
+The fix pulled Phase 2's items 3 and 4 forward as well — the pet selector and supplying the
+owner's pets to the form — because every alternative invented data (all pets, or the first
+pet) and that is what the backfill decision explicitly rejected. **Phase 2 is now reduced to
+design polish**: chip styling against the hi-fi reference and the three-theme check. Verified
+through HTTP: an owner with no pets gets a route out rather than a dead form, an owner with
+two pets gets both chips, creating with two pets yields 2 links and 9 slots, and an empty
+selection is refused with a 400.
+
+Other fixes:
+
+- **F2** — `care_period_pets` joined the anon-denial assertions. Without it, removing
+  `revoke all … from anon` left all 100 tests passing; mutation-tested by granting anon
+  SELECT back, which now fails the test. That was the sixth instance of the pattern
+  `lessons.md` was written for, inside a commit whose migration comment claimed the gap
+  closed.
+- **F3** — the two route cases the plan's Testing Strategy required now exist, and the route
+  maps 42501 / 23503 / 23502 / P0001 from this RPC to **400**, not 500. A pet that is not
+  yours is bad input, not a server fault, and zod cannot catch it because it does not know
+  who owns a pet.
+- **F4** — the empty-list test pins `P0001` and the raise's message rather than "some error",
+  and covers `[NULL]` too. A new migration filters NULLs BEFORE the count: the naive fix
+  (`where pid is not null` on the insert) would have made `[NULL]` insert zero rows and leave
+  a petless period — silently worse than the policy violation it replaced.
+- **F6** — removed a secondary assertion that read through the victim's own client, whose
+  SELECT policy would filter the illicit row out under either mutation. It could never see
+  the leak its comment claimed to check.
+- **F7** — `createAuthenticatedOwnerWithPet()` in `session.ts` replaces two inline copies of
+  the pet-seeding block, which is the duplication `createOwnerWithPet` existed to prevent.
+- **F8** — the `MAX_PETS_PER_PERIOD = 20` choice is now justified in a comment, including why
+  the RPC has no upper bound of its own.
+- **F9** — the `create_period_with_slots` row in `contract-surfaces.md` describes the new
+  five-argument signature; the rest of the registry work stays in Phase 3.
+
+**F5 skipped, with the cost recorded.** Pinning the SELECT and DELETE halves of the
+conjunction needs a row whose two parents have different owners, and the application cannot
+produce one — INSERT and UPDATE both refuse it and there is no pet-ownership-transfer path.
+The only producers are a `service_role` write, which widens a fence `test-plan.md` §6.6
+records as existing for exactly one call in one file, or a deliberately invalid row in
+`seed.sql`, which reaches every developer's database. Recorded in `test-plan.md` §7 with that
+reasoning rather than left as an unexplained gap.
+
 ## Progress
 
 > Convention: `- [ ]` pending, `- [x]` done. Append ` — <commit sha>` when a step lands. Do not rename step titles. See `references/progress-format.md`.
@@ -545,19 +598,19 @@ right first move was to read the actual `qual` / `with_check` text.
 
 #### Automated
 
-- [x] 1.1 Migration applies cleanly from scratch: `npm run db:reset` exits 0
-- [x] 1.2 Security advisors clean: `npx supabase db advisors --type security`
-- [x] 1.3 Types regenerate with no drift: `npm run db:gen-types` then `npx astro check`
-- [x] 1.4 Full suite passes including the new isolation file: `npm test`
-- [x] 1.5 Linting passes: `npm run lint`
+- [x] 1.1 Migration applies cleanly from scratch: `npm run db:reset` exits 0 — 0553bd1
+- [x] 1.2 Security advisors clean: `npx supabase db advisors --type security` — 0553bd1
+- [x] 1.3 Types regenerate with no drift: `npm run db:gen-types` then `npx astro check` — 0553bd1
+- [x] 1.4 Full suite passes including the new isolation file: `npm test` — 0553bd1
+- [x] 1.5 Linting passes: `npm run lint` — 0553bd1
 
 #### Manual
 
-- [x] 1.6 `has_function_privilege` confirms the recreated RPC and no leftover 4-arg overload
-- [x] 1.7 No `anon` grant on `care_period_pets`
-- [x] 1.8 `pg_policies` shows RLS enabled with four policies on the new table
-- [x] 1.9 A 3-day period yields 9 slots and one join row per pet id
-- [x] 1.10 Linking a pet the caller does not own rolls the entire create back
+- [x] 1.6 `has_function_privilege` confirms the recreated RPC and no leftover 4-arg overload — 0553bd1
+- [x] 1.7 No `anon` grant on `care_period_pets` — 0553bd1
+- [x] 1.8 `pg_policies` shows RLS enabled with four policies on the new table — 0553bd1
+- [x] 1.9 A 3-day period yields 9 slots and one join row per pet id — 0553bd1
+- [x] 1.10 Linking a pet the caller does not own rolls the entire create back — 0553bd1
 
 ### Phase 2: Owner API & the pet selector
 

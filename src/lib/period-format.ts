@@ -39,7 +39,10 @@ export const MAX_TITLE_LENGTH = 120;
 // Upper bound on how many pets one trip may cover. Shared with the zod schema so the chip
 // selector can refuse before a request is made. The bound exists because an unbounded array
 // on a create endpoint is a DoS vector (S-01 impl-review F1), not because an owner is
-// expected to approach it.
+// expected to approach it: this product serves a private owner with a household of pets, so
+// 20 is roughly an order of magnitude above any real case while still capping the array.
+// It lives only here and in zod — the RPC has no upper bound, because a caller can only link
+// pets they own and RLS already caps that at their own pet count.
 export const MAX_PETS_PER_PERIOD = 20;
 
 const DAY_MS = 24 * 60 * 60 * 1000;

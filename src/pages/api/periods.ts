@@ -52,6 +52,17 @@ export const POST: APIRoute = async (context) => {
     // generic message, so RLS/constraint internals never leak either way.
     // Never log inviteToken.
     console.error("create_period_with_slots failed:", error.code, error.message);
+
+    // These four are bad INPUT, not a server fault, and answering 500 tells the owner the
+    // app broke when in fact they named a pet that is not theirs. zod cannot catch them —
+    // it does not know who owns a pet — so the mapping has to live here.
+    //   42501 the join insert failed the RLS with-check → a pet the caller does not own
+    //   23503 the pet id does not exist at all
+    //   23502 a NULL slipped into the array (belt-and-braces; the RPC filters them)
+    //   P0001 the RPC's own "at least one pet" raise
+    if (["42501", "23503", "23502", "P0001"].includes(error.code)) {
+      return jsonResponse({ error: "Wybrane zwierzę nie należy do Ciebie albo nie istnieje" }, 400);
+    }
     return jsonResponse({ error: "Nie udało się utworzyć wyjazdu" }, 500);
   }
 

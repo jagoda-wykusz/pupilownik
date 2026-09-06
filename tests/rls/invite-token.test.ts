@@ -131,6 +131,10 @@ describe("invite token access model", () => {
   it("is the only door — anon cannot select either table directly", async () => {
     const periods = await anon.from("care_periods").select("id");
     const slots = await anon.from("care_slots").select("id");
+    // care_period_pets joined the schema in S-08 with the same revoke; without this line
+    // removing that revoke would leave every test passing, since deny-by-default RLS
+    // returns zero rows either way (context/foundation/lessons.md).
+    const links = await anon.from("care_period_pets").select("period_id");
 
     // Assert the REFUSAL, not merely the absence of rows. `expect(data ?? []).toEqual([])`
     // alone cannot tell the two layers apart: with the grant revoked PostgREST answers 42501
@@ -139,8 +143,10 @@ describe("invite token access model", () => {
     // on top of deny-by-default, so it needs an assertion that fails when it disappears.
     expect(periods.error?.code).toBe("42501");
     expect(slots.error?.code).toBe("42501");
+    expect(links.error?.code).toBe("42501");
     expect(periods.data).toBeNull();
     expect(slots.data).toBeNull();
+    expect(links.data).toBeNull();
   });
 
   // The two SECURITY INVOKER RPCs are owner-only. Their revoke/grant posture is the exact

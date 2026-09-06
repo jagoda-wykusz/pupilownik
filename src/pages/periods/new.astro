@@ -3,11 +3,32 @@ import Layout from "@/layouts/Layout.astro";
 import ThemeToggle from "@/components/ThemeToggle";
 import ScreenHeading from "@/components/ui/ScreenHeading.astro";
 import NewPeriodForm from "@/components/periods/NewPeriodForm";
+import { createClient } from "@/lib/supabase";
 import { resolveTheme, THEME_COOKIE } from "@/lib/theme";
 
 // Protected by middleware (PROTECTED_ROUTES includes "/periods"): an unauthenticated
 // request is redirected to /auth/signin before this frontmatter runs.
 const theme = resolveTheme(Astro.cookies.get(THEME_COOKIE)?.value);
+
+// A trip must cover at least one pet (S-08), so the form needs the owner's pets. No owner
+// filter — RLS scopes the read.
+const supabase = createClient(Astro.request.headers, Astro.cookies);
+
+let pets: { id: string; name: string }[] = [];
+let loadError = false;
+
+if (supabase) {
+  const { data, error } = await supabase.from("pets").select("id, name").order("name");
+  if (error) {
+    loadError = true;
+  } else {
+    pets = data;
+  }
+} else {
+  // Unconfigured Supabase is an error state, never an empty pet list — an empty list has a
+  // different meaning here (the owner has no pets yet) and a different way out.
+  loadError = true;
+}
 ---
 
 <Layout title="Nowy wyjazd">
@@ -23,7 +44,31 @@ const theme = resolveTheme(Astro.cookies.get(THEME_COOKIE)?.value);
         subtitle="Wybierz zakres dat. Link dla opiekuna dostaniesz od razu po utworzeniu."
       />
 
-      <NewPeriodForm origin={Astro.url.origin} client:load />
+      {
+        loadError && (
+          <p
+            role="alert"
+            class="border-destructive/40 bg-destructive/10 text-destructive rounded-lg border-[1.5px] px-4 py-3 text-[14px]"
+          >
+            Nie udało się wczytać Twoich zwierząt. Odśwież stronę.
+          </p>
+        )
+      }
+
+      {
+        !loadError && pets.length === 0 && (
+          <div class="border-border bg-card rounded-lg border-[1.5px] p-8 text-center">
+            <p class="text-muted-foreground mb-4 text-[15px]">
+              Wyjazd musi obejmować co najmniej jedno zwierzę, a nie masz jeszcze żadnego.
+            </p>
+            <a href="/pets/new" class="text-primary text-[15px] font-bold hover:underline">
+              Dodaj pierwsze zwierzę →
+            </a>
+          </div>
+        )
+      }
+
+      {!loadError && pets.length > 0 && <NewPeriodForm origin={Astro.url.origin} pets={pets} client:load />}
     </div>
   </div>
 </Layout>

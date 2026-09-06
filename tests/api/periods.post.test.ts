@@ -1,8 +1,8 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { POST as createPeriod } from "@/pages/api/periods";
 import { POST as regenerateToken } from "@/pages/api/periods/[id]/token";
-import { createAuthenticatedOwner } from "../helpers/session";
-import { createAnonClient, type OwnerContext } from "../helpers/auth";
+import { createAuthenticatedOwnerWithPet } from "../helpers/session";
+import { createAnonClient, createOwnerWithPet, type OwnerWithPetContext } from "../helpers/auth";
 
 // Risk #7 (server-side validation) and Risk #5 (the link-only path) meeting on the one
 // route that mints a token — S-02, test-plan §6.4.
@@ -75,24 +75,14 @@ function validBody(petIds: string[]): string {
 
 describe("POST /api/periods — validated atomic create + token minting", () => {
   let cookieHeader: string;
-  let owner: OwnerContext;
+  let owner: OwnerWithPetContext;
   let petId: string;
 
   beforeAll(async () => {
-    const authed = await createAuthenticatedOwner();
+    const authed = await createAuthenticatedOwnerWithPet();
     cookieHeader = authed.cookieHeader;
     owner = authed.owner;
-    // Inserted through the owner's own client, so RLS applies and the pet is genuinely
-    // theirs — the create RPC would roll back otherwise.
-    const pet = await owner.client
-      .from("pets")
-      .insert({ owner_id: owner.userId, name: "Burek", species: "dog" })
-      .select("id")
-      .single();
-    if (pet.error) {
-      throw new Error(`periods.post test: seeding a pet failed: ${pet.error.message}`);
-    }
-    petId = pet.data.id;
+    petId = owner.petId;
   });
 
   it("refuses an unauthenticated call (401) and writes nothing", async () => {
@@ -163,6 +153,46 @@ describe("POST /api/periods — validated atomic create + token minting", () => 
     expect(slots.data).toHaveLength(93);
   });
 
+  // The two cases the plan's §Testing Strategy asked for. Both are client-input errors that
+  // zod cannot catch — it does not know who owns a pet — so the route maps them to 400.
+  it("rejects an empty pet_ids (400) and writes nothing", async () => {
+    const before = await owner.client.from("care_periods").select("id");
+    const { status } = await call(createPeriod, "/api/periods", {
+      cookieHeader,
+      userId: owner.userId,
+      rawBody: JSON.stringify({ title: "Wyjazd", start_date: "2026-07-13", end_date: "2026-07-15", pet_ids: [] }),
+    });
+
+    expect(status).toBe(400);
+    const after = await owner.client.from("care_periods").select("id");
+    expect(after.data?.length).toBe(before.data?.length ?? 0);
+  });
+
+  it("rejects a pet the caller does not own (400) and writes nothing", async () => {
+    const stranger = await createOwnerWithPet("Obcy-Burek");
+    const before = await owner.client.from("care_periods").select("id");
+
+    const { status, body } = await call(createPeriod, "/api/periods", {
+      cookieHeader,
+      userId: owner.userId,
+      rawBody: JSON.stringify({
+        title: "Wyjazd",
+        start_date: "2026-07-13",
+        end_date: "2026-07-15",
+        pet_ids: [stranger.petId],
+      }),
+    });
+
+    // The join insert fails the RLS with-check (42501), which aborts the whole RPC — so the
+    // period is rolled back with it. Answering 400 rather than 500 is deliberate: the owner
+    // named a pet that is not theirs, which is bad input, not a server fault.
+    expect(status).toBe(400);
+    expect((body as { error?: string }).error).toContain("nie należy do Ciebie");
+
+    const after = await owner.client.from("care_periods").select("id");
+    expect(after.data?.length).toBe(before.data?.length ?? 0);
+  });
+
   it("creates the period with its slots and returns a working link exactly once (201)", async () => {
     const { status, body } = await call(createPeriod, "/api/periods", {
       cookieHeader,
@@ -190,28 +220,19 @@ describe("POST /api/periods — validated atomic create + token minting", () => 
 
 describe("POST /api/periods/[id]/token — regeneration", () => {
   let cookieHeader: string;
-  let owner: OwnerContext;
+  let owner: OwnerWithPetContext;
   let periodId: string;
   let firstToken: string;
 
   beforeAll(async () => {
-    const authed = await createAuthenticatedOwner();
+    const authed = await createAuthenticatedOwnerWithPet();
     cookieHeader = authed.cookieHeader;
     owner = authed.owner;
-
-    const pet = await owner.client
-      .from("pets")
-      .insert({ owner_id: owner.userId, name: "Burek", species: "dog" })
-      .select("id")
-      .single();
-    if (pet.error) {
-      throw new Error(`periods.post test: seeding a pet failed: ${pet.error.message}`);
-    }
 
     const { body } = await call(createPeriod, "/api/periods", {
       cookieHeader,
       userId: owner.userId,
-      rawBody: validBody([pet.data.id]),
+      rawBody: validBody([owner.petId]),
     });
     const payload = body as { period: { id: string }; inviteToken: string };
     periodId = payload.period.id;

@@ -88,11 +88,11 @@ describe("care_period_pets RLS owner-isolation", () => {
     const { error } = await a.client.from("care_period_pets").insert({ period_id: aPeriodId, pet_id: b.petId });
 
     // A owns the period, so a period-only predicate would have allowed this — and B's
-    // instructions would then be reachable through A's invite link once S-03 ships.
+    // instructions would then be reachable through A's invite link once S-03 ships. This one
+    // assertion is the whole guard; a follow-up read through b.client was removed because B's
+    // own SELECT policy would filter A's illicit row out under either mutation, so it could
+    // never see the leak its comment claimed to check.
     expect(error).not.toBeNull();
-
-    const { data: leaked } = await b.client.from("care_period_pets").select("pet_id").eq("pet_id", b.petId);
-    expect(leaked).toEqual([{ pet_id: b.petId }]);
   });
 
   it("refuses B's period + A's pet (with check, period side)", async () => {
@@ -128,18 +128,23 @@ describe("care_period_pets RLS owner-isolation", () => {
     expect(after.data?.length).toBe(before.data?.length ?? 0);
   });
 
-  it("the RPC refuses an empty pet list", async () => {
+  // "At least one pet" is enforced in the RPC and ONLY there, so these assertions are the
+  // whole guarantee. They pin P0001 — plpgsql's raise — rather than "some error": an
+  // argument-list mismatch also produces an error, and that would pass for the wrong reason.
+  it.each([
+    ["an empty list", [] as string[]],
+    ["a list holding only NULL", [null as unknown as string]],
+  ])("the RPC refuses %s with its own raise", async (_label, petIds) => {
     const { error } = await a.client.rpc("create_period_with_slots", {
       p_title: "A-bez-zwierzat",
       p_start_date: "2026-08-05",
       p_end_date: "2026-08-06",
       p_token_digest: crypto.randomUUID(),
-      p_pet_ids: [],
+      p_pet_ids: petIds,
     });
 
-    // "At least one pet" is enforced in the RPC and only there — see the plan's Critical
-    // Implementation Details. This assertion is the whole guarantee, so it must exist.
-    expect(error).not.toBeNull();
+    expect(error?.code).toBe("P0001");
+    expect(error?.message).toContain("at least one pet");
   });
 
   it("deduplicates a repeated pet id rather than failing on the primary key", async () => {
