@@ -31,6 +31,11 @@ export const TIMES_OF_DAY: TimeOfDay[] = ["morning", "afternoon", "evening"];
 // slots, which is also the cap on what one request can write (S-01 impl-review F1).
 export const MAX_SPAN_DAYS = 31;
 
+// Upper bound on the period title, shared with the zod schema for the same reason as
+// MAX_SPAN_DAYS: the island must be able to say "too long" itself rather than bouncing
+// the user off a generic 400.
+export const MAX_TITLE_LENGTH = 120;
+
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 function asUtcDate(isoDate: string): Date {

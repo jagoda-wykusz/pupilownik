@@ -12,8 +12,13 @@ import { countDays, formatRange } from "@/lib/period-format";
 const supabase = createClient(Astro.request.headers, Astro.cookies);
 const theme = resolveTheme(Astro.cookies.get(THEME_COOKIE)?.value);
 
-interface SlotRow {
-  claimed_by_name: string | null;
+// Bounded read. Paging is not worth building for an owner with a handful of trips, but
+// an unbounded query is not worth shipping either.
+const PERIODS_PAGE_SIZE = 100;
+
+// PostgREST returns an aggregate embed as a one-element array.
+interface CountRow {
+  count: number;
 }
 interface PeriodRow {
   id: string;
@@ -21,17 +26,26 @@ interface PeriodRow {
   start_date: string;
   end_date: string;
   revoked_at: string | null;
-  care_slots: SlotRow[];
+  total: CountRow[];
+  taken: CountRow[];
 }
 
 let periods: PeriodRow[] = [];
 let loadError = false;
 
 if (supabase) {
+  // Counts are aggregated in the database rather than by pulling every slot row: at the
+  // 93-slot cap, a screenful of periods would otherwise be thousands of rows fetched to
+  // produce two integers. It also means claimed_by_name never reaches this page — a slot
+  // taker's identity is S-04's (FR-006), and a page that cannot see it cannot leak it.
+  // The `taken` filter narrows the aliased embed only, so periods with nothing claimed
+  // still come back, with taken = 0.
   const { data, error } = await supabase
     .from("care_periods")
-    .select("id, title, start_date, end_date, revoked_at, care_slots(claimed_by_name)")
-    .order("start_date", { ascending: false });
+    .select("id, title, start_date, end_date, revoked_at, total:care_slots(count), taken:care_slots(count)")
+    .not("taken.claimed_by_name", "is", null)
+    .order("start_date", { ascending: false })
+    .limit(PERIODS_PAGE_SIZE);
   if (error) {
     loadError = true;
   } else {
@@ -79,7 +93,8 @@ if (supabase) {
           <>
             <ul class="space-y-3">
               {periods.map((period) => {
-                const taken = period.care_slots.filter((slot) => slot.claimed_by_name !== null).length;
+                const takenCount = period.taken[0]?.count ?? 0;
+                const totalCount = period.total[0]?.count ?? 0;
                 return (
                   <li>
                     <a
@@ -96,7 +111,7 @@ if (supabase) {
                         {formatRange(period.start_date, period.end_date)}
                       </p>
                       <p class="text-muted-foreground mt-2 text-[13px]">
-                        {taken} z {period.care_slots.length} terminów zajętych
+                        {takenCount} z {totalCount} terminów zajętych
                         {period.revoked_at !== null && " · link nieaktywny"}
                       </p>
                     </a>

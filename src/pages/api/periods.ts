@@ -45,11 +45,19 @@ export const POST: APIRoute = async (context) => {
   });
 
   if (error) {
-    // Log the internal DB/constraint detail server-side; return a generic message so
-    // RLS/constraint internals never leak to the client. Never log inviteToken.
-    console.error("create_period_with_slots failed:", error);
+    // Log the code and message, NOT the whole error: PostgREST's `details` echoes the
+    // offending value on a unique violation ("Key (token_digest)=(<hex>) already
+    // exists"), which would put a digest in the logs. The client still gets only a
+    // generic message, so RLS/constraint internals never leak either way.
+    // Never log inviteToken.
+    console.error("create_period_with_slots failed:", error.code, error.message);
     return jsonResponse({ error: "Nie udało się utworzyć wyjazdu" }, 500);
   }
+
+  // No null guard on `data` here, unlike token.ts: in the no-error branch supabase-js's
+  // discriminated response types it as non-null, and the RPC returns `public.care_periods`
+  // (never a set), so a row is guaranteed. token.ts guards because ITS function returns
+  // `uuid` and answers NULL for a miss — a real runtime case, not a defensive one.
 
   // token_digest is deliberately dropped: the client has the raw token, and the digest
   // is of no use to it beyond widening what a logged response body would expose.

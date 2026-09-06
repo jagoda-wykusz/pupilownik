@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { countDays, MAX_SPAN_DAYS } from "@/lib/period-format";
+import { countDays, MAX_SPAN_DAYS, MAX_TITLE_LENGTH } from "@/lib/period-format";
 
 // Server-side contract for creating a care period. The API route is the source of
 // truth — this schema is the single validation gate the handler (and the island, for
@@ -12,7 +12,11 @@ import { countDays, MAX_SPAN_DAYS } from "@/lib/period-format";
 
 export const createPeriodSchema = z
   .object({
-    title: z.string().trim().min(1, "Nazwa wyjazdu jest wymagana").max(120, "Nazwa może mieć najwyżej 120 znaków"),
+    title: z
+      .string()
+      .trim()
+      .min(1, "Nazwa wyjazdu jest wymagana")
+      .max(MAX_TITLE_LENGTH, `Nazwa może mieć najwyżej ${MAX_TITLE_LENGTH} znaków`),
     start_date: z.iso.date("Podaj poprawną datę rozpoczęcia"),
     end_date: z.iso.date("Podaj poprawną datę zakończenia"),
   })

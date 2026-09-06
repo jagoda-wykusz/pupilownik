@@ -14,9 +14,15 @@ interface Props {
   periodId: string;
   /** Absolute origin, so the minted link is pasteable. See InviteLinkPanel. */
   origin: string;
+  /** True when the period carries revoked_at. Regenerating one would return 200 and a
+   *  link that resolves to nothing: get_period_by_token filters on `revoked_at is null`,
+   *  and regenerate_period_token deliberately leaves that column alone (un-revoking is
+   *  S-06's decision, not a side effect of minting). So the action is refused here rather
+   *  than handing the owner a dead link the panel calls "gotowy do wysłania". */
+  revoked?: boolean;
 }
 
-export default function RegenerateLinkButton({ periodId, origin }: Props) {
+export default function RegenerateLinkButton({ periodId, origin, revoked = false }: Props) {
   const [token, setToken] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -46,6 +52,15 @@ export default function RegenerateLinkButton({ periodId, origin }: Props) {
 
   if (token) {
     return <InviteLinkPanel token={token} origin={origin} regenerated />;
+  }
+
+  if (revoked) {
+    return (
+      <p className="border-border bg-card text-muted-foreground rounded-lg border-[1.5px] p-5 text-[13px]">
+        Link do tego wyjazdu został unieważniony, więc nowego nie da się tu wygenerować — każdy nowy link też by nie
+        działał. Zaplanuj nowy wyjazd, jeśli opiekun ma znów zajmować terminy.
+      </p>
+    );
   }
 
   return (

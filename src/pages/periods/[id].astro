@@ -3,6 +3,7 @@ import Layout from "@/layouts/Layout.astro";
 import ThemeToggle from "@/components/ThemeToggle";
 import RegenerateLinkButton from "@/components/periods/RegenerateLinkButton";
 import { createClient } from "@/lib/supabase";
+import { periodIdSchema } from "@/lib/schemas/period";
 import { resolveTheme, THEME_COOKIE } from "@/lib/theme";
 import { formatDay, formatRange, formatWeekday, TIMES_OF_DAY, TIME_OF_DAY_LABEL } from "@/lib/period-format";
 import type { TimeOfDay } from "@/lib/period-format";
@@ -16,7 +17,12 @@ import type { TimeOfDay } from "@/lib/period-format";
 // the only way back to a working link, and that is what the island below offers.
 const supabase = createClient(Astro.request.headers, Astro.cookies);
 const theme = resolveTheme(Astro.cookies.get(THEME_COOKIE)?.value);
-const periodId = Astro.params.id ?? "";
+// Validated the same way the API route validates it (api/periods/[id]/token.ts). Without
+// this, a non-uuid reaches Postgres, raises 22P02, and this page answers 200 with a
+// load-failure message — telling a probe its input was at least well-formed, and telling
+// a user with a typo that something broke. A bad id is simply not found.
+const parsedId = periodIdSchema.safeParse(Astro.params.id);
+const periodId = parsedId.success ? parsedId.data : null;
 
 interface SlotRow {
   id: string;
@@ -36,7 +42,9 @@ interface PeriodRow {
 let period: PeriodRow | null = null;
 let loadError = false;
 
-if (supabase) {
+if (periodId === null) {
+  // Nothing to look up. Falls through to the same not-found branch below.
+} else if (supabase) {
   const { data, error } = await supabase
     .from("care_periods")
     .select("id, title, start_date, end_date, revoked_at, care_slots(id, slot_date, time_of_day, claimed_by_name)")
@@ -53,7 +61,8 @@ if (supabase) {
 }
 
 // RLS makes "not yours" and "does not exist" the same answer, and so does this page —
-// a real 404 status, not a soft empty state, so a probe learns nothing from either.
+// a real 404 status, not a soft empty state, so a probe learns nothing from either. A
+// malformed id joins them rather than surfacing as a load error.
 const notFound = !loadError && !period;
 if (notFound) {
   Astro.response.status = 404;
@@ -137,7 +146,12 @@ const takenCount = slots.filter((slot) => slot.claimed_by_name !== null).length;
             </ul>
 
             <h2 class="font-heading text-foreground mt-8 mb-3 text-[17px] font-bold">Link dla opiekuna</h2>
-            <RegenerateLinkButton periodId={period.id} origin={Astro.url.origin} client:load />
+            <RegenerateLinkButton
+              periodId={period.id}
+              origin={Astro.url.origin}
+              revoked={period.revoked_at !== null}
+              client:load
+            />
           </>
         )
       }

@@ -668,6 +668,53 @@ imports them from there. `spanInDays` and `countDays` were the same function wri
 only `countDays` survives. The island's client graph no longer contains zod, and a cold-cache
 dev start now serves `/periods/new` with no re-optimisation and no reload.
 
+### Phase 3 — impl-review fixes (reviews/impl-review-phase-3.md)
+
+Ten findings, all triaged. Eight fixed, one dismissed, one deferred:
+
+- **F1 (critical)** — `NewPeriodForm` used `SubmitButton`, whose `pending` comes from
+  `useFormStatus()` and only reports for a React form action or a native submit. With
+  `preventDefault()` + `fetch` it was permanently false, so the button was never disabled: two
+  clicks minted two periods, and the first kept a live link its owner never saw and cannot
+  revoke. Now owns a `submitting` state, like `AddPetForm` and `RegenerateLinkButton`.
+- **F2** — `/periods/[id]` now validates the id with `periodIdSchema`. A non-uuid used to reach
+  Postgres, raise 22P02, and answer 200 with a load-failure message, while a foreign id answered
+  404 — the file's own comment claimed they were indistinguishable. A malformed id is now simply
+  not found.
+- **F3** — regenerating a period with `revoked_at` set returned 200 and a link that resolves to
+  nothing forever, announced as "gotowy do wysłania", on a page that renders "link został
+  unieważniony" right above the button. The UI now refuses it. **The refusal is UI-only** —
+  the API still regenerates a revoked period; S-06 owns the server-side semantics.
+- **F4** — `ScreenHeading` now used on `/periods/new`. Not on the other two, for reasons worth
+  recording rather than rediscovering: `index.astro` puts its h1 in a flex row beside
+  `ThemeToggle` (ScreenHeading is a block), and `[id].astro` needs the date range in the accent
+  colour the design uses, whereas ScreenHeading's subtitle is muted inside an `mb-7` block.
+- **F5** — the 120-character title bound is now `MAX_TITLE_LENGTH` in `period-format.ts`,
+  consumed by both the zod schema and the island, so client and server cannot drift. It had
+  existed only server-side while the 31-day bound had three layers.
+- **F6 → Phase 4 requirement.** The token sits in a path segment and nothing sets
+  `Referrer-Policy`. Phase 4 must send `Referrer-Policy: no-referrer` and
+  `Cache-Control: no-store` for `/invite/*` from the middleware, and record the
+  path-segment-vs-fragment choice in `docs/reference/data-access.md`.
+- **F7 dismissed.** A `!data` guard in `api/periods.ts` was added, then reverted:
+  `no-unnecessary-condition` correctly called it dead. supabase-js types `data` non-null in the
+  no-error branch and the RPC returns a composite, never a set. `token.ts` guards because its
+  function returns `uuid` and answers NULL for a miss — a real case. A comment records the
+  asymmetry as intentional.
+- **F8** — the period list aggregated in the database: `total:care_slots(count)` plus a
+  `taken:care_slots(count)` embed filtered on the alias, and a `.limit()`. It was pulling every
+  slot row of every period (≈2,800 rows for 30 periods) to compute two integers — and pulling
+  `claimed_by_name`, which this slice may not display. The page can no longer see it.
+- **F9** — added "accepts a span of exactly 31 days" (201, 93 slots). The bound lives in four
+  places; only the rejecting side was pinned.
+- **F10** — the API routes log `error.code` + `error.message` instead of the whole Supabase
+  error, whose `details` echoes the offending value (`Key (token_digest)=(<hex>) already
+  exists`). Applied to `api/pets.ts` too, on the user's instruction: fixing only the new routes
+  would have split one S-01 pattern into two. That file is outside this slice's scope.
+
+Worth recording plainly: **F1 is exactly the class of defect manual check 3.5 should have
+caught**, and 3.5 was ticked as passing.
+
 ## Progress
 
 > Convention: `- [ ]` pending, `- [x]` done. Append ` — <commit sha>` when a step lands. Do not rename step titles. See `references/progress-format.md`.
@@ -709,19 +756,19 @@ dev start now serves `/periods/new` with no re-optimisation and no reload.
 
 #### Automated
 
-- [x] 3.1 Type checking passes: `npx astro check`
-- [x] 3.2 Linting passes: `npm run lint`
-- [x] 3.3 Build passes: `npm run build`
-- [x] 3.4 Full suite green including auth-gating on `/periods`: `npm test`
+- [x] 3.1 Type checking passes: `npx astro check` — 7f5aa31
+- [x] 3.2 Linting passes: `npm run lint` — 7f5aa31
+- [x] 3.3 Build passes: `npm run build` — 7f5aa31
+- [x] 3.4 Full suite green including auth-gating on `/periods`: `npm test` — 7f5aa31
 
 #### Manual
 
-- [x] 3.5 Creating a period shows the right slots and the one-time link warning
-- [x] 3.6 Reloading `/periods/[id]` no longer shows the link
-- [x] 3.7 Regenerating produces a new link and kills the previous one
-- [x] 3.8 Logged out, `/periods` and `/periods/new` redirect to sign-in
-- [x] 3.9 A second owner does not see the first owner's periods
-- [x] 3.10 Screens match the design in all three themes
+- [x] 3.5 Creating a period shows the right slots and the one-time link warning — 7f5aa31
+- [x] 3.6 Reloading `/periods/[id]` no longer shows the link — 7f5aa31
+- [x] 3.7 Regenerating produces a new link and kills the previous one — 7f5aa31
+- [x] 3.8 Logged out, `/periods` and `/periods/new` redirect to sign-in — 7f5aa31
+- [x] 3.9 A second owner does not see the first owner's periods — 7f5aa31
+- [x] 3.10 Screens match the design in all three themes — 7f5aa31
 
 ### Phase 4: Caretaker landing page
 

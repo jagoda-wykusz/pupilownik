@@ -128,6 +128,25 @@ describe("POST /api/periods — validated atomic create + token minting", () => 
     expect(status).toBe(400);
   });
 
+  it("accepts a span of exactly 31 days — the bound is inclusive on both sides", async () => {
+    // Paired with the 32-day rejection above so the boundary is pinned from both
+    // directions. The bound lives in four places (the CHECK, the zod refine, the
+    // island's validate, and MAX_SPAN_DAYS); a one-day tightening in any of them would
+    // otherwise pass every test.
+    const { status, body } = await call(createPeriod, "/api/periods", {
+      cookieHeader,
+      userId: owner.userId,
+      // 2026-07-01 .. 2026-07-31 inclusive = 31 days.
+      rawBody: JSON.stringify({ title: "Wyjazd", start_date: "2026-07-01", end_date: "2026-07-31" }),
+    });
+
+    expect(status).toBe(201);
+    const payload = body as { period: { id: string } };
+    // 31 days x 3 times of day — the documented worst case for one transaction.
+    const slots = await owner.client.from("care_slots").select("id").eq("period_id", payload.period.id);
+    expect(slots.data).toHaveLength(93);
+  });
+
   it("creates the period with its slots and returns a working link exactly once (201)", async () => {
     const { status, body } = await call(createPeriod, "/api/periods", {
       cookieHeader,

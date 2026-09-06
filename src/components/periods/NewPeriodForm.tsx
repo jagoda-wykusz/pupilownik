@@ -2,9 +2,8 @@ import { useState } from "react";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/button";
 import { ServerError } from "@/components/auth/ServerError";
-import { SubmitButton } from "@/components/auth/SubmitButton";
 import { InviteLinkPanel } from "@/components/periods/InviteLinkPanel";
-import { countDays, MAX_SPAN_DAYS } from "@/lib/period-format";
+import { countDays, MAX_SPAN_DAYS, MAX_TITLE_LENGTH } from "@/lib/period-format";
 
 // Create-period island (client:load). Mirrors SignInForm's shape — local state,
 // client-side validation for UX only — on the S-07 component layer, not the
@@ -33,11 +32,18 @@ export default function NewPeriodForm({ origin }: Props) {
   const [errors, setErrors] = useState<{ title?: string; start_date?: string; end_date?: string }>({});
   const [serverError, setServerError] = useState<string | null>(null);
   const [created, setCreated] = useState<Created | null>(null);
+  // Own state rather than SubmitButton's useFormStatus: that hook only reports for a
+  // React form action or a native submit, and this form preventDefaults and fetches.
+  // Without it the button is never disabled, and a double click mints two periods —
+  // the first one keeping a live link its owner never saw and cannot revoke.
+  const [submitting, setSubmitting] = useState(false);
 
   function validate() {
     const next: typeof errors = {};
     if (!title.trim()) {
       next.title = "Nazwa wyjazdu jest wymagana";
+    } else if (title.trim().length > MAX_TITLE_LENGTH) {
+      next.title = `Nazwa może mieć najwyżej ${MAX_TITLE_LENGTH} znaków`;
     }
     if (!startDate) {
       next.start_date = "Podaj datę rozpoczęcia";
@@ -66,6 +72,7 @@ export default function NewPeriodForm({ origin }: Props) {
       return;
     }
 
+    setSubmitting(true);
     try {
       const res = await fetch("/api/periods", {
         method: "POST",
@@ -89,6 +96,8 @@ export default function NewPeriodForm({ origin }: Props) {
       }
     } catch {
       setServerError("Błąd połączenia. Sprawdź sieć i spróbuj ponownie.");
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -158,7 +167,16 @@ export default function NewPeriodForm({ origin }: Props) {
 
       <ServerError message={serverError} />
 
-      <SubmitButton pendingText="Tworzenie...">Utwórz wyjazd i link</SubmitButton>
+      <Button type="submit" disabled={submitting} className="w-full">
+        {submitting ? (
+          <span className="flex items-center gap-2">
+            <span className="size-4 animate-spin rounded-full border-2 border-current/30 border-t-current" />
+            Tworzenie...
+          </span>
+        ) : (
+          "Utwórz wyjazd i link"
+        )}
+      </Button>
     </form>
   );
 }

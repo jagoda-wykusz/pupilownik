@@ -1,6 +1,7 @@
 ---
 import Layout from "@/layouts/Layout.astro";
 import ThemeToggle from "@/components/ThemeToggle";
+import ScreenHeading from "@/components/ui/ScreenHeading.astro";
 import NewPeriodForm from "@/components/periods/NewPeriodForm";
 import { resolveTheme, THEME_COOKIE } from "@/lib/theme";
 
@@ -17,7 +18,10 @@ const theme = resolveTheme(Astro.cookies.get(THEME_COOKIE)?.value);
         <ThemeToggle initialTheme={theme} client:load />
       </div>
 
-      <h1 class="font-heading text-foreground mb-6 text-[30px] leading-[1.15] font-bold">Nowy wyjazd</h1>
+      <ScreenHeading
+        title="Nowy wyjazd"
+        subtitle="Wybierz zakres dat. Link dla opiekuna dostaniesz od razu po utworzeniu."
+      />
 
       <NewPeriodForm origin={Astro.url.origin} client:load />
     </div>

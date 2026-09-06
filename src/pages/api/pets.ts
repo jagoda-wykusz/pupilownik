@@ -42,9 +42,11 @@ export const POST: APIRoute = async (context) => {
   });
 
   if (error) {
-    // Log the internal DB/constraint detail server-side; return a generic message
-    // so RLS/constraint internals never leak to the client.
-    console.error("create_pet_with_instructions failed:", error);
+    // Log the code and message, NOT the whole error: PostgREST's `details` echoes the
+    // offending column value on a constraint violation, so logging the object widens
+    // what a log dump exposes. The client still gets only a generic message, so
+    // RLS/constraint internals never leak either way.
+    console.error("create_pet_with_instructions failed:", error.code, error.message);
     return jsonResponse({ error: "Nie udało się zapisać zwierzęcia" }, 500);
   }
 

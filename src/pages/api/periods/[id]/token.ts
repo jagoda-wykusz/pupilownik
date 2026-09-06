@@ -31,7 +31,11 @@ export const POST: APIRoute = async (context) => {
   });
 
   if (error) {
-    console.error("regenerate_period_token failed:", error);
+    // Log the code and message, NOT the whole error: PostgREST's `details` echoes the
+    // offending value on a unique violation ("Key (token_digest)=(<hex>) already
+    // exists"), which would put a digest in the logs. The client still gets only a
+    // generic message, so RLS/constraint internals never leak either way.
+    console.error("regenerate_period_token failed:", error.code, error.message);
     return jsonResponse({ error: "Nie udało się wygenerować nowego linku" }, 500);
   }
 
