@@ -105,7 +105,12 @@ functions from the catalog rather than from a migration comment.
   more. See "The Non-Goals reading" below.
 - **No owner un-claim / release path.** FR-010 stays cut. Consequence recorded as an open
   risk: today nothing can invalidate a single caretaker's capability short of revoking the
-  whole period (S-06, not yet built).
+  whole period (S-06, not yet built). **Widened after the Phase 4 review (F4): the sharper
+  consequence is not that a capability survives, it is that the CLAIM does.** No function sets
+  `claimed_by_name` back to NULL, and revoking the link does not release slots already taken,
+  so a leaked link lets anyone permanently occupy an entire trip — repeatedly, with a fresh
+  capability each time — and the owner's only lever leaves the slots taken. Phase 4 is where
+  this became reachable; before it, the bearer link was read-only.
 - **No caretaker names visible to other caretakers.** That is S-05 / FR-011.
 - **No occupancy view for the owner beyond what already exists.** That is S-04 / FR-006.
 - **No structured feeding schedule.** PRD Open Question #1, deferred to v2.
@@ -1045,8 +1050,14 @@ section is where they are corrected, so the diff between plan and reality stays 
   not a caretaker account, per the reading stated above. PRD v2, not this change.
 - **`test-plan.md:53` is worded contrary to `:65`.** `:65` ("only to a caretaker who has
   claimed") is authoritative after decision D1; `:53` needs rewording.
-- **Nothing can invalidate a single caretaker's capability.** An owner un-claim path (FR-010,
-  cut) or period revocation (S-06, `ready`) are the two candidates. Recorded as an open risk.
+- **The owner needs a "release this slot" action, and it is now load-bearing rather than
+  nice-to-have (Phase 4 review F4).** An owner un-claim path (FR-010, cut) or period revocation
+  (S-06, `ready`) were the two candidates recorded before; the review sharpened why neither is
+  sufficient. Revocation does not release slots, so a trip griefed through a forwarded link
+  cannot be recovered at all — the owner would have to create a new trip and redistribute the
+  link. This is the first anonymous write in the product and it has no inverse. Recorded in
+  `docs/reference/data-access.md` rule 4 so it is met by anyone reading the access model, not
+  only by a reader of this plan.
 - **`roadmap.md`'s S-03 prerequisite line** already names S-08; no edit needed.
 
 ## Progress
@@ -1104,19 +1115,19 @@ section is where they are corrected, so the diff between plan and reality stays 
 
 #### Automated
 
-- [x] 4.1 New route suite passes
-- [x] 4.2 The uniform-failure unit test passes with the fourth view kind
-- [x] 4.3 Full suite passes
-- [x] 4.4 Type checking and linting pass
+- [x] 4.1 New route suite passes — cd88180
+- [x] 4.2 The uniform-failure unit test passes with the fourth view kind — cd88180
+- [x] 4.3 Full suite passes — cd88180
+- [x] 4.4 Type checking and linting pass — cd88180
 
 #### Manual
 
-- [x] 4.5 End-to-end claim on a phone-sized viewport reveals the sensitive tier and the note
-- [x] 4.6 A second claim from the same browser needs no name and updates the count
-- [x] 4.7 Incognito shows the pre-claim view
-- [x] 4.8 Invite headers present; capability cookie is `HttpOnly` with `Path=/invite`
-- [x] 4.9 The cookie is absent from `/periods` and `/dashboard` requests
-- [x] 4.10 A conflicting selection refuses entirely and names the term
+- [x] 4.5 End-to-end claim on a phone-sized viewport reveals the sensitive tier and the note — cd88180
+- [x] 4.6 A second claim from the same browser needs no name and updates the count — cd88180
+- [x] 4.7 Incognito shows the pre-claim view — cd88180
+- [x] 4.8 Invite headers present; capability cookie is `HttpOnly` with `Path=/invite` — cd88180
+- [x] 4.9 The cookie is absent from `/periods` and `/dashboard` requests — cd88180
+- [x] 4.10 A conflicting selection refuses entirely and names the term — cd88180
 
 ### Phase 5: Design layer
 

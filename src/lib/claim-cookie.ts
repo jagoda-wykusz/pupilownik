@@ -13,6 +13,22 @@
 
 export const CLAIM_COOKIE = "pupilownik_claim";
 
+// NOT a `__Host-` prefixed name, and that is a decision rather than an omission.
+//
+// The route trusts any well-formed 43-character value under this name, so anyone who can write
+// a cookie for this host could plant a secret they know and read the sensitive tier the
+// victim's claim unlocks. Cookies ignore ports, so a sibling app on another port in development
+// counts; so would an XSS anywhere on the origin, or a future subdomain. None of those exist
+// today — there are no subdomains, the cookie is HttpOnly and Secure, and no invite page uses
+// `set:html`.
+//
+// `__Host-` is the standard mitigation and it would forbid `Domain` — but it also PINS
+// `Path=/`, which is exactly the property being traded away below: `/invite` is what keeps a
+// caretaker credential off every owner request. Between "cannot be planted from a sibling
+// origin that does not exist" and "never rides along on /periods", the second is worth more
+// here. Recorded as a knowingly-taken trade-off (Phase 4 impl-review F10); revisit it the day
+// this app gains a subdomain.
+
 // The trip is over, but a caretaker may still want to look up what they did — and an owner
 // may run late. A week past `end_date` is generous without keeping a bearer credential alive
 // indefinitely on a shared phone.
@@ -39,11 +55,19 @@ export interface ClaimCookieOptions {
 //
 // One consequence worth stating: ONE cookie serves every trip, because it is keyed by path
 // rather than by period. That is deliberate — the same browser presenting the same capability
-// against two trips is a supported state (`claim_slots` scopes by period_id, and
-// `get_claimed_details` does too), and it is what lets a caretaker help two households without
-// re-entering their name. The cost is that Max-Age is rewritten by whichever trip was claimed
-// most recently, so claiming an earlier trip after a later one shortens the window. Accepted:
-// the shortest window this can produce is still a day past that trip's own end.
+// against two trips is a supported state, and `tests/rls/reveal-instructions.test.ts` pins that
+// each trip then answers only its own slots.
+//
+// What carries across trips is the CAPABILITY, not the identity. The NAME is per-trip:
+// `claim_slots` looks up the stored name with `where s.period_id = v_period.id and
+// s.claim_digest = v_claim_digest`, so on a second trip it finds nothing and asks again. That
+// is the correct behaviour — one identity per trip, since a caretaker may be "Ania" to one
+// household and "Ania z drugiego piętra" to another — and this comment previously claimed the
+// opposite (Phase 4 impl-review F5).
+//
+// The cost of the shared cookie is that Max-Age is rewritten by whichever trip was claimed most
+// recently, so claiming an earlier trip after a later one shortens the window. Accepted: the
+// shortest window this can produce is still a day past that trip's own end.
 export function claimCookieOptions(endDate: string, now: Date = new Date()): ClaimCookieOptions {
   // Parsed as UTC midnight for the same reason period-format.ts does it: read in the viewer's
   // zone, a date west of Greenwich lands on the previous day.
@@ -54,7 +78,12 @@ export function claimCookieOptions(endDate: string, now: Date = new Date()): Cla
     // No JS read: the page renders the revealed tier server-side, so the browser never needs
     // this value. That makes an XSS on the invite page unable to lift the capability.
     httpOnly: true,
-    // localhost counts as a secure context, so this does not break local development.
+    // localhost and 127.0.0.1 count as secure contexts, so this does not break local
+    // development — but a dev server reached over a LAN IP (http://192.168.x.x:4321) is NOT
+    // one, and the browser drops this cookie silently. The symptom is the same one
+    // MIN_AGE_SECONDS exists to prevent and just as misleading: the claim succeeds, the reload
+    // renders the pre-claim page, and it reads as "it didn't work". Testing the mobile-first
+    // caretaker flow on a real phone is the obvious way to hit it (Phase 4 impl-review F7).
     secure: true,
     // The load-bearing CSRF control on this cookie. A cross-site POST to /invite/claim does
     // not carry it, so such a request cannot add slots to an existing capability — it can

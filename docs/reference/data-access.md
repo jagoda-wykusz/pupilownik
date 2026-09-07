@@ -157,6 +157,20 @@ p_claim_secret, p_name)`, `VOLATILE` — a separate function because Postgres
    the page can name the term. That leaks nothing beyond the period the caller
    already holds a valid token for.
 
+   **The other half of the write widening, which is not about signalling: the
+   write is IRREVERSIBLE and nothing in the product can undo it.** No function
+   sets `claimed_by_name` back to NULL, and S-06's "revoke the link" invalidates
+   future access without releasing slots already taken — `regenerate_period_token`
+   deliberately leaves `revoked_at` and the claim columns alone. So anyone the
+   invite link reaches, and it is designed to be forwarded over a messenger, can
+   permanently take every slot in a trip, repeatedly, minting a fresh capability
+   each time. Until S-02 the bearer link was read-only and this did not exist;
+   S-03 introduced it. FR-010 (owner un-claim) was cut deliberately, so this is a
+   known consequence rather than an oversight — but it is the consequence, and it
+   belongs here rather than only in a plan's §What We're NOT Doing. **A later
+   slice owes the owner a "release this slot" action**; a per-token rate limit
+   would only slow the taking, not undo it.
+
 **The rule for future slices:** a new caretaker capability _extends this
 function_ (or adds another one under the same four rules). It does **not** add an
 anon policy to a table. S-03's slot claiming did exactly that, adding

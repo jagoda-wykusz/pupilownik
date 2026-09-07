@@ -25,12 +25,27 @@ import { formatDay, TIME_OF_DAY_LABEL, type TimeOfDay } from "@/lib/period-forma
 // Never log the raw token or the raw capability secret. The error branches below log
 // `error.code` and `error.message` only, for the reason S-01 impl-review F2 recorded:
 // PostgREST's `details` echoes offending values.
+
+// The shape a minted capability has: 32 bytes base64url, unpadded. Identical to the invite
+// token's, because `generateClaimSecret` is a literal alias of `generateInviteToken` — and
+// identical to the bound both database functions apply before hashing.
+const CAPABILITY_SHAPE = /^[A-Za-z0-9_-]{43}$/;
+
 export const POST: APIRoute = async (context) => {
   // Inversion 2. Astro will not do this for us on a JSON body, and without it any page on the
-  // internet could POST here on a visitor's behalf. The cookie's SameSite=Lax is the control
-  // that actually limits the damage — a cross-site POST does not carry it, so the worst case
-  // is minting a fresh capability, which requires a name and reveals nothing — but a
-  // mismatched Origin is still a request no legitimate caretaker makes.
+  // internet could POST here on a visitor's behalf.
+  //
+  // Do NOT read this check as redundant next to SameSite=Lax. Lax does stop a cross-site POST
+  // carrying the cookie, so an attacker cannot ADD slots to a victim's existing capability —
+  // but it does nothing about a request that mints a fresh one. The residual harm without this
+  // check is therefore not "reveals nothing", it is grief-claiming: up to 93 slots, the whole
+  // trip, taken under a name the attacker chooses, in a single request — and nothing in the
+  // product can undo a claim (see docs/reference/data-access.md rule 4). Corrected after the
+  // Phase 4 review understated it (F9).
+  //
+  // Coverage: a cross-origin fetch always sends Origin; so does a cross-site form POST, which
+  // matters because `request.json()` ignores Content-Type and `enctype=text/plain` can forge a
+  // JSON body; an opaque origin sends the string "null", which fails the equality too.
   //
   // Absent Origin is allowed: non-browser callers omit it entirely, and refusing them would
   // buy nothing that SameSite=Lax does not already provide.
@@ -68,8 +83,17 @@ export const POST: APIRoute = async (context) => {
   // The RAW secret goes to the database. It is hashed inside the function, exactly as the
   // invite token is, so nothing here derives a digest (S-03 Phase 2 impl-review F1). A
   // `digestClaimSecret` call in this file would be a mistake.
+  //
+  // The cookie is VALIDATED before it is trusted, not merely tested for presence. `??` alone
+  // catches null and undefined but passes an empty, truncated or tampered value straight to
+  // `claim_slots`, which raises PT400 on its 43-character bound — and since nothing here
+  // clears the cookie, that caretaker would get a 400 on every future attempt, forever.
+  // Refreshing would not help. The asymmetry made it worse: `get_claimed_details` answers NULL
+  // for a wrong-length secret, so the PAGE degrades silently to the pre-claim view while the
+  // ROUTE dead-ends — the symptom gives no hint of the cause. Minting a fresh one instead
+  // costs a name prompt and recovers on the next request (impl-review, Phase 4).
   const existing = context.cookies.get(CLAIM_COOKIE)?.value;
-  const secret = existing ?? generateClaimSecret();
+  const secret = existing !== undefined && CAPABILITY_SHAPE.test(existing) ? existing : generateClaimSecret();
 
   const { data, error } = await supabase.rpc("claim_slots", {
     p_token: token,

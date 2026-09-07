@@ -231,6 +231,26 @@ describe("POST /invite/claim", () => {
     expect(retry.body.alreadyHeld).toBe(1);
   });
 
+  it("recovers from a corrupted capability cookie instead of dead-ending on it", async () => {
+    // Found in review. `existing ?? mint()` catches only null/undefined, so a truncated or
+    // tampered cookie went straight to claim_slots, which raises PT400 on its 43-character
+    // bound — and nothing clears the cookie, so that browser would get a 400 on every future
+    // attempt, forever. Refreshing would not help, and the PAGE degrades silently for the same
+    // input (get_claimed_details answers NULL), so the symptom points nowhere near the cause.
+    const ids = await freeSlots(1);
+    const { status, body, cookies } = await call({
+      body: { token, slot_ids: ids, name: "Klara" },
+      cookies: { [CLAIM_COOKIE]: "not-a-valid-capability" },
+    });
+
+    expect(status).toBe(200);
+    expect(body.name).toBe("Klara");
+    // A fresh, well-formed capability replaced the junk.
+    const replaced = cookies.store.get(CLAIM_COOKIE)?.value ?? "";
+    expect(replaced).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(replaced).not.toBe("not-a-valid-capability");
+  });
+
   // ── Refusals ────────────────────────────────────────────────────────────────────────────
 
   it("answers 409 naming the taken term, and claims nothing", async () => {
@@ -293,6 +313,101 @@ describe("POST /invite/claim", () => {
     // Says nothing about WHY. Unknown, malformed and revoked are indistinguishable here, as
     // they are everywhere else in this model.
     expect(body.error).toBe("Ten link nie działa");
+  });
+
+  it("answers the same uniform 404 for a REVOKED period as for an unknown token", async () => {
+    // Rule 4 is about indistinguishability, and only the unknown-token half was covered here.
+    // The SQL layer pins this (invite-token.test.ts); the route's own mapping did not.
+    const revokedToken = generateInviteToken();
+    const { data: revoked, error } = await owner.client.rpc("create_period_with_slots", {
+      p_title: "Odwolany",
+      p_start_date: "2027-09-01",
+      p_end_date: "2027-09-02",
+      p_token_digest: await digestInviteToken(revokedToken),
+      p_pet_ids: [owner.petId],
+    });
+    expect(error).toBeNull();
+    if (!revoked) {
+      throw new Error("invite-claim test: seeding the revoked period failed");
+    }
+    const { data: slot } = await owner.client.from("care_slots").select("id").eq("period_id", revoked.id).limit(1);
+    const slotId = slot?.[0].id ?? "";
+
+    await owner.client.from("care_periods").update({ revoked_at: new Date().toISOString() }).eq("id", revoked.id);
+
+    const revokedCall = await call({ body: { token: revokedToken, slot_ids: [slotId], name: "Ania" } });
+    const unknownCall = await call({
+      body: { token: generateInviteToken(), slot_ids: await freeSlots(1), name: "Ania" },
+    });
+
+    // Byte-identical, not merely both-4xx: a distinct answer for the revoked case would confirm
+    // the period exists.
+    expect(revokedCall.status).toBe(unknownCall.status);
+    expect(revokedCall.body).toEqual(unknownCall.body);
+    expect(revokedCall.status).toBe(404);
+  });
+
+  it("sets NO cookie on any refusal", async () => {
+    // `cookies.set` sits after every refusal branch today, but nothing pinned that ordering —
+    // moving it above the error handling would hand a capability to a caller whose claim was
+    // rejected, and every existing test would stay green.
+    const crossOrigin = await call({
+      body: { token, slot_ids: await freeSlots(1), name: "Ania" },
+      origin: "https://evil.example",
+    });
+    const unknownToken = await call({
+      body: { token: generateInviteToken(), slot_ids: await freeSlots(1), name: "Ania" },
+    });
+    const badRequest = await call({ body: { token, slot_ids: [], name: "Ania" } });
+
+    for (const refusal of [crossOrigin, unknownToken, badRequest]) {
+      expect(refusal.status).toBeGreaterThanOrEqual(400);
+      expect(refusal.cookies.store.has(CLAIM_COOKIE)).toBe(false);
+    }
+  });
+
+  it("carries one capability across trips, and asks for the name again on each", async () => {
+    // Path=/invite means the cookie rides along on EVERY invite link this browser opens, so
+    // this is not a hypothetical. Phase 3 pinned the SQL half (each trip answers only its own
+    // slots); this is the route half — and it pins the behaviour the cookie's own comment got
+    // wrong until the Phase 4 review (F5): the CAPABILITY carries, the NAME does not.
+    const secondToken = generateInviteToken();
+    const { data: second } = await owner.client.rpc("create_period_with_slots", {
+      p_title: "Drugi wyjazd",
+      p_start_date: "2027-10-01",
+      p_end_date: "2027-10-02",
+      p_token_digest: await digestInviteToken(secondToken),
+      p_pet_ids: [owner.petId],
+    });
+    if (!second) {
+      throw new Error("invite-claim test: seeding the second trip failed");
+    }
+    const { data: secondSlots } = await owner.client
+      .from("care_slots")
+      .select("id")
+      .eq("period_id", second.id)
+      .limit(1);
+    const secondSlotId = secondSlots?.[0].id ?? "";
+
+    const first = await call({ body: { token, slot_ids: await freeSlots(1), name: "Jola" } });
+    const secret = first.cookies.store.get(CLAIM_COOKIE)?.value ?? "";
+
+    // Same cookie, second trip, NO name — must be refused, because claim_slots scopes the
+    // stored name by period_id and finds none here.
+    const withoutName = await call({
+      body: { token: secondToken, slot_ids: [secondSlotId] },
+      cookies: { [CLAIM_COOKIE]: secret },
+    });
+    expect(withoutName.status).toBe(400);
+
+    // With a name it succeeds, and attaches to the SAME capability.
+    const withName = await call({
+      body: { token: secondToken, slot_ids: [secondSlotId], name: "Jola z drugiego pietra" },
+      cookies: { [CLAIM_COOKIE]: secret },
+    });
+    expect(withName.status).toBe(200);
+    expect(withName.body.name).toBe("Jola z drugiego pietra");
+    expect(withName.cookies.store.get(CLAIM_COOKIE)?.value).toBe(secret);
   });
 
   // ── Validation ──────────────────────────────────────────────────────────────────────────

@@ -200,7 +200,7 @@ const myDays = [...new Set((claimed?.slots ?? []).map((slot) => slot.slot_date))
                 <p class="text-secondary-foreground text-[15px] font-bold">Zapisano, {claimed.name}!</p>
                 <p class="text-secondary-foreground mt-1 text-[14px]">
                   {myDays.length === 1
-                    ? `Masz 1 dzien: ${formatDay(myDays[0])}.`
+                    ? `Masz 1 dzień: ${formatDay(myDays[0])}.`
                     : `Masz ${myDays.length} dni: ${myDays.map((day) => formatDay(day)).join(", ")}.`}
                 </p>
               </div>
@@ -276,16 +276,29 @@ const myDays = [...new Set((claimed?.slots ?? []).map((slot) => slot.slot_date))
 
             <h2 class="font-heading text-foreground mt-8 mb-3 text-[17px] font-bold">Terminy</h2>
             {/* The island replaces the read-only list Phase 3 left behind. `byDay` was already
-                the natural serializable prop. `hasCapability` is the ONLY thing about the
-                capability that crosses to the client - the secret stays in an HttpOnly cookie
-                the browser cannot read, and the revealed rows are rendered above, server-side. */}
+                the natural serializable prop.
+
+                What crosses to the client, precisely: the capability contributes only
+                `hasCapability`, a boolean — the secret stays in an HttpOnly cookie the browser
+                cannot read, and the revealed rows are rendered above, server-side. The TOKEN
+                does cross, as a prop, and Astro serializes island props into the HTML, so it
+                now has a second copy in the DOM. That is not an escalation — it is already in
+                this page's URL, and the response carries no-referrer and no-store — but the
+                earlier wording here implied nothing credential-shaped crossed at all, which
+                was true of the capability and false of the token (Phase 4 impl-review F9). */}
             <ClaimSlots byDay={byDay} token={token} hasCapability={claimed !== null} client:load />
 
             {/* The tier hint, now that claiming exists. Shown only BEFORE claiming: once the
                 sensitive rows are on the page, saying they are withheld would be false. Kept
                 outside the pets guard for the reason Phase 3's review gave - a trip with no
                 linked pets is representable and still needs the explanation. */}
-            {!claimed && (
+            {/* Reads view.kind, not `claimed`, because this is a pure VIEW decision with no
+                payload behind it — which makes the fourth kind load-bearing rather than
+                computed-and-ignored (impl-review). The blocks above keep `claimed &&` because
+                they dereference it and need TypeScript's narrowing; inside this `payload`
+                branch the two are equivalent by construction, since hasClaims is exactly
+                `claimed !== null`. */}
+            {view.kind === "period" && (
               <p class="text-muted-foreground mt-6 text-[13px] leading-[1.5]">
                 Część wskazówek — na przykład dostęp do mieszkania — właściciel udostępnia dopiero po zapisaniu się na
                 termin.
