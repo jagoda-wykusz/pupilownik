@@ -99,6 +99,37 @@ describe("the two-tier reveal", () => {
     return data as ClaimedDetails | null;
   }
 
+  // Claim the first free slot of a period with a SPECIFIC secret, so one capability can be made
+  // to span two trips. claimOne below is the mint-your-own convenience wrapper.
+  async function claimWith(
+    owner: OwnerWithPetContext,
+    periodId: string,
+    token: string,
+    secret: string,
+    name: string,
+  ): Promise<void> {
+    const { data } = await owner.client
+      .from("care_slots")
+      .select("id")
+      .eq("period_id", periodId)
+      .is("claimed_by_name", null)
+      .order("slot_date")
+      .order("time_of_day")
+      .limit(1);
+    const slotId = data?.[0]?.id;
+    if (!slotId) {
+      throw new Error(`reveal test: no free slot to claim in ${periodId}`);
+    }
+
+    const { error } = await anon.rpc("claim_slots", {
+      p_token: token,
+      p_slot_ids: [slotId],
+      p_claim_secret: secret,
+      p_name: name,
+    });
+    expect(error).toBeNull();
+  }
+
   // Claim the first free slot of a period and return the capability secret that now holds it.
   async function claimOne(owner: OwnerWithPetContext, periodId: string, token: string, name: string): Promise<string> {
     const { data } = await owner.client
@@ -222,6 +253,60 @@ describe("the two-tier reveal", () => {
 
       expect(Object.keys(details ?? {}).sort()).toEqual(["caretaker_note", "name", "pets", "slots"]);
       expect(Object.keys(details?.slots[0] ?? {}).sort()).toEqual(["id", "slot_date", "time_of_day"]);
+      // The NESTED sets too, symmetrically with the read door's (impl-review F8). Without
+      // these, `is_sensitive`, `owner_id` or `created_at` could join the reveal's pet objects
+      // without a red test — and this payload is the one that carries the house keys.
+      expect(Object.keys(details?.pets[0] ?? {}).sort()).toEqual(["id", "instructions", "name", "species"]);
+      expect(Object.keys(details?.pets[0].instructions[0] ?? {}).sort()).toEqual(["body", "id", "sort_order", "title"]);
+    });
+    // The migration states this invariant in a comment: "A pet with no sensitive rows still
+    // appears, with instructions: []. Dropping it would make the two payloads disagree about
+    // which pets are on the trip." Nothing checked it — both seeded pets carry a sensitive row
+    // (impl-review F8). Phase 4 composes the two payloads pet by pet, so a pet present in one
+    // and absent from the other is exactly the shape that would break it.
+    it("still lists a pet that has no sensitive rows, with an empty instruction list", async () => {
+      const { data: quietPet, error: petError } = await a.client
+        .from("pets")
+        .insert({ owner_id: a.userId, name: "A-Cichy", species: "cat" })
+        .select("id")
+        .single();
+      expect(petError).toBeNull();
+      if (!quietPet) {
+        throw new Error("reveal test: seeding the sensitive-free pet failed");
+      }
+
+      const { error: insError } = await a.client.from("care_instructions").insert({
+        pet_id: quietPet.id,
+        title: PUBLIC_TITLE,
+        body: PUBLIC_BODY,
+        is_sensitive: false,
+        sort_order: 1,
+      });
+      expect(insError).toBeNull();
+
+      const token = generateInviteToken();
+      const { data: period, error } = await a.client.rpc("create_period_with_slots", {
+        p_title: "A-dwa-zwierzaki",
+        p_start_date: "2027-05-01",
+        p_end_date: "2027-05-02",
+        p_token_digest: await digestInviteToken(token),
+        p_pet_ids: [a.petId, quietPet.id],
+      });
+      expect(error).toBeNull();
+      if (!period) {
+        throw new Error("reveal test: seeding the two-pet trip failed");
+      }
+
+      const secret = await claimOne(a, period.id, token, "Ania");
+      const details = await reveal(token, secret);
+
+      // BOTH pets appear, ordered by name — "A-Burek" before "A-Cichy".
+      expect(details?.pets.map((pet) => pet.name)).toEqual(["A-Burek", "A-Cichy"]);
+      // The quiet one carries an empty array, not a missing entry and not null.
+      expect(details?.pets[1].instructions).toEqual([]);
+      // And the read door agrees about the pet set, which is what makes composition safe.
+      const payload = await resolve(token);
+      expect(payload?.pets.map((pet) => pet.name)).toEqual(["A-Burek", "A-Cichy"]);
     });
   });
 
@@ -240,7 +325,14 @@ describe("the two-tier reveal", () => {
         reveal(generateInviteToken(), aSecret),
         // Both wrong.
         reveal(generateInviteToken(), neverClaimed),
-        // Wrong-length inputs must not answer differently from unknown ones.
+        // Wrong-length inputs must not answer differently from unknown ones. Read these two
+        // for what they are (impl-review F7, the same admission claim-slots.test.ts carries):
+        // they pin the uniform-failure ANSWER, not the 43-character bound. Deleting the bound
+        // leaves them green, because a short string simply hashes to a digest matching
+        // nothing. The bound's real effect — that no hashing happens for an unauthenticated
+        // caller — is not observable through PostgREST. What these DO catch is someone turning
+        // the length check into a raise, which would separate "malformed" from "unknown" and
+        // hand a prober an oracle.
         reveal("too-short", aSecret),
         reveal(aToken, "too-short"),
       ]);
@@ -256,6 +348,43 @@ describe("the two-tier reveal", () => {
       // And B's sensitive content is not reachable this way.
       const details = await reveal(bToken, aSecret);
       expect(JSON.stringify(details)).not.toContain("B ma swoją notatkę");
+    });
+
+    // `period_id` scopes TWO queries in get_claimed_details: the authorization lookup, which
+    // the test above pins, and the caretaker's-own-slots subquery, which nothing pinned —
+    // because no capability in this suite held slots in more than one period, so scoping by
+    // (period_id, digest) and by digest alone were observationally identical (impl-review F3).
+    //
+    // One browser holding one capability against two trips is not hypothetical: it is exactly
+    // what Phase 4's Path=/invite cookie produces the moment a caretaker helps two households.
+    it("shows only the addressed trip's slots when one capability holds slots in two", async () => {
+      // The same secret string on both trips. claim_slots takes the raw secret and derives the
+      // digest, so presenting it twice genuinely produces ONE capability across two periods —
+      // which is the state this test needs and no other test in the file creates.
+      const shared = generateClaimSecret();
+
+      const tripOne = await seedPeriod(a, "A-dwa-wyjazdy-1", "notatka 1");
+      const tripTwo = await seedPeriod(b, "B-dwa-wyjazdy-2", "notatka 2");
+      await claimWith(a, tripOne.id, tripOne.token, shared, "Ania");
+      await claimWith(b, tripTwo.id, tripTwo.token, shared, "Ania");
+
+      const one = await reveal(tripOne.token, shared);
+      const two = await reveal(tripTwo.token, shared);
+
+      // Both resolve — the capability is genuine on both trips.
+      expect(one).not.toBeNull();
+      expect(two).not.toBeNull();
+
+      // But each answer carries only its own trip's slot and its own trip's note. Drop
+      // `period_id` from the slots subquery and each of these becomes 2, and the notes cross.
+      expect(one?.slots).toHaveLength(1);
+      expect(two?.slots).toHaveLength(1);
+      expect(one?.slots[0].id).not.toBe(two?.slots[0].id);
+      expect(one?.caretaker_note).toBe("notatka 1");
+      expect(two?.caretaker_note).toBe("notatka 2");
+      // And the pets do not cross either: B's pet must not appear in A's answer.
+      expect(one?.pets.map((pet) => pet.name)).toEqual(["A-Burek"]);
+      expect(two?.pets.map((pet) => pet.name)).toEqual(["B-Mru"]);
     });
 
     it("refuses through a revoked link even for a capability that holds slots", async () => {

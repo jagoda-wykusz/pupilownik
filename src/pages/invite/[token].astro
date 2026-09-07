@@ -176,14 +176,6 @@ const pets = payload?.pets ?? [];
                     </li>
                   ))}
                 </ul>
-                {/* Named so a caretaker does not assume this is everything there is to know.
-                    The sensitive tier exists and is deliberately withheld until they claim —
-                    saying so beats silence, and it is the same reasoning as the "no claim
-                    button yet" note below. */}
-                <p class="text-muted-foreground mt-3 text-[13px] leading-[1.5]">
-                  Część wskazówek — na przykład dostęp do mieszkania — właściciel udostępnia dopiero po zapisaniu się na
-                  termin.
-                </p>
               </>
             )}
 
@@ -214,10 +206,16 @@ const pets = payload?.pets ?? [];
               ))}
             </ul>
 
-            {/* Deliberately no claim button: taking a slot is S-03. Saying so beats a
-                caretaker wondering where to click. */}
+            {/* One note, not two. Phase 3 briefly shipped two that contradicted each other:
+                one said the sensitive tier unlocks "po zapisaniu się na termin", the other
+                said signing up is not available yet — so the page pointed at an action it
+                does not offer (impl-review F9). Merged here, and deliberately OUTSIDE the
+                pets guard: a trip with no linked pets is representable, and it still needs
+                the explanation. Phase 4 replaces this paragraph with the claim UI. */}
             <p class="text-muted-foreground mt-6 text-[13px] leading-[1.5]">
-              Zapisywanie się na terminy będzie dostępne wkrótce. Na razie ustal z właścicielem, który termin bierzesz.
+              Zapisywanie się na terminy będzie dostępne wkrótce — a razem z nim część wskazówek, na przykład dostęp do
+              mieszkania, którą właściciel udostępnia dopiero zapisanym opiekunom. Na razie ustal z właścicielem, który
+              termin bierzesz.
             </p>
           </>
         )

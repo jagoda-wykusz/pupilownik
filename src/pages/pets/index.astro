@@ -1,7 +1,7 @@
 ---
 import Layout from "@/layouts/Layout.astro";
 import { createClient } from "@/lib/supabase";
-import { SPECIES_LABEL } from "@/lib/pet-format";
+import { SPECIES_LABEL, type Species } from "@/lib/pet-format";
 
 // Protected by middleware (PROTECTED_ROUTES includes "/pets"): an unauthenticated
 // request is redirected to /auth/signin before this frontmatter runs. The query
@@ -16,7 +16,10 @@ interface InstructionRow {
 interface PetRow {
   id: string;
   name: string;
-  species: string;
+  // The enum, not `string`: SPECIES_LABEL is keyed by pet_species, so a widened type here
+  // makes the lookup an implicit `any` (ts7053) — which is exactly what slipped past the
+  // toolchain when this screen moved onto the shared map in S-03 Phase 3.
+  species: Species;
   breed: string | null;
   age: string | null;
   care_instructions: InstructionRow[];

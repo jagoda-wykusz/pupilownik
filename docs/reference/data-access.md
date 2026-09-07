@@ -25,7 +25,7 @@ is no service_role client in the request path, by design.
    this is the correct fail-closed default.
 3. **Grant the table** to `authenticated` for the operations the role needs
    (`grant select, insert, update, delete on <table> to authenticated`). Grants
-   only make the table *reachable* — they do not restrict operations, and Supabase
+   only make the table _reachable_ — they do not restrict operations, and Supabase
    default privileges may already grant ALL on new `public` tables. What actually
    denies an operation is the **absence of an RLS policy** for it (deny-by-default),
    not a withheld grant. Grant the operations you'll write policies for; deny the
@@ -51,14 +51,16 @@ create policy "<table>_update_own"
 ```
 
 Notes:
+
 - An `UPDATE` first needs to `SELECT` the row — a table with no SELECT policy will
   silently update 0 rows. Always pair them.
-- Caretaker (link-based, no-login) access is a *different* model — see
+- Caretaker (link-based, no-login) access is a _different_ model — see
   "The token model" below. It does not reuse these owner policies.
 
 ## `SECURITY DEFINER` functions (rare — hardening checklist)
 
 Only when a controlled action must bypass RLS (e.g. the signup trigger). Then:
+
 - `set search_path = ''` and fully-qualify every object (`public.x`, `auth.y`).
 - `revoke execute on function public.<fn>() from public` so it is not a callable
   public API endpoint.
@@ -68,7 +70,7 @@ Only when a controlled action must bypass RLS (e.g. the signup trigger). Then:
 
 ## The token model (link-based, no-login access)
 
-Introduced by S-02. This is the *second* access model in the schema and the only
+Introduced by S-02. This is the _second_ access model in the schema and the only
 one that serves a caller with no `auth.users` row. Read this before adding any
 caretaker capability.
 
@@ -93,14 +95,16 @@ a **function**, not an anon policy.
    being a replayable credential in its own right, and it is the property the
    first cut of `claim_slots` did not have (Phase 2 impl-review F1).
 2. **`SECURITY DEFINER` functions are the entire anon-reachable surface.**
-   Until S-03 Phase 2 there was exactly one, and the heading said so; there are
-   now two. The rule was always about the *shape* rather than the count — each
-   is a named function whose body is the whole authorization boundary, with no
-   policy behind it, and never an anon policy on a table. There are three as of
-   S-03 Phase 3. Both carry
+   There are **three** as of S-03 Phase 3 — a read door, a reveal door and a
+   write door. Until S-03 Phase 2 there was exactly one and this heading said so;
+   the rule was always about the _shape_ rather than the count. Each is a named
+   function whose body is the whole authorization boundary, with no policy behind
+   it, and never an anon policy on a table. All three carry
    `set search_path = ''`, fully-qualified objects, and an explicit
    `revoke execute … from public, anon, authenticated, service_role` followed by
-   `grant execute … to anon, authenticated`.
+   `grant execute … to anon, authenticated`, and all three have that posture
+   asserted from both sides by a test that fails if it changes in either
+   direction.
    - **The read door**: `public.get_period_by_token(p_token text)`, `STABLE`.
      Computes the digest inside the function, resolves **at most one** active
      period, and returns the period plus its slots' free/taken state and its pets
@@ -117,7 +121,7 @@ a **function**, not an anon policy.
      result set" this rule forbids — the tier split would then rest on one boolean
      invisible from outside.
    - **The write door**: `public.claim_slots(p_token, p_slot_ids,
-     p_claim_secret, p_name)`, `VOLATILE` — a separate function because Postgres
+p_claim_secret, p_name)`, `VOLATILE` — a separate function because Postgres
      forbids a `STABLE` one from writing. It **derives** the period from the
      token and never accepts a period id, which is the only thing that makes a
      slot uuid from another period unusable, and it claims a set of slots
@@ -126,11 +130,20 @@ a **function**, not an anon policy.
      see rule 1, which the two credentials now obey identically.
 3. **No anon policy on any table, and no anon table grants.** Supabase's
    `ALTER DEFAULT PRIVILEGES` grants anon SELECT/INSERT/UPDATE/DELETE on every
-   new table in `public`, so the S-02 migration explicitly revokes them on
-   `care_periods` and `care_slots`. Deny-by-default already returned zero rows,
-   but the claim "the function is the only door" should rest on two layers, not
-   one. Both functions still reach those tables — `get_period_by_token` reads them,
-   `claim_slots` reads and writes them — because each runs as its owner.
+   new table in `public`, so every table the three doors touch has that grant
+   explicitly revoked — **five of them**, and the revokes are spread across the
+   migrations that introduced each table: `care_periods` and `care_slots`
+   (`20260906003122`), `pets` and `care_instructions` (`20260906094254`), and
+   `care_period_pets` (`20260906165005`). Deny-by-default already returned zero
+   rows, but the claim "the function is the only door" should rest on two layers,
+   not one, and `tests/rls/invite-token.test.ts` and
+   `tests/rls/reveal-instructions.test.ts` assert the refusal (SQLSTATE 42501) on
+   all five rather than merely an empty result.
+   All three functions still reach those tables because each runs as its owner:
+   `get_period_by_token` and `get_claimed_details` read them, `claim_slots` reads
+   and writes them. That is the point worth carrying: **RLS does not apply inside
+   any of the three**, so their bodies — not any policy — are what keeps an
+   owner's data and the sensitive instruction tier apart.
 4. **Uniform failure — with one deliberate widening for writes.** Unknown,
    malformed and revoked tokens all return NULL, and the page renders one 404
    with one message. A distinct "this link was revoked" answer would confirm the
@@ -139,13 +152,13 @@ a **function**, not an anon policy.
    cannot keep this whole: a claim must distinguish "won" from "refused", which
    is a signal a read never emitted. `claim_slots` therefore returns NULL for an
    unresolvable token — the half that is the security property, since it is what
-   would otherwise confirm a period exists — but *raises* when a requested slot
+   would otherwise confirm a period exists — but _raises_ when a requested slot
    is no longer free, carrying the conflicting `{slot_date, time_of_day}` rows so
    the page can name the term. That leaks nothing beyond the period the caller
    already holds a valid token for.
 
-**The rule for future slices:** a new caretaker capability *extends this
-function* (or adds another one under the same four rules). It does **not** add an
+**The rule for future slices:** a new caretaker capability _extends this
+function_ (or adds another one under the same four rules). It does **not** add an
 anon policy to a table. S-03's slot claiming did exactly that, adding
 `claim_slots` and then `get_claimed_details`. S-04's occupancy view lands under the
 same rule.
@@ -169,7 +182,7 @@ has to resolve it before rendering — a fragment never reaches the server. That
 makes the response a second escape route, so `src/middleware.ts` sends
 `Referrer-Policy: no-referrer` and `Cache-Control: no-store` for `/invite/*`.
 Without the first, the page's first outbound link or third-party asset would send
-the full path — token included — in `Referer`. Note what this does *not* fix: the
+the full path — token included — in `Referer`. Note what this does _not_ fix: the
 token is still in browser history and in the access log of anything that proxies
 the request. The link is a bearer credential; treat it as one.
 
@@ -189,7 +202,7 @@ npm run db:push              # promote to the hosted project (separate from app 
 ```
 
 - `src/db/database.types.ts` is **generated, never hand-edited** — it is ignored by
-  eslint and prettier. Regenerate it after *every* migration; a stale file silently
+  eslint and prettier. Regenerate it after _every_ migration; a stale file silently
   lies to the type checker.
 - Verify before committing: `npm run db:reset` (exit 0), `npx astro check`,
   `npm run lint`, and `npx supabase db advisors --type security`.

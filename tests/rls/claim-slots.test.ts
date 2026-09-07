@@ -360,6 +360,48 @@ describe("claim_slots — the caretaker write door", () => {
         expect(slot.claim_digest).toBe(capability.digest);
       }
     });
+    // §Testing Strategy claims "a period with zero linked pets renders and CLAIMS without
+    // error". The render half is covered in reveal-instructions.test.ts; the claim half was
+    // covered nowhere (impl-review F10). The state is only reachable by a raw insert, since
+    // create_period_with_slots enforces "at least one pet" — but a pre-relation row or a
+    // deleted last pet both produce it, and claim_slots derives nothing from pets, so it must
+    // simply not care.
+    it("claims normally on a period with no linked pets", async () => {
+      const token = generateInviteToken();
+      const { data: period, error: periodError } = await a.client
+        .from("care_periods")
+        .insert({
+          owner_id: a.userId,
+          title: "A-bez-zwierzat",
+          start_date: "2027-06-01",
+          end_date: "2027-06-01",
+          token_digest: await digestInviteToken(token),
+        })
+        .select("id")
+        .single();
+      expect(periodError).toBeNull();
+      if (!period) {
+        throw new Error("claim-slots test: seeding the petless period failed");
+      }
+
+      const { error: slotError } = await a.client.from("care_slots").insert({
+        period_id: period.id,
+        slot_date: "2027-06-01",
+        time_of_day: "morning",
+      });
+      expect(slotError).toBeNull();
+
+      const ids = await freeSlotIds(a, period.id, 1);
+      const capability = await newCapability();
+      const { data, error } = await claim(anon, token, ids, capability.secret, "Ania");
+
+      expect(error).toBeNull();
+      expect((data as ClaimReceipt | null)?.claimed_count).toBe(1);
+
+      const claimed = (await slotsOf(a, period.id)).filter((slot) => slot.claimed_by_name !== null);
+      expect(claimed).toHaveLength(1);
+      expect(claimed[0].claim_digest).toBe(capability.digest);
+    });
   });
 
   // ── 4. One capability = one identity ────────────────────────────────────────────────────
@@ -402,7 +444,7 @@ describe("claim_slots — the caretaker write door", () => {
 
       const first = await claim(anon, period.token, ids, capability.secret, "Ania");
       expect(first.error).toBeNull();
-      expect((first.data as ClaimReceipt).claimed_count).toBe(3);
+      expect((first.data as ClaimReceipt | null)?.claimed_count).toBe(3);
 
       const retry = await claim(anon, period.token, ids, capability.secret, "Ania");
       const receipt = retry.data as ClaimReceipt | null;
@@ -490,7 +532,11 @@ describe("claim_slots — the caretaker write door", () => {
 
       // The invariant, read back from the table rather than from the responses: exactly one
       // row carries a claim, its name is the winner's, and all three claim columns are set.
-      const winner = (won[0].data as ClaimReceipt).name;
+      const receipt = won[0].data as ClaimReceipt | null;
+      if (!receipt) {
+        throw new Error("claim-slots test: the winning claim returned no receipt");
+      }
+      const winner = receipt.name;
       const rows = (await slotsOf(a, period.id)).filter((slot) => slot.claimed_by_name !== null);
 
       expect(rows).toHaveLength(1);

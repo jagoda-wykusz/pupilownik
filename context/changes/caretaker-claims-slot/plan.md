@@ -14,7 +14,7 @@ S-03, the north star: the first end-to-end path that proves the product works.
 - **The caretaker page is read-only by design.** `src/pages/invite/[token].astro` resolves the
   token through `get_period_by_token`, renders a flat day list with three non-interactive
   chips per day, and ends with an explicit placeholder paragraph carrying the comment
-  *"Deliberately no claim button: taking a slot is S-03."* `slot.id` is already in scope in
+  _"Deliberately no claim button: taking a slot is S-03."_ `slot.id` is already in scope in
   the per-slot `<li>`, and `byDay` is the natural serializable prop for an island.
 - **`get_period_by_token` is `STABLE` and returns `{period, slots}` only.** Verified against
   the newest definition (`supabase/migrations/20260906105815_bound_token_length.sql`): the
@@ -25,7 +25,7 @@ S-03, the north star: the first end-to-end path that proves the product works.
 - **The claim's atomicity is already 95% solved by S-02's schema.**
   `care_slots_claim_complete` (`20260906094254_claim_columns_paired.sql:23-25`) asserts
   `(claimed_by_name is null) = (claimed_at is null)`, which is what makes
-  `claimed_by_name is null` a *truthful* test of freeness. Without it,
+  `claimed_by_name is null` a _truthful_ test of freeness. Without it,
   `(claimed_at set, claimed_by_name null)` is representable and a second caretaker overwrites
   a claimed row. `unique (period_id, slot_date, time_of_day)` is adjacent, not load-bearing:
   competing claims contend on the same row, so no unique violation can occur.
@@ -42,7 +42,7 @@ S-03, the north star: the first end-to-end path that proves the product works.
   deleting the last linked pet all produce one. The caretaker page must tolerate it.
 - **Anon holds no table grants at all** — asserted as SQLSTATE 42501 in
   `tests/rls/invite-token.test.ts:130-143`. Every caretaker capability therefore goes through
-  a `SECURITY DEFINER` function whose body is the *entire* authorization boundary; there is no
+  a `SECURITY DEFINER` function whose body is the _entire_ authorization boundary; there is no
   RLS behind it. `docs/reference/data-access.md:108-111` sanctions exactly this and names
   S-03.
 - **`src/middleware.ts` protects `/invite` on a segment boundary** with
@@ -50,7 +50,7 @@ S-03, the north star: the first end-to-end path that proves the product works.
   absent from `PROTECTED_ROUTES` (pinned by `tests/middleware/auth-gating.test.ts`).
 - **Astro's `security.checkOrigin` defaults to `true` but skips `application/json`** — it
   returns 403 only for form-like content types or a missing one (read from Astro's source
-  during research). A JSON claim route is therefore *not* origin-checked by the framework.
+  during research). A JSON claim route is therefore _not_ origin-checked by the framework.
 - **The repo has no server-set cookie of its own.** `ThemeToggle.tsx` writes
   `document.cookie` client-side; only `@supabase/ssr` writes server-side. This slice adds the
   first.
@@ -119,7 +119,7 @@ functions from the catalog rather than from a migration comment.
 ## Implementation Approach
 
 Three database functions, not one, because Postgres forces the split: `get_period_by_token`
-stays `STABLE` and read-only and grows the pets and *public* instruction rows; a new
+stays `STABLE` and read-only and grows the pets and _public_ instruction rows; a new
 `VOLATILE SECURITY DEFINER` function performs the claim; and a third `STABLE` function serves
 the sensitive tier against (invite token + claim secret). The third surface is separate rather
 than a second parameter on the read function because `docs/reference/data-access.md:91-92`
@@ -143,7 +143,7 @@ A `select` to build a nice error message before the `update` reintroduces read-t
 READ COMMITTED holds no lock between statements, and being inside one plpgsql function does
 not help. The safe shape is a single `update … where id = any(p_slot_ids) and period_id = v_period.id and claimed_by_name is null`,
 then compare `row_count` against `array_length(p_slot_ids, 1)` and `raise` on a mismatch so
-the transaction rolls back. Identifying *which* slot conflicted is a read taken **after** the
+the transaction rolls back. Identifying _which_ slot conflicted is a read taken **after** the
 raise decision, inside the same failed transaction, or recomputed by the client from a fresh
 `get_period_by_token`. Do not invert that order.
 
@@ -153,7 +153,7 @@ altered in place.
 
 **`drop function` + `create` is the only safe shape for the signature change, and a trailing
 defaulted parameter keeps existing callers valid.** Adding a parameter to a live function
-creates a *second* function (an overload) which inherits Supabase's `ALTER DEFAULT PRIVILEGES`
+creates a _second_ function (an overload) which inherits Supabase's `ALTER DEFAULT PRIVILEGES`
 grants and leaves the old signature reachable; `create or replace` preserves grants only when
 the argument list is unchanged. Dropping first leaves exactly one function with exactly one
 known grant posture — and because the new parameter is `default null`, PostgREST still
@@ -176,8 +176,8 @@ from refused, which is a signal a read never emitted. This is a real, small wide
 token model and `docs/reference/data-access.md` must say so rather than have a reader discover
 it.
 
-**The Non-Goals reading, stated deliberately.** `prd.md:144` forbids *"konta i tożsamość
-opiekunów … żadnych logowań, profili ani historii."* This plan takes the reading that a
+**The Non-Goals reading, stated deliberately.** `prd.md:144` forbids _"konta i tożsamość
+opiekunów … żadnych logowań, profili ani historii."_ This plan takes the reading that a
 per-claim capability secret is **not** what that forbids: there is no login, no profile and no
 history — only a bearer credential, which the invite link already is. That is a reading, not a
 neutral fact, and it is recorded here so the tension is visible. A PRD clarification is a
@@ -312,7 +312,7 @@ The body must, in order:
    bound is the only thing standing between an anon caller and storage amplification.
 5. Perform the single `update` described in Critical Implementation Details, carrying
    `period_id = v_period.id` (the one genuinely new check — a leaked slot uuid from another
-   period is a *valid* uuid and only the join stops it), `claimed_by_name is null`, and
+   period is a _valid_ uuid and only the join stops it), `claimed_by_name is null`, and
    `revoked_at`'s freshness via the derived period.
 6. Compare the affected row count to the requested count and `raise` on a mismatch so the
    transaction rolls back.
@@ -358,9 +358,9 @@ recorded history of describing without having.
 **A passing concurrency test does not prove the row lock was exercised** — nothing forces the
 two UPDATEs to overlap, and the same test would pass against a broken read-then-write
 implementation that happened not to interleave. It is a non-flaky outcome check that is
-*opportunistically* a mechanism check. Say so in the test file rather than claiming a proof.
-`test-plan.md:64` prescribes this shape and names the anti-pattern: *"Testing two sequential
-claims and calling it concurrency"*, and *"'Final status 200' ≠ 'only one winner'"*.
+_opportunistically_ a mechanism check. Say so in the test file rather than claiming a proof.
+`test-plan.md:64` prescribes this shape and names the anti-pattern: _"Testing two sequential
+claims and calling it concurrency"_, and _"'Final status 200' ≠ 'only one winner'"_.
 
 ### Success Criteria
 
@@ -428,10 +428,10 @@ grant pair.
 payload's exact key sets (`invite-token.test.ts:54`, `periods.post.test.ts:218,282-283`),
 regenerate types, and correct the reference docs.
 
-**Contract**: `data-access.md`'s rule 2 currently reads *"no instruction rows"* — that becomes
+**Contract**: `data-access.md`'s rule 2 currently reads _"no instruction rows"_ — that becomes
 false the moment this ships and must be rewritten to describe the two-function model and the
-tier split. The same section's heading *"One SECURITY DEFINER function is the entire
-anon-reachable surface"* becomes a statement of history rather than a cap; say so. Rule 4's
+tier split. The same section's heading _"One SECURITY DEFINER function is the entire
+anon-reachable surface"_ becomes a statement of history rather than a cap; say so. Rule 4's
 widening (a write signals refusal) is recorded here too. `contract-surfaces.md` gains rows for
 `claim_slots` and `get_claimed_details`.
 
@@ -676,7 +676,7 @@ reveal query should be written knowing that.
 documented workflow includes `npm run db:push` to a hosted project, so unlike S-01 this change
 cannot assume "no existing domain data". Both new columns are nullable and the new constraint
 is satisfied by any existing row (all three claim columns null on an unclaimed slot), so the
-migration is additive for existing data. A pre-existing *claimed* slot would violate the new
+migration is additive for existing data. A pre-existing _claimed_ slot would violate the new
 three-column CHECK — there are none today, and the migration should fail loudly rather than
 coerce them if that ever stops being true. Seeding a period linked to the seeded pet would make
 `db:reset` more useful for this flow; treated as optional.
@@ -730,10 +730,10 @@ section is where they are corrected, so the diff between plan and reality stays 
   distributed link.
 
 - **A3 — Progress row 1.4's text overstates what held (impl-review F5).** It reads
-  "Integration tests pass with the four RPC-seeding suites untouched". Their *RPC seeding
-  calls* were indeed untouched — the trailing parameter is defaulted, so PostgREST resolves
+  "Integration tests pass with the four RPC-seeding suites untouched". Their _RPC seeding
+  calls_ were indeed untouched — the trailing parameter is defaulted, so PostgREST resolves
   five-argument named calls against the single remaining function. But
-  `tests/rls/care-slots.isolation.test.ts` did need editing: it pins the CHECK's *shape*, and
+  `tests/rls/care-slots.isolation.test.ts` did need editing: it pins the CHECK's _shape_, and
   widening the constraint from a pair to a triple made its "both together is allowed"
   assertion fail. The row title is left as authored (renaming step titles breaks the Progress
   contract); this is the correction. **Lesson for later phases: when changing a constraint,
@@ -757,8 +757,8 @@ section is where they are corrected, so the diff between plan and reality stays 
   trio … so the design's 'Zapisano!' banner has something to render with", which presumes a
   banner component exists to paint. It does not. Verified from `src/` on 2026-09-07 and
   cross-checked against S-07's own archived plan, which excluded these explicitly
-  (§What We're NOT Doing: *"No domain components. Pet card, instruction row with time badge,
-  sensitive-data callout and chip … land with the slices that use them"*). What actually
+  (§What We're NOT Doing: _"No domain components. Pet card, instruction row with time badge,
+  sensitive-data callout and chip … land with the slices that use them"_). What actually
   exists: `ui/Input`, `ui/ScreenHeading`, `ui/AuthScreen` (S-07), `ui/Chip` (S-08),
   `ui/button` (bootstrap), `ui/Textarea` (this phase). **Missing and therefore Phase 5's to
   build: the sensitive-data callout, the success banner, and the time-of-day badge** — plus
@@ -826,7 +826,7 @@ section is where they are corrected, so the diff between plan and reality stays 
   (impl-review F9).** §Critical Implementation Details prescribes comparing `row_count` against
   `array_length(p_slot_ids, 1)`. The implementation builds
   `v_slot_ids := array_agg(distinct sid) … where sid is not null` first and compares against
-  *that*. Strictly safer and deliberate: a literal `'{NULL}'` has length 1 and would otherwise
+  _that_. Strictly safer and deliberate: a literal `'{NULL}'` has length 1 and would otherwise
   pass the emptiness guard — the trap `20260906174022_filter_null_pet_ids.sql` fixed in
   `create_period_with_slots` — and a duplicated id would inflate the expected count and refuse
   a claim that actually succeeded. Reasoned out in-comment at the time but recorded in no
@@ -943,6 +943,65 @@ section is where they are corrected, so the diff between plan and reality stays 
   `reveal-instructions.test.ts` asserts the public body is absent from the reveal and the
   sensitive body is absent from the read door.
 
+### Phase 3 impl-review (2026-09-07 — `reviews/impl-review-phase-3.md`)
+
+- **A22 — The pre-commit typecheck had never run, and three type errors reached main because of
+  it (impl-review F1).** `.husky/pre-commit` existed and contained `npx tsc --noEmit`, husky was
+  a devDependency — but `package.json` had no `prepare` script, `git config core.hooksPath` was
+  unset and `.git/hooks/` held only `.sample` files, so the hook was never installed in this
+  clone. Two errors from `dc931fc` and one from `7477535` passed through. Fixed by adding
+  `"prepare": "husky"` and running it. **The hook was also promoted from `npx tsc --noEmit` to
+  `npx astro check`**, per the note the hook itself carried ("promote it if a template type error
+  ever slips through") — tsc does not read `.astro` templates and would not have caught the one
+  that slipped, while `astro check` covers templates AND `.ts`, so it replaces tsc rather than
+  joining it (~40s vs ~26s per commit). Verified by deliberately breaking a type and confirming
+  `husky - pre-commit script failed (code 1)`. **The reading that caused this is worth naming:
+  the presence of a hook FILE was taken as evidence of a running hook** — the same substitution
+  of an artifact for a verified posture that `lessons.md` already records for migration comments
+  and documents, in a third medium.
+
+- **A23 — `MAX_CLAIMANT_NAME_LENGTH`'s sibling defect: `pets/index.astro` typed `species` as
+  `string` (impl-review F1, second half).** A20 claimed the `?? pet.species` fallback "became
+  statically dead" when the screen moved onto the shared enum-keyed map. That was only true
+  after `PetRow.species` was narrowed to `Species` — which A20 did not do. The removal was
+  runtime-safe because the database enum constrains the value, but the reasoning given for it did
+  not yet hold at the time it was written.
+
+- **A24 — The reveal's authorization gate turns on a ROW, not a column value (impl-review F6).**
+  `20260907180022` asked "does this capability hold a slot here?" via `if v_name is null`, which
+  is the same question as `if not found` only because `care_slots_claim_complete` guarantees the
+  three claim columns move together — a constraint declared in a different migration, and one
+  `contract-surfaces.md` records the owner can still break through `care_slots_update_own`.
+  `20260907193000_claimed_details_row_gate.sql` replaces the gate with `if not found`.
+
+- **A25 — Three test gaps closed, one with a falsification proof (impl-review F2, F3, F7, F8,
+  F10).** (a) `get_period_by_token` was the only door with no three-role grant-posture block; it
+  has one now, and it also guards the fact that `create or replace` preserves grants only while
+  the signature is unchanged. (b) `period_id` scopes TWO queries in `get_claimed_details` and only
+  the authorization one was pinned — no capability in the suite held slots in two periods, which
+  is precisely the state Phase 4's `Path=/invite` cookie produces. A test now claims on two trips
+  with the same secret; **falsified by removing the predicate, which made it fail with 2 slots
+  instead of 1 while the other 14 passed.** (c) The reveal's nested key sets are pinned
+  symmetrically with the read door's, and the "a pet with no sensitive rows still appears"
+  invariant the migration states now has a test. (d) The two wrong-length cases carry the same
+  honest admission `claim-slots.test.ts` does — they pin the uniform-failure ANSWER, not the
+  43-character bound. (e) §Testing Strategy's "a zero-pet period renders and **claims** without
+  error" had only its render half covered; `claim-slots.test.ts` gained the claim half, so the
+  bullet is closed in this change rather than carried into Phase 4.
+
+- **A26 — Reference documents counted the wrong number of doors, in lines Phase 3 itself edited
+  (impl-review F4, F5).** `data-access.md` rule 2 read "there are now two … There are three as of
+  S-03 Phase 3. **Both** carry …" because the Phase 3 edit was an insertion rather than a rewrite;
+  rule 3 was not touched at all and still named two functions in a paragraph about which ones
+  bypass RLS — the fact Phase 3 made most security-relevant. Rule 3's revoke enumeration also
+  named two tables while the anon-reachable surface now spans five. All rewritten, and the claim
+  that both suites assert the 42501 refusal on all five tables was verified before being written.
+
+- **A27 — The caretaker page shipped two notes that contradicted each other (impl-review F9).**
+  One said the sensitive tier unlocks "po zapisaniu się na termin"; the other said signing up is
+  not available yet. Merged into one sentence and moved outside the `pets.length > 0` guard, since
+  a petless trip is representable and still needs the explanation.
+
 ## Follow-ups (outside this change)
 
 - **PRD clarification.** `prd.md:144` §Non-Goals should record that a per-claim capability is
@@ -993,16 +1052,16 @@ section is where they are corrected, so the diff between plan and reality stays 
 
 #### Automated
 
-- [x] 3.1 Both payload-pinning suites pass with updated key sets
-- [x] 3.2 Unit tests pass
-- [x] 3.3 Type checking and linting pass
+- [x] 3.1 Both payload-pinning suites pass with updated key sets — 7477535
+- [x] 3.2 Unit tests pass — 7477535
+- [x] 3.3 Type checking and linting pass — 7477535
 
 #### Manual
 
-- [x] 3.4 `get_claimed_details` grant posture and `provolatile = s` confirmed
-- [x] 3.5 Token alone returns public rows and no sensitive rows
-- [x] 3.6 A zero-pet period returns `pets: []` and renders
-- [x] 3.7 A wrong or absent claim secret returns NULL
+- [x] 3.4 `get_claimed_details` grant posture and `provolatile = s` confirmed — 7477535
+- [x] 3.5 Token alone returns public rows and no sensitive rows — 7477535
+- [x] 3.6 A zero-pet period returns `pets: []` and renders — 7477535
+- [x] 3.7 A wrong or absent claim secret returns NULL — 7477535
 
 ### Phase 4: Route, cookie & a working claim
 

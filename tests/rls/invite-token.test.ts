@@ -1,6 +1,8 @@
+import { createClient } from "@supabase/supabase-js";
 import { beforeAll, describe, expect, it } from "vitest";
 import { digestInviteToken, generateInviteToken } from "@/lib/invite-token";
 import { createAnonClient, createOwnerWithPet, type OwnerWithPetContext } from "../helpers/auth";
+import { getTestEnv } from "../setup";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/db/database.types";
 
@@ -171,6 +173,38 @@ describe("invite token access model", () => {
     expect(periods.data).toBeNull();
     expect(slots.data).toBeNull();
     expect(links.data).toBeNull();
+  });
+
+  // The READ door's own grant posture. Every other assertion in this file calls it through
+  // createAnonClient(), so `anon` EXECUTE is covered behaviourally — a 42501 would break them
+  // all. The other two roles were covered by nothing until S-03 Phase 3's review (F2) pointed
+  // out that 20260907180022's comment claims this file "asserts that back": it asserted a
+  // third of it. `authenticated` matters concretely — src/pages/invite/[token].astro runs as
+  // that role whenever a signed-in owner opens their own link — and `service_role` matters
+  // because Supabase's ALTER DEFAULT PRIVILEGES grants it EXECUTE on every new function in
+  // `public`, so only the explicit revoke keeps it out.
+  //
+  // This also guards something no other assertion does: `create or replace` preserves grants
+  // only while the signature is unchanged. Phase 3 replaced this function's body. If a later
+  // change alters its argument list without re-issuing the revoke/grant pair, the replacement
+  // inherits the default privileges instead — and service_role silently regains EXECUTE.
+  it("the read door is executable by anon and authenticated, and refused to service_role", async () => {
+    const asOwner = await a.client.rpc("get_period_by_token", { p_token: aToken });
+    expect(asOwner.error).toBeNull();
+    expect((asOwner.data as TokenPayload | null)?.period.id).toBe(aPeriodId);
+
+    const serviceKey = process.env.SUPABASE_SERVICE_KEY;
+    if (!serviceKey) {
+      throw new Error("SUPABASE_SERVICE_KEY must be set in .env.test (see .env.test.example).");
+    }
+    const service = createClient<Database>(getTestEnv().url, serviceKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    const asService = await service.rpc("get_period_by_token", { p_token: aToken });
+
+    // The refusal, not the absence of a payload: without the revoke this would resolve the
+    // period happily, and an assertion on `data` alone would pass either way.
+    expect(asService.error?.code).toBe("42501");
   });
 
   // The two SECURITY INVOKER RPCs are owner-only. Their revoke/grant posture is the exact
