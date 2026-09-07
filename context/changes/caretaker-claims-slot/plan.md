@@ -695,6 +695,69 @@ coerce them if that ever stops being true. Seeding a period linked to the seeded
 - Test layers and anti-patterns: `context/foundation/test-plan.md:52-66`
 - Design: `context/design/Pupilownik Hi-fi.html:541-591`
 
+## Implementation Addenda
+
+What the implementation discovered that the plan did not say. Written during phase reviews;
+each entry names the phase it came from. The Phase blocks above are left as authored — this
+section is where they are corrected, so the diff between plan and reality stays visible.
+
+### Phase 1 (impl-review 2026-09-07 — `reviews/impl-review-phase-1.md`)
+
+- **A1 — "One capability = one identity" is not held by the schema, and Phase 2 must enforce
+  it (impl-review F1).** `care_slots_claim_complete` ties the three claim columns per row but
+  nothing ties them across rows: the same `claim_digest` accepted `claimed_by_name` = "Ania"
+  on one slot and "Basia" on another within one period (verified in psql). This is a
+  multi-row invariant, so no CHECK can express it. **Phase 2's `claim_slots` is the only
+  enforcement layer**, matching how "at least one pet" lives only in
+  `create_period_with_slots`. Concretely, Phase 2 must: (a) when `p_claim_digest` already
+  carries claims in the derived period, reuse the stored `claimed_by_name` and ignore any
+  passed `p_name` rather than writing a second identity; (b) carry a test that fails if a
+  second name can attach to an existing digest. Residual risk to accept knowingly: the owner
+  holds table grants on `care_slots`, so a direct UPDATE can still create the incoherent
+  state — in their own trip, so low-stakes, but the schema does not stop it. Phase 3's
+  `get_claimed_details` returns a single `name`, and Phase 4's follow-up claim reads the
+  stored name back, so both rest on this.
+
+- **A2 — Two changes shipped outside the plan, both approved in conversation
+  (impl-review F4).** `src/components/ui/Textarea.tsx` — the plan said "give the create form
+  the design's NOTATKA textarea" without naming a component, and `ui/Input` is a fixed
+  `h-[52px]` single-line box built around its reveal button, so a new component was needed;
+  it mirrors `Input`'s props deliberately and adds `hint`. `src/pages/periods/[id].astro` —
+  the note read-back, added because the field was otherwise write-only (set once on create,
+  and from Phase 3 visible only to a caretaker who claimed). Landed as its own commit,
+  `07ec413`. **Still not covered: the note cannot be edited.** There is no update path for a
+  period, so correcting a wrong note means recreating the trip and invalidating an already
+  distributed link.
+
+- **A3 — Progress row 1.4's text overstates what held (impl-review F5).** It reads
+  "Integration tests pass with the four RPC-seeding suites untouched". Their *RPC seeding
+  calls* were indeed untouched — the trailing parameter is defaulted, so PostgREST resolves
+  five-argument named calls against the single remaining function. But
+  `tests/rls/care-slots.isolation.test.ts` did need editing: it pins the CHECK's *shape*, and
+  widening the constraint from a pair to a triple made its "both together is allowed"
+  assertion fail. The row title is left as authored (renaming step titles breaks the Progress
+  contract); this is the correction. **Lesson for later phases: when changing a constraint,
+  grep for its name, not only for the name of the function that writes it.**
+
+- **A4 — `## Migration Notes` above is stale on the seed's contents (impl-review F6).** It
+  says the seed carries "one owner, one pet, two instructions and **zero periods**". That was
+  true when research was written (2026-09-06); `supabase/seed.sql:74-96` now also seeds a care
+  period and its pet link, added by S-08. The section's actual argument — that this change
+  cannot assume "no existing domain data", unlike S-01 — is unaffected and still holds.
+
+- **A5 — The note received a database CHECK, one layer more than planned (impl-review F7).**
+  Phase 1's Changes Required said "a length bound mirroring `MAX_TITLE_LENGTH`'s pattern";
+  that pattern is zod-only, with no CHECK on `care_periods.title`. `caretaker_note` got
+  `care_periods_note_length` as well, on the grounds that the column was new so nothing had
+  to be coerced. Disclosed at the phase gate and in `3f20b91`'s body. `title`'s missing CHECK
+  is pre-existing debt this change deliberately did not replicate — and did not fix either.
+
+- **A6 — The claim-digest index was made partial after review (impl-review F3).** Measured:
+  198 of 198 `care_slots` rows carried a NULL digest, and that stays lopsided by design.
+  `20260907122450_partial_claim_digest_index.sql` drops and re-creates it with
+  `where claim_digest is not null`, since the only intended reader always supplies a non-null
+  digest.
+
 ## Follow-ups (outside this change)
 
 - **PRD clarification.** `prd.md:144` §Non-Goals should record that a per-claim capability is
