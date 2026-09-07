@@ -78,3 +78,22 @@
   puste SSR), najpierw zrestartuj serwer i poszukaj w logu „does not exist … optimize deps
   directory"; nie diagnozuj kodu, dopóki tego nie wykluczysz.
 - **Applies to**: implement, impl-review
+
+## Nie czytaj kodu wyjścia z potoku
+
+- **Context**: Każda weryfikacja kryterium sukcesu uruchamiana przez potok — `npm run lint | tail`,
+  `npm test | grep`, `npm run build | tail`. W tym repo `lint` i `build` są kryterium w KAŻDYM
+  planie, a ich wyjście jest długie, więc odruch „utnę ogon" trafia się za każdym razem.
+- **Problem**: W S-03 fazie 2 uruchomiłem `npm run lint 2>&1 | tail -20`. Kod wyjścia potoku to
+  kod ostatniego elementu, czyli `tail` — zawsze 0. Eslint zwracał 1 z trzema błędami w plikach,
+  które ta faza właśnie dodała. Zaraportowałem „lint 0 errors" na bramce fazy i w treści commita,
+  wiersz Progress 2.3 dostał `[x]` i SHA, a faza została zamknięta na nieprawdziwym odczycie.
+  Utwierdził mnie w tym drugi artefakt: uruchomienie w tle zgłosiło „exit code 0", bo raportowało
+  status potoku, a plik wyjściowy odczytałem, zanim cokolwiek do niego trafiło — dwa niezależnie
+  wyglądające sygnały, oba mierzące to samo złe miejsce. Błąd wyszedł dopiero przy review, gdy
+  ta sama komenda poszła bez potoku.
+- **Rule**: Kryterium sukcesu uruchamiaj tak, żeby jego kod wyjścia był kodem NARZĘDZIA, nie
+  potoku: `npm run lint > out.txt 2>&1; echo $?`, a dopiero potem czytaj plik. Nigdy nie
+  raportuj „przeszło" na podstawie `cmd | tail`, `cmd | grep` ani powiadomienia o zadaniu w tle,
+  które opakowuje potok. Jeśli musisz filtrować na żywo, użyj `set -o pipefail`.
+- **Applies to**: implement, impl-review

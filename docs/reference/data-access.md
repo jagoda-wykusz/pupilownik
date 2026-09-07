@@ -84,7 +84,14 @@ a **function**, not an anon policy.
    reaches the database (`care_periods.token_digest`, unique). The raw value is
    returned to the owner exactly once, on the create/regenerate response. It is
    never stored, never logged, and cannot be read back — losing it means
-   regenerating, which invalidates the previous link.
+   regenerating, which invalidates the previous link. The caretaker's capability
+   secret (S-03) works the same way and is minted by the same primitive
+   (`generateClaimSecret` is a literal alias of `generateInviteToken`): the app
+   returns it once into an HttpOnly cookie, only `care_slots.claim_digest` is
+   stored, and `claim_slots` hashes what the caller presents rather than
+   comparing the stored value. That last point is what stops a stored digest from
+   being a replayable credential in its own right, and it is the property the
+   first cut of `claim_slots` did not have (Phase 2 impl-review F1).
 2. **`SECURITY DEFINER` functions are the entire anon-reachable surface.**
    Until S-03 Phase 2 there was exactly one, and the heading said so; there are
    now two. The rule was always about the *shape* rather than the count — each
@@ -99,17 +106,20 @@ a **function**, not an anon policy.
      instruction rows, no `owner_id`, no `token_digest`, and no parameter that
      could widen the result set.
    - **The write door**: `public.claim_slots(p_token, p_slot_ids,
-     p_claim_digest, p_name)`, `VOLATILE` — a separate function because Postgres
+     p_claim_secret, p_name)`, `VOLATILE` — a separate function because Postgres
      forbids a `STABLE` one from writing. It **derives** the period from the
      token and never accepts a period id, which is the only thing that makes a
      slot uuid from another period unusable, and it claims a set of slots
-     all-or-nothing through a single guarded `update`.
+     all-or-nothing through a single guarded `update`. It takes the caretaker's
+     RAW capability secret and hashes it inside, exactly as it does the token —
+     see rule 1, which the two credentials now obey identically.
 3. **No anon policy on any table, and no anon table grants.** Supabase's
    `ALTER DEFAULT PRIVILEGES` grants anon SELECT/INSERT/UPDATE/DELETE on every
    new table in `public`, so the S-02 migration explicitly revokes them on
    `care_periods` and `care_slots`. Deny-by-default already returned zero rows,
    but the claim "the function is the only door" should rest on two layers, not
-   one. The function still reads those tables because it runs as its owner.
+   one. Both functions still reach those tables — `get_period_by_token` reads them,
+   `claim_slots` reads and writes them — because each runs as its owner.
 4. **Uniform failure — with one deliberate widening for writes.** Unknown,
    malformed and revoked tokens all return NULL, and the page renders one 404
    with one message. A distinct "this link was revoked" answer would confirm the

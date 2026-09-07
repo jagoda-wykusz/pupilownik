@@ -20,6 +20,7 @@ interface ClaimReceipt {
   end_date: string;
   name: string;
   claimed_count: number;
+  already_held_count: number;
   slot_ids: string[];
 }
 
@@ -41,7 +42,6 @@ describe("claim_slots — the caretaker write door", () => {
 
   let aToken: string;
   let aPeriodId: string;
-  let bToken: string;
   let bPeriodId: string;
   let revokedToken: string;
   let revokedPeriodId: string;
@@ -79,7 +79,7 @@ describe("claim_slots — the caretaker write door", () => {
       .order("slot_date")
       .order("time_of_day");
     expect(error).toBeNull();
-    return (data ?? []) as SlotRow[];
+    return data ?? [];
   }
 
   async function freeSlotIds(owner: OwnerWithPetContext, periodId: string, count: number): Promise<string[]> {
@@ -90,21 +90,26 @@ describe("claim_slots — the caretaker write door", () => {
     return free.slice(0, count).map((slot) => slot.id);
   }
 
-  async function newCapability(): Promise<string> {
-    return digestClaimSecret(generateClaimSecret());
+  // A capability is a RAW secret plus the digest the database will derive from it. The call
+  // sends the secret; the table assertions compare against the digest. Computing the digest
+  // here with digestClaimSecret rather than reading it back from the row is what makes the
+  // app/database hashing agreement a tested property instead of an assumed one.
+  async function newCapability(): Promise<{ secret: string; digest: string }> {
+    const secret = generateClaimSecret();
+    return { secret, digest: await digestClaimSecret(secret) };
   }
 
   function claim(
     client: SupabaseClient<Database>,
     token: string,
     slotIds: string[],
-    digest: string,
+    secret: string,
     name: string | null = null,
   ) {
     return client.rpc("claim_slots", {
       p_token: token,
       p_slot_ids: slotIds,
-      p_claim_digest: digest,
+      p_claim_secret: secret,
       // Omitted rather than sent as null when absent: the parameter is `default null`, and
       // the generated Args type says `p_name?: string`. This is what a first-claim-with-no-
       // name request actually looks like on the wire.
@@ -119,7 +124,9 @@ describe("claim_slots — the caretaker write door", () => {
 
     // 3 days x 3 times of day = 9 slots each.
     ({ id: aPeriodId, token: aToken } = await seedPeriod(a, "A-wyjazd", "2026-07-13", "2026-07-15"));
-    ({ id: bPeriodId, token: bToken } = await seedPeriod(b, "B-wyjazd", "2026-08-01", "2026-08-03"));
+    // Only the id is kept: B exists as the IDOR target, reached by slot uuid through A's
+    // token. Resolving B's own link is get_period_by_token's test, not this one.
+    ({ id: bPeriodId } = await seedPeriod(b, "B-wyjazd", "2026-08-01", "2026-08-03"));
 
     const revoked = await seedPeriod(a, "A-odwolany", "2026-09-01", "2026-09-02");
     revokedPeriodId = revoked.id;
@@ -143,14 +150,26 @@ describe("claim_slots — the caretaker write door", () => {
     it("anon may execute it — this is the caretaker's door", async () => {
       // A syntactically valid but unknown token: the function returns NULL from its own body,
       // which proves execution was permitted. A 42501 here means anon lost EXECUTE.
-      const { data, error } = await claim(anon, generateInviteToken(), [aPeriodId], await newCapability(), "Ania");
+      const { data, error } = await claim(
+        anon,
+        generateInviteToken(),
+        [aPeriodId],
+        (await newCapability()).secret,
+        "Ania",
+      );
 
       expect(error).toBeNull();
       expect(data).toBeNull();
     });
 
     it("an authenticated owner may execute it — a signed-in owner opening their own link", async () => {
-      const { error } = await claim(a.client, generateInviteToken(), [aPeriodId], await newCapability(), "Ania");
+      const { error } = await claim(
+        a.client,
+        generateInviteToken(),
+        [aPeriodId],
+        (await newCapability()).secret,
+        "Ania",
+      );
 
       expect(error).toBeNull();
     });
@@ -164,7 +183,7 @@ describe("claim_slots — the caretaker write door", () => {
         auth: { persistSession: false, autoRefreshToken: false },
       });
 
-      const { error } = await claim(service, aToken, [aPeriodId], await newCapability(), "Ania");
+      const { error } = await claim(service, aToken, [aPeriodId], (await newCapability()).secret, "Ania");
 
       // Assert the REFUSAL, not the absence of an effect: Supabase's ALTER DEFAULT PRIVILEGES
       // grants EXECUTE to service_role on every new function in `public`, so this passes only
@@ -178,7 +197,7 @@ describe("claim_slots — the caretaker write door", () => {
     it("a token for period A cannot claim a slot in period B", async () => {
       const [bSlotId] = await freeSlotIds(b, bPeriodId, 1);
 
-      const { data, error } = await claim(anon, aToken, [bSlotId], await newCapability(), "Intruz");
+      const { data, error } = await claim(anon, aToken, [bSlotId], (await newCapability()).secret, "Intruz");
 
       // Refused, not silently ignored: the slot is not in A's period, so the update matched
       // nothing and the row-count comparison rolled it back. The uuid is perfectly valid —
@@ -190,15 +209,21 @@ describe("claim_slots — the caretaker write door", () => {
       expect(bSlot?.claimed_by_name).toBeNull();
       expect(bSlot?.claim_digest).toBeNull();
 
-      // And nothing leaked about B: the DETAIL names only slots inside the derived period.
-      expect(error?.details ?? "").not.toContain(bSlotId);
+      // And nothing leaked about B. Assert the PAYLOAD, not the absence of a value it never
+      // carries: DETAIL is built from jsonb_build_object('slot_date', …, 'time_of_day', …) and
+      // holds no slot id at any time, so `not.toContain(bSlotId)` passed unconditionally and
+      // would keep passing if the conflicts query lost its `period_id = v_period.id` scope and
+      // started dumping B's rows here (impl-review F3 — the anti-pattern lessons.md records).
+      // An empty array is the whole assertion: a foreign slot must produce no conflict rows at
+      // all, because naming one would confirm it exists.
+      expect(JSON.parse(error?.details ?? "null")).toEqual([]);
     });
 
     it("refuses a claim through a revoked link, and says nothing about why", async () => {
       const revokedSlots = await slotsOf(a, revokedPeriodId);
       const targetId = revokedSlots[0].id;
 
-      const { data, error } = await claim(anon, revokedToken, [targetId], await newCapability(), "Ania");
+      const { data, error } = await claim(anon, revokedToken, [targetId], (await newCapability()).secret, "Ania");
 
       // NULL, exactly as get_period_by_token answers a revoked token. A distinct refusal here
       // would confirm the period exists — the uniform-failure rule survives the write for the
@@ -210,21 +235,67 @@ describe("claim_slots — the caretaker write door", () => {
       expect(after?.claimed_by_name).toBeNull();
     });
 
-    it("rejects malformed arguments before touching a table", async () => {
-      const digest = await newCapability();
-      const [slotId] = await freeSlotIds(a, aPeriodId, 1);
+    it("rejects malformed arguments and writes nothing", async () => {
+      // A dedicated period, not the shared aPeriodId: the "nothing was written" assertion is a
+      // count over the period's free slots, so it would silently start failing the day any
+      // earlier test in this file claims in A's period (impl-review F7).
+      const period = await seedPeriod(a, "A-zle-argumenty", "2026-12-10", "2026-12-12");
+      const capability = await newCapability();
+      const [slotId] = await freeSlotIds(a, period.id, 1);
 
-      const empty = await claim(anon, aToken, [], digest, "Ania");
-      const badDigest = await claim(anon, aToken, [slotId], "NOT-A-DIGEST", "Ania");
-      const noName = await claim(anon, aToken, [slotId], digest, "   ");
+      const empty = await claim(anon, period.token, [], capability.secret, "Ania");
+      const shortSecret = await claim(anon, period.token, [slotId], "not-a-capability-secret", "Ania");
+      const noName = await claim(anon, period.token, [slotId], capability.secret, "   ");
 
       expect(empty.error?.code).toBe("PT400");
-      expect(badDigest.error?.code).toBe("PT400");
+      expect(shortSecret.error?.code).toBe("PT400");
+      // The blank name is checked AFTER the period and capability lookups, unlike the other
+      // two — the test name says "writes nothing" rather than "before touching a table"
+      // because only two of the three are pre-table.
       expect(noName.error?.code).toBe("PT400");
 
-      // None of the three wrote anything.
-      const free = (await slotsOf(a, aPeriodId)).filter((slot) => slot.claimed_by_name === null);
+      // None of the three wrote anything. 3 days x 3 times of day.
+      const free = (await slotsOf(a, period.id)).filter((slot) => slot.claimed_by_name === null);
       expect(free).toHaveLength(9);
+    });
+
+    // The three DoS bounds on the only anon-reachable WRITE in this schema. Without these,
+    // deleting any of them leaves the suite green — a layer described rather than pinned, which
+    // is exactly what context/foundation/lessons.md forbids (impl-review F7).
+    it("bounds every input an anonymous caller controls", async () => {
+      const period = await seedPeriod(a, "A-granice", "2026-12-20", "2026-12-22");
+      const capability = await newCapability();
+      const [slotId] = await freeSlotIds(a, period.id, 1);
+
+      // Read this one for what it is: the 43-character bound's real effect — that no hashing
+      // happens — is NOT observable through this API, because a 44-character token would miss
+      // the index and return null either way. So this does not pin the bound, and saying it
+      // did would be the same mistake as the DETAIL assertion above. What it does pin is the
+      // ANSWER: a wrong-length token must come back as the uniform failure, not as a PT400,
+      // or the shape of the error would separate "malformed" from "unknown" and hand a prober
+      // an oracle. That assertion fails the moment someone turns the length check into a raise.
+      const longToken = await claim(anon, `${period.token}x`, [slotId], capability.secret, "Ania");
+      expect(longToken.error).toBeNull();
+      expect(longToken.data).toBeNull();
+
+      // 93 = MAX_SPAN_DAYS x 3 = every slot in the longest possible trip. One more is refused
+      // before any table is touched, so an unbounded array is never allocated against.
+      const tooMany = await claim(
+        anon,
+        period.token,
+        Array.from({ length: 94 }, () => crypto.randomUUID()),
+        capability.secret,
+        "Ania",
+      );
+      expect(tooMany.error?.code).toBe("PT400");
+
+      // claimed_by_name is unbounded `text` with no CHECK, so this bound is the only thing
+      // between an anonymous caller and storage amplification.
+      const longName = await claim(anon, period.token, [slotId], capability.secret, "a".repeat(81));
+      expect(longName.error?.code).toBe("PT400");
+      // 80 exactly is the boundary and must be accepted, or the bound is off by one.
+      const maxName = await claim(anon, period.token, [slotId], capability.secret, "a".repeat(80));
+      expect(maxName.error).toBeNull();
     });
   });
 
@@ -235,11 +306,11 @@ describe("claim_slots — the caretaker write door", () => {
       const ids = await freeSlotIds(a, period.id, 4);
 
       // Someone takes the first slot.
-      const first = await claim(anon, period.token, [ids[0]], await newCapability(), "Ania");
+      const first = await claim(anon, period.token, [ids[0]], (await newCapability()).secret, "Ania");
       expect(first.error).toBeNull();
 
       // A second caretaker asks for that one plus three free ones.
-      const second = await claim(anon, period.token, ids, await newCapability(), "Basia");
+      const second = await claim(anon, period.token, ids, (await newCapability()).secret, "Basia");
       expect(second.error?.code).toBe("PT409");
       expect(second.data).toBeNull();
 
@@ -263,9 +334,9 @@ describe("claim_slots — the caretaker write door", () => {
     it("claims a whole multi-slot selection when every slot is free", async () => {
       const period = await seedPeriod(a, "A-komplet", "2026-10-10", "2026-10-12");
       const ids = await freeSlotIds(a, period.id, 3);
-      const digest = await newCapability();
+      const capability = await newCapability();
 
-      const { data, error } = await claim(anon, period.token, ids, digest, "  Ania  ");
+      const { data, error } = await claim(anon, period.token, ids, capability.secret, "  Ania  ");
       const receipt = data as ClaimReceipt | null;
 
       expect(error).toBeNull();
@@ -274,6 +345,7 @@ describe("claim_slots — the caretaker write door", () => {
       // Trimmed on the way in, so a stray space cannot mint a second identity.
       expect(receipt?.name).toBe("Ania");
       expect(receipt?.claimed_count).toBe(3);
+      expect(receipt?.already_held_count).toBe(0);
       expect([...(receipt?.slot_ids ?? [])].sort()).toEqual([...ids].sort());
 
       const claimed = (await slotsOf(a, period.id)).filter((slot) => slot.claimed_by_name !== null);
@@ -283,7 +355,9 @@ describe("claim_slots — the caretaker write door", () => {
         // function actually writes all three rather than relying on the constraint's promise.
         expect(slot.claimed_by_name).toBe("Ania");
         expect(slot.claimed_at).not.toBeNull();
-        expect(slot.claim_digest).toBe(digest);
+        // The digest the database stored equals the one the app derives from the same secret.
+        // The secret itself never reaches a column, which is the point of impl-review F1.
+        expect(slot.claim_digest).toBe(capability.digest);
       }
     });
   });
@@ -298,29 +372,81 @@ describe("claim_slots — the caretaker write door", () => {
     it("reuses the stored name on a follow-up claim and ignores the one passed", async () => {
       const period = await seedPeriod(a, "A-dokladka", "2026-11-01", "2026-11-03");
       const ids = await freeSlotIds(a, period.id, 4);
-      const digest = await newCapability();
+      const capability = await newCapability();
 
-      const first = await claim(anon, period.token, ids.slice(0, 2), digest, "Ania");
+      const first = await claim(anon, period.token, ids.slice(0, 2), capability.secret, "Ania");
       expect(first.error).toBeNull();
 
       // The same capability comes back with a DIFFERENT name — what a tampered client, or a
       // second person on a shared browser, would send.
-      const second = await claim(anon, period.token, ids.slice(2, 4), digest, "Basia");
+      const second = await claim(anon, period.token, ids.slice(2, 4), capability.secret, "Basia");
       const receipt = second.data as ClaimReceipt | null;
 
       expect(second.error).toBeNull();
       expect(receipt?.name).toBe("Ania");
 
-      const mine = (await slotsOf(a, period.id)).filter((slot) => slot.claim_digest === digest);
+      const mine = (await slotsOf(a, period.id)).filter((slot) => slot.claim_digest === capability.digest);
       expect(mine).toHaveLength(4);
       expect(new Set(mine.map((slot) => slot.claimed_by_name))).toEqual(new Set(["Ania"]));
+    });
+
+    // impl-review F4. The scenario is NOT a user re-selecting a taken slot — Phase 4's UI makes
+    // those unselectable — it is a retry: the POST lands, the response is lost on a flaky
+    // connection, and the client resends the identical set. Before this fix that second request
+    // answered PT409 naming the caretaker's OWN slots, so a claim that genuinely succeeded was
+    // reported as refused.
+    it("is retry-safe — resending an identical claim succeeds and writes nothing new", async () => {
+      const period = await seedPeriod(a, "A-ponowienie", "2026-11-20", "2026-11-22");
+      const ids = await freeSlotIds(a, period.id, 3);
+      const capability = await newCapability();
+
+      const first = await claim(anon, period.token, ids, capability.secret, "Ania");
+      expect(first.error).toBeNull();
+      expect((first.data as ClaimReceipt).claimed_count).toBe(3);
+
+      const retry = await claim(anon, period.token, ids, capability.secret, "Ania");
+      const receipt = retry.data as ClaimReceipt | null;
+
+      expect(retry.error).toBeNull();
+      // Nothing new was written, and the receipt says so rather than leaving the route to guess
+      // whether a zero means "already yours" or "nothing happened".
+      expect(receipt?.claimed_count).toBe(0);
+      expect(receipt?.already_held_count).toBe(3);
+      expect(receipt?.slot_ids ?? []).toEqual([]);
+
+      const mine = (await slotsOf(a, period.id)).filter((slot) => slot.claim_digest === capability.digest);
+      expect(mine).toHaveLength(3);
+    });
+
+    // A mixed request must still refuse — retry-safety must not become "partial claims are fine".
+    it("still refuses when the shortfall is someone else's slot, and names only that slot", async () => {
+      const period = await seedPeriod(a, "A-mieszany", "2026-11-25", "2026-11-27");
+      const ids = await freeSlotIds(a, period.id, 3);
+      const mine = await newCapability();
+      const theirs = await newCapability();
+
+      expect((await claim(anon, period.token, [ids[0]], mine.secret, "Ania")).error).toBeNull();
+      expect((await claim(anon, period.token, [ids[2]], theirs.secret, "Basia")).error).toBeNull();
+
+      // ids[0] is already mine (satisfied), ids[1] is free, ids[2] is Basia's (a real conflict).
+      const mixed = await claim(anon, period.token, ids, mine.secret, "Ania");
+      expect(mixed.error?.code).toBe("PT409");
+
+      const detail = JSON.parse(mixed.error?.details ?? "null") as { slot_date: string; time_of_day: string }[];
+      const rows = await slotsOf(a, period.id);
+      const contested = rows.find((slot) => slot.id === ids[2]);
+      expect(detail).toHaveLength(1);
+      expect(detail[0].time_of_day).toBe(contested?.time_of_day);
+
+      // And the whole thing rolled back: the free middle slot is still free.
+      expect(rows.find((slot) => slot.id === ids[1])?.claimed_by_name).toBeNull();
     });
 
     it("still requires a name from a capability that holds nothing yet", async () => {
       const period = await seedPeriod(a, "A-bez-imienia", "2026-11-10", "2026-11-11");
       const ids = await freeSlotIds(a, period.id, 1);
 
-      const { error } = await claim(anon, period.token, ids, await newCapability(), null);
+      const { error } = await claim(anon, period.token, ids, (await newCapability()).secret, null);
 
       expect(error?.code).toBe("PT400");
     });
@@ -345,13 +471,15 @@ describe("claim_slots — the caretaker write door", () => {
       const claimants = await Promise.all(
         Array.from({ length: 6 }, async (_unused, index) => ({
           client: createAnonClient(),
-          digest: await newCapability(),
+          capability: await newCapability(),
           name: `Opiekun-${index}`,
         })),
       );
 
       const outcomes = await Promise.all(
-        claimants.map((claimant) => claim(claimant.client, period.token, [contested], claimant.digest, claimant.name)),
+        claimants.map((claimant) =>
+          claim(claimant.client, period.token, [contested], claimant.capability.secret, claimant.name),
+        ),
       );
 
       const won = outcomes.filter((outcome) => outcome.error === null);
@@ -369,7 +497,7 @@ describe("claim_slots — the caretaker write door", () => {
       expect(rows[0].id).toBe(contested);
       expect(rows[0].claimed_by_name).toBe(winner);
       expect(rows[0].claimed_at).not.toBeNull();
-      expect(rows[0].claim_digest).toBe(claimants.find((claimant) => claimant.name === winner)?.digest);
+      expect(rows[0].claim_digest).toBe(claimants.find((claimant) => claimant.name === winner)?.capability.digest);
     });
   });
 });

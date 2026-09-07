@@ -234,7 +234,7 @@ export type Database = {
     Functions: {
       claim_slots: {
         Args: {
-          p_claim_digest: string
+          p_claim_secret: string
           p_name?: string
           p_slot_ids: string[]
           p_token: string

@@ -1,10 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  digestClaimSecret,
-  digestInviteToken,
-  generateClaimSecret,
-  generateInviteToken,
-} from "@/lib/invite-token";
+import { digestClaimSecret, digestInviteToken, generateClaimSecret, generateInviteToken } from "@/lib/invite-token";
 
 // Pure logic — no Supabase, so this runs in the `unit` project with Docker down.
 describe("invite token", () => {

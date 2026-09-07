@@ -96,3 +96,15 @@ export function formatRange(startDate: string, endDate: string): string {
 export function countDays(startDate: string, endDate: string): number {
   return (asUtcDate(endDate).getTime() - asUtcDate(startDate).getTime()) / DAY_MS + 1;
 }
+
+// Upper bound on the caretaker's own name, as typed once into the claim form. Unlike the four
+// bounds above this one is NOT a database CHECK — `care_slots.claimed_by_name` is unbounded
+// `text` — so the guarantee lives inside `claim_slots`, which raises PT400 past 80 characters.
+// That makes this constant the mirror of a function's guard rather than a column's, and it is
+// what lets the claim route answer a clean 400 with a Polish sentence instead of surfacing the
+// raise. Change one and you must change both; `tests/rls/claim-slots.test.ts` pins the SQL side
+// at exactly 80, including that 80 itself is accepted.
+//
+// 80 rather than MAX_TITLE_LENGTH's 120: this is a person's name, and the bound exists to cap
+// what an anonymous caller can store, not to accommodate a long one.
+export const MAX_CLAIMANT_NAME_LENGTH = 80;

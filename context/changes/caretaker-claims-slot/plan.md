@@ -796,15 +796,19 @@ section is where they are corrected, so the diff between plan and reality stays 
   that names the term is composed in TypeScript with the existing `formatDay` /
   `TIME_OF_DAY_LABEL` rather than in SQL.
 
-- **A10 — The receipt carries `end_date`, and re-claiming a slot you already hold is
-  refused.** `claim_slots` returns `{period_id, end_date, name, claimed_count, slot_ids}`.
-  `end_date` is there so Phase 4 can compute the capability cookie's `Max-Age` without a
-  second round trip; every value in the receipt is already reachable through
-  `get_period_by_token` with the same token, so the payload widens nothing. Separately: the
-  update's freeness guard is `claimed_by_name is null` with no exemption for the caller's own
-  digest, so re-submitting a slot the same capability already holds is refused as a conflict
-  rather than treated as a no-op. Phase 4's UI makes taken slots unselectable, so it should
-  not arise; the slot IS listed in the refusal DETAIL, so the message is never empty.
+- **A10 — The receipt carries `end_date`; the re-claim half of this entry was WRONG and is
+  superseded by A13.** `claim_slots` returns
+  `{period_id, end_date, name, claimed_count, already_held_count, slot_ids}`. `end_date` is
+  there so Phase 4 can compute the capability cookie's `Max-Age` without a second round trip;
+  every value in the receipt is already reachable through `get_period_by_token` with the same
+  token, so the payload widens nothing. **Two claims in the original entry did not survive
+  review and are struck here rather than quietly edited:** (1) "re-submitting a slot the same
+  capability already holds is refused … Phase 4's UI makes taken slots unselectable, so it
+  should not arise" — the UI was the wrong lens; see A13. (2) "the slot IS listed in the
+  refusal DETAIL, so the message is never empty" — false, verified in psql: a slot uuid from
+  another period yields `DETAIL: []`, because naming it would confirm it exists. **Phase 4's
+  route must render a refusal with an empty DETAIL**, and it is the only shape of PT409 that
+  carries no term to name.
 
 - **A11 — `docs/reference/data-access.md` was corrected in this phase, not Phase 3.** The plan
   puts that rewrite in Phase 3. But rule 2's heading ("One `SECURITY DEFINER` function is the
@@ -815,6 +819,77 @@ section is where they are corrected, so the diff between plan and reality stays 
   of that rewrite is still Phase 3's. `contract-surfaces.md` was updated for the same reason:
   its `care_slots` claim-columns row said `claim_digest` "has no reader or writer yet", which
   stopped being true. Its `get_claimed_details` sentences are left marked as unbuilt.
+
+### Phase 2 impl-review (2026-09-07 — `reviews/impl-review-phase-2.md`)
+
+- **A12 — The row-count comparison is against a cleaned array, not the raw parameter
+  (impl-review F9).** §Critical Implementation Details prescribes comparing `row_count` against
+  `array_length(p_slot_ids, 1)`. The implementation builds
+  `v_slot_ids := array_agg(distinct sid) … where sid is not null` first and compares against
+  *that*. Strictly safer and deliberate: a literal `'{NULL}'` has length 1 and would otherwise
+  pass the emptiness guard — the trap `20260906174022_filter_null_pet_ids.sql` fixed in
+  `create_period_with_slots` — and a duplicated id would inflate the expected count and refuse
+  a claim that actually succeeded. Reasoned out in-comment at the time but recorded in no
+  addendum, which is what made it a review finding rather than a disclosed choice.
+
+- **A13 — The claim is retry-safe; A10's original reasoning was answering the wrong question
+  (impl-review F4).** The first cut refused any slot the caller already held, and A10 defended
+  that with "Phase 4's UI makes taken slots unselectable". Selection was never the risk. The
+  case that bites is a **retry**: the POST lands, the response is lost on a flaky connection,
+  the client resends the identical set, and the caretaker is told the slot they just
+  successfully claimed is taken — the claim landed, the user was told it did not. `claim_slots`
+  now counts slots already held by the SAME capability as satisfied, and the receipt reports
+  them as `already_held_count` so a retry is legible rather than merely tolerated. The count
+  sits **after** the update and **inside** the shortfall branch: the freeness decision stays
+  entirely in the update's `WHERE`, so this is not the read-then-write the plan forbids, and
+  the all-free path pays nothing for it. A mixed request still refuses, and its DETAIL names
+  only the slots that are genuinely someone else's. Both properties are pinned by tests.
+
+- **A14 — `claim_slots` takes the RAW capability secret, not its digest (impl-review F1).**
+  The plan's Phase 2 contract said `p_claim_digest text`, compared verbatim against the stored
+  `care_slots.claim_digest`. That made the stored column a live bearer credential — the exact
+  opposite of the invite token three lines earlier in the same function, which is hashed
+  inside. So this is a finding against the **plan**, not implementation drift. It matters
+  because the plan's own Phase 3 contract, `get_claimed_details(p_token, p_claim_secret)`,
+  already takes the raw secret: leaving Phase 2 digest-in would have given the two capability
+  surfaces opposite conventions. `20260907171514_claim_secret_not_digest.sql` changes the
+  parameter to `p_claim_secret`, bounds it at 43 characters exactly as `p_token` is, and hashes
+  it inside. Two consequences worth naming: the explicit `^[0-9a-f]{64}$` guard is gone with the
+  argument it checked (sha256 satisfies `care_slots_claim_digest_format` by construction), and
+  entropy stopped being client-controlled — a caller could previously have supplied
+  `repeat('0', 64)` as their own capability. Exposure before the fix was bounded: the digest
+  never reaches a browser, and the only reader is the owner inside their own trip, where they
+  already hold UPDATE. **Phase 3's contract needs no change; Phase 4's route now passes the raw
+  cookie value to both functions and hashes for neither.**
+
+- **A15 — `npm run lint` was reported green while failing (impl-review F2).** `npm run lint | tail`
+  returns `tail`'s exit code. Progress row 2.3 was ticked and given a SHA on that reading, and
+  the phase-gate message and `a02cb1f`'s body both say "lint 0 errors". Three real errors were
+  present in files this phase added. Fixed, and recorded as a standing rule in
+  `context/foundation/lessons.md` ("Nie czytaj kodu wyjścia z potoku") because the failure mode
+  is the pipeline, not this phase.
+
+- **A16 — The name lookup is ordered (impl-review F10b).** `order by s.claimed_at, s.id` was
+  added to the `limit 1` that resolves a capability's stored name. In the incoherent state A1
+  admits is representable — one digest carrying two names, reachable through a direct owner
+  UPDATE — the propagated name was previously whichever row the plan returned first. Oldest
+  claim wins is at least deterministic, so a repair is reproducible.
+
+- **A17 — Phase 4's route must handle `40P01`, and must NOT fix it in SQL (impl-review F10a).**
+  Two callers with overlapping slot sets lock rows in whatever order the plan for
+  `s.id = any(v_slot_ids)` produces. In practice that order is consistent —
+  `array_agg(distinct …)` yields a sorted array and both callers normally get the same plan —
+  but it is not guaranteed across a plan switch (an index scan on the pk and a seq scan over
+  heap order can disagree, and the planner may change its mind as the table grows). The symptom
+  is a deadlock, SQLSTATE `40P01`, which would reach the route as an unhandled 500 because the
+  route is specified to branch on `PT409` / `PT400` only. **Phase 4 must treat `40P01` as a
+  retryable refusal** — the transaction rolled back, so nothing was claimed, and the honest
+  answer to the caretaker is "spróbuj jeszcze raz", not an error page. **It must NOT be fixed by
+  adding `select … for update order by id` before the update**: that reintroduces the
+  read-then-write §Critical Implementation Details exists to forbid, and trades a rare deadlock
+  for a routine lost-update race. Probability at MVP scale is very low — it needs two claimants
+  submitting overlapping multi-slot selections within milliseconds — which is why this is a
+  route-level guard rather than a schema change.
 
 ## Follow-ups (outside this change)
 
@@ -851,16 +926,16 @@ section is where they are corrected, so the diff between plan and reality stays 
 
 #### Automated
 
-- [x] 2.1 New `claim-slots` suite passes
-- [x] 2.2 Full integration suite still passes
-- [x] 2.3 Type checking and linting pass
+- [x] 2.1 New `claim-slots` suite passes — a02cb1f
+- [x] 2.2 Full integration suite still passes — a02cb1f
+- [x] 2.3 Type checking and linting pass — a02cb1f
 
 #### Manual
 
-- [x] 2.4 `has_function_privilege` confirms `claim_slots` grant posture
-- [x] 2.5 `provolatile` for `claim_slots` is `v`
-- [x] 2.6 A partial selection leaves every requested slot unclaimed
-- [x] 2.7 The concurrency invariant holds across repeated runs
+- [x] 2.4 `has_function_privilege` confirms `claim_slots` grant posture — a02cb1f
+- [x] 2.5 `provolatile` for `claim_slots` is `v` — a02cb1f
+- [x] 2.6 A partial selection leaves every requested slot unclaimed — a02cb1f
+- [x] 2.7 The concurrency invariant holds across repeated runs — a02cb1f
 
 ### Phase 3: The reveal
 
