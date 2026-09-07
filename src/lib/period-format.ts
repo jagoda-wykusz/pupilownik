@@ -45,6 +45,14 @@ export const MAX_TITLE_LENGTH = 120;
 // pets they own and RLS already caps that at their own pet count.
 export const MAX_PETS_PER_PERIOD = 20;
 
+// Upper bound on the caretaker note (the design's NOTATKA — free text scoped to the trip,
+// not to a pet). Unlike MAX_TITLE_LENGTH this one is ALSO a database CHECK
+// (care_periods_note_length), so the guarantee is in the schema and this constant is what
+// turns a violation into a clean 400 and lets the island say so first. Change one and you
+// must change both. 2000 is generous for "klucze u sąsiadki, mieszkanie 4" while still
+// capping a field that is written by an owner and later served to a caretaker.
+export const MAX_NOTE_LENGTH = 2000;
+
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 function asUtcDate(isoDate: string): Date {

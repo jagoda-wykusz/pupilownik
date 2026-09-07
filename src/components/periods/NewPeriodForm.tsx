@@ -2,9 +2,10 @@ import { useState } from "react";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/Chip";
+import { Textarea } from "@/components/ui/Textarea";
 import { ServerError } from "@/components/auth/ServerError";
 import { InviteLinkPanel } from "@/components/periods/InviteLinkPanel";
-import { countDays, MAX_SPAN_DAYS, MAX_TITLE_LENGTH } from "@/lib/period-format";
+import { countDays, MAX_NOTE_LENGTH, MAX_SPAN_DAYS, MAX_TITLE_LENGTH } from "@/lib/period-format";
 
 // Create-period island (client:load). Mirrors SignInForm's shape — local state,
 // client-side validation for UX only — on the S-07 component layer, not the
@@ -40,9 +41,14 @@ export default function NewPeriodForm({ origin, pets }: Props) {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [petIds, setPetIds] = useState<string[]>(pets.length === 1 ? [pets[0].id] : []);
-  const [errors, setErrors] = useState<{ title?: string; start_date?: string; end_date?: string; pet_ids?: string }>(
-    {},
-  );
+  const [note, setNote] = useState("");
+  const [errors, setErrors] = useState<{
+    title?: string;
+    start_date?: string;
+    end_date?: string;
+    pet_ids?: string;
+    caretaker_note?: string;
+  }>({});
   const [serverError, setServerError] = useState<string | null>(null);
   const [created, setCreated] = useState<Created | null>(null);
   // Own state rather than SubmitButton's useFormStatus: that hook only reports for a
@@ -60,6 +66,9 @@ export default function NewPeriodForm({ origin, pets }: Props) {
     }
     if (petIds.length === 0) {
       next.pet_ids = "Wybierz co najmniej jedno zwierzę";
+    }
+    if (note.trim().length > MAX_NOTE_LENGTH) {
+      next.caretaker_note = `Notatka może mieć najwyżej ${MAX_NOTE_LENGTH} znaków`;
     }
     if (!startDate) {
       next.start_date = "Podaj datę rozpoczęcia";
@@ -93,7 +102,13 @@ export default function NewPeriodForm({ origin, pets }: Props) {
       const res = await fetch("/api/periods", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: title.trim(), start_date: startDate, end_date: endDate, pet_ids: petIds }),
+        body: JSON.stringify({
+          title: title.trim(),
+          start_date: startDate,
+          end_date: endDate,
+          pet_ids: petIds,
+          caretaker_note: note.trim(),
+        }),
       });
 
       if (res.status === 401) {
@@ -199,6 +214,24 @@ export default function NewPeriodForm({ origin, pets }: Props) {
           </p>
         )}
       </div>
+
+      {/* The design places NOTATKA directly under KTÓRE ZWIERZĘTA. The hint is not in the
+          design, but the field is: an owner typing an address and a key location needs to
+          know who ends up reading it, and Phase 3 makes that answer non-obvious (only a
+          caretaker who actually took a slot — not every holder of the link). */}
+      <Textarea
+        id="caretaker_note"
+        name="caretaker_note"
+        label="NOTATKA"
+        hint="Zobaczą ją tylko opiekunowie, którzy zajmą termin."
+        value={note}
+        onChange={(v) => {
+          setNote(v);
+          clearError("caretaker_note");
+        }}
+        placeholder="Klucze u sąsiadki, mieszkanie 4…"
+        error={errors.caretaker_note}
+      />
 
       <div className="grid grid-cols-2 gap-3">
         <Input

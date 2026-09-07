@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { createPeriodSchema, PERIOD_MESSAGES } from "@/lib/schemas/period";
-import { MAX_PETS_PER_PERIOD, MAX_SPAN_DAYS, MAX_TITLE_LENGTH } from "@/lib/period-format";
+import { createPeriodSchema, periodIdSchema, PERIOD_MESSAGES } from "@/lib/schemas/period";
+import { MAX_NOTE_LENGTH, MAX_PETS_PER_PERIOD, MAX_SPAN_DAYS, MAX_TITLE_LENGTH } from "@/lib/period-format";
 
 // `POST /api/periods` returns a zod issue's message and NewPeriodForm renders it verbatim, so
 // "every rejection carries a Polish, user-facing message" is a contract — one that breaks
@@ -38,6 +38,8 @@ describe("createPeriodSchema — every rejection is renderable", () => {
       PERIOD_MESSAGES.petsTooMany,
     ],
     ["a non-uuid pet id", { ...valid, pet_ids: ["not-a-uuid"] }, PERIOD_MESSAGES.petIdInvalid],
+    ["an over-long note", { ...valid, caretaker_note: "x".repeat(MAX_NOTE_LENGTH + 1) }, PERIOD_MESSAGES.noteTooLong],
+    ["a non-string note", { ...valid, caretaker_note: 42 }, PERIOD_MESSAGES.noteTooLong],
     ["a missing start date", { ...valid, start_date: undefined }, PERIOD_MESSAGES.startDateInvalid],
     // A present-but-malformed date, which the first version of this file never covered — and
     // which is exactly where zod's "Invalid ISO date" default would have slipped through.
@@ -75,5 +77,80 @@ describe("createPeriodSchema — every rejection is renderable", () => {
     expect(PERIOD_MESSAGES.spanTooLong).toContain(String(MAX_SPAN_DAYS));
     expect(PERIOD_MESSAGES.petsTooMany).toContain(String(MAX_PETS_PER_PERIOD));
     expect(PERIOD_MESSAGES.titleTooLong).toContain(String(MAX_TITLE_LENGTH));
+    expect(PERIOD_MESSAGES.noteTooLong).toContain(String(MAX_NOTE_LENGTH));
+  });
+
+  // The id guards must accept every id the `uuid` COLUMN accepts, not only RFC 4122-compliant
+  // ones. zod's uuid() checks the variant nibble; Postgres checks nothing beyond 32 hex
+  // digits. That gap made the whole of supabase/seed.sql unreachable through the UI: a trip
+  // could not be created, the seeded period rendered as not-found, and its link could not be
+  // regenerated. These ids are taken verbatim from the seed, so the test fails the moment
+  // either guard is "tightened" back to uuid().
+  describe("id guards match the database's uuid domain, not RFC 4122", () => {
+    const SEEDED = ["44444444-4444-4444-4444-444444444444", "66666666-6666-6666-6666-666666666666"];
+    const valid = { title: "Weekend", start_date: "2026-07-13", end_date: "2026-07-15" };
+
+    it.each(SEEDED)("periodIdSchema accepts the seeded id %s", (id) => {
+      expect(periodIdSchema.safeParse(id).success).toBe(true);
+    });
+
+    it.each(SEEDED)("createPeriodSchema accepts the seeded pet id %s", (id) => {
+      expect(createPeriodSchema.safeParse({ ...valid, pet_ids: [id] }).success).toBe(true);
+    });
+
+    // Loosening the check must not turn it into no check at all — a malformed path segment
+    // still has to produce a clean 400/404 rather than reaching the database.
+    it.each([
+      "not-a-uuid",
+      "",
+      "44444444-4444-4444-4444",
+      "4444444444444444444444444444444444",
+      "zzzzzzzz-4444-4444-4444-444444444444",
+    ])("still rejects the malformed id %s", (id) => {
+      expect(periodIdSchema.safeParse(id).success).toBe(false);
+    });
+  });
+
+  // The note is optional, and "absent" has to reach the RPC as NULL rather than as an empty
+  // string. Phase 3 reveals the note only to a caretaker who claimed and keys the callout on
+  // `caretaker_note is null`, so a stored "" would render an empty highlighted box on every
+  // trip whose owner never typed one. The island always posts `note.trim()`, which is "" for
+  // an untouched field — so this normalisation is on the hot path, not a defensive edge.
+  describe("caretaker_note", () => {
+    it("accepts a payload with no note at all", () => {
+      const result = createPeriodSchema.safeParse(valid);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.caretaker_note).toBeUndefined();
+      }
+    });
+
+    it.each([
+      ["an empty string", ""],
+      ["whitespace only", "   \n  "],
+    ])("normalises %s to undefined so the RPC stores NULL", (_label, note) => {
+      const result = createPeriodSchema.safeParse({ ...valid, caretaker_note: note });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.caretaker_note).toBeUndefined();
+      }
+    });
+
+    it("keeps a real note, trimmed", () => {
+      const result = createPeriodSchema.safeParse({ ...valid, caretaker_note: "  Klucze u sąsiadki  " });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.caretaker_note).toBe("Klucze u sąsiadki");
+      }
+    });
+
+    it("accepts a note at exactly the bound, matching the database CHECK", () => {
+      const atBound = "x".repeat(MAX_NOTE_LENGTH);
+      const result = createPeriodSchema.safeParse({ ...valid, caretaker_note: atBound });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.caretaker_note).toBe(atBound);
+      }
+    });
   });
 });

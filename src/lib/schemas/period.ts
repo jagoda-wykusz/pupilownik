@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { countDays, MAX_PETS_PER_PERIOD, MAX_SPAN_DAYS, MAX_TITLE_LENGTH } from "@/lib/period-format";
+import { countDays, MAX_NOTE_LENGTH, MAX_PETS_PER_PERIOD, MAX_SPAN_DAYS, MAX_TITLE_LENGTH } from "@/lib/period-format";
 
 // Server-side contract for creating a care period. The API route is the source of
 // truth — this schema is the single validation gate the handler (and the island, for
@@ -24,6 +24,7 @@ export const PERIOD_MESSAGES = {
   endDateInvalid: "Podaj poprawną datę zakończenia",
   datesReversed: "Data zakończenia nie może być wcześniejsza niż data rozpoczęcia",
   spanTooLong: `Wyjazd może trwać najwyżej ${MAX_SPAN_DAYS} dni`,
+  noteTooLong: `Notatka może mieć najwyżej ${MAX_NOTE_LENGTH} znaków`,
   // The shape itself, not a field. Without this, a non-object body (null, "x", 42, []) is
   // valid JSON, reaches zod, and produces its English default with an empty path — which the
   // route would then hand to the island to render.
@@ -47,10 +48,31 @@ export const createPeriodSchema = z
       // At least one pet is also enforced inside create_period_with_slots, which is the
       // guarantee; this bound is what turns a violation into a clean 400 instead of surfacing
       // the RPC's raise as a 500.
+      // z.guid(), NOT z.uuid() — see the note above periodIdSchema. z.uuid() enforces the
+      // RFC 4122 variant nibble, which the `uuid` column does not, so it rejected pet ids
+      // the database holds perfectly happily (every fixed id in supabase/seed.sql).
       pet_ids: z
-        .array(z.uuid(PERIOD_MESSAGES.petIdInvalid), PERIOD_MESSAGES.petsRequired)
+        .array(z.guid(PERIOD_MESSAGES.petIdInvalid), PERIOD_MESSAGES.petsRequired)
         .min(1, PERIOD_MESSAGES.petsRequired)
         .max(MAX_PETS_PER_PERIOD, PERIOD_MESSAGES.petsTooMany),
+      // The design's NOTATKA: free text about the TRIP, not about a pet. Optional — a trip
+      // without one is the normal case.
+      //
+      // Unlike `title`, the bound here is mirrored from a real database CHECK
+      // (care_periods_note_length), so this is the "clean 400 instead of a constraint error"
+      // half of a two-layer guarantee rather than the only layer.
+      //
+      // The transform normalises an untouched textarea's "" to undefined so the RPC receives
+      // NULL. That matters beyond tidiness: Phase 3 reveals the note only to a caretaker who
+      // has claimed, and it keys the callout on `caretaker_note is null`. An empty string
+      // stored instead of NULL would render an empty highlighted box on the caretaker's
+      // screen for every trip whose owner never typed a note.
+      caretaker_note: z
+        .string(PERIOD_MESSAGES.noteTooLong)
+        .trim()
+        .max(MAX_NOTE_LENGTH, PERIOD_MESSAGES.noteTooLong)
+        .optional()
+        .transform((value) => (value === undefined || value === "" ? undefined : value)),
     },
     PERIOD_MESSAGES.notAnObject,
   )
@@ -63,4 +85,22 @@ export const createPeriodSchema = z
     path: ["end_date"],
   });
 
-export const periodIdSchema = z.uuid();
+// z.guid(), not z.uuid(), and the difference is load-bearing rather than cosmetic.
+//
+// zod's `uuid()` enforces RFC 4122: it checks the version nibble AND the variant nibble
+// (position 17 must be 8, 9, a or b). Postgres's `uuid` TYPE enforces neither — it accepts
+// any 32 hex digits. So `uuid()` is a STRICTER domain than the column it guards, and it
+// rejected ids the database stores happily: every fixed identifier in supabase/seed.sql
+// (`44444444-…`, `66666666-…`) has variant nibble 4 and failed, which made the entire
+// seeded dataset unreachable through the UI — a trip could not be created, the seeded
+// period rendered as not-found, and its link could not be regenerated.
+//
+// `guid()` is the 8-4-4-4-12 hex check with no opinion about version or variant, which is
+// exactly the column's domain. That is what this guard is for: turning a malformed path
+// segment into a clean 404/400 instead of a database error. It was never an authorisation
+// check — RLS is, and RLS does not care whether an id is RFC-compliant.
+//
+// Do not "tighten" this back to uuid(). Real ids come from gen_random_uuid() and are v4, so
+// the strictness looks free right up to the moment a hand-written fixture, a seed row or a
+// pasted id from a bug report goes through it.
+export const periodIdSchema = z.guid();

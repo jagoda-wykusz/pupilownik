@@ -43,15 +43,19 @@ export const POST: APIRoute = async (context) => {
     return jsonResponse({ error: issue.message }, 400);
   }
 
-  const { title, start_date, end_date, pet_ids } = parsed.data;
+  const { title, start_date, end_date, pet_ids, caretaker_note } = parsed.data;
   const inviteToken = generateInviteToken();
 
+  // p_caretaker_note is `default null` on the RPC, so passing undefined for an absent note is
+  // the same as omitting the argument. The schema has already normalised "" to undefined, so
+  // a trip with no note stores NULL rather than an empty string.
   const { data, error } = await supabase.rpc("create_period_with_slots", {
     p_title: title,
     p_start_date: start_date,
     p_end_date: end_date,
     p_token_digest: await digestInviteToken(inviteToken),
     p_pet_ids: pet_ids,
+    p_caretaker_note: caretaker_note,
   });
 
   if (error) {

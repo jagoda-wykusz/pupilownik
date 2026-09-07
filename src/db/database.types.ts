@@ -107,6 +107,7 @@ export type Database = {
       }
       care_periods: {
         Row: {
+          caretaker_note: string | null
           created_at: string
           end_date: string
           id: string
@@ -117,6 +118,7 @@ export type Database = {
           token_digest: string
         }
         Insert: {
+          caretaker_note?: string | null
           created_at?: string
           end_date: string
           id?: string
@@ -127,6 +129,7 @@ export type Database = {
           token_digest: string
         }
         Update: {
+          caretaker_note?: string | null
           created_at?: string
           end_date?: string
           id?: string
@@ -140,6 +143,7 @@ export type Database = {
       }
       care_slots: {
         Row: {
+          claim_digest: string | null
           claimed_at: string | null
           claimed_by_name: string | null
           created_at: string
@@ -149,6 +153,7 @@ export type Database = {
           time_of_day: Database["public"]["Enums"]["time_of_day"]
         }
         Insert: {
+          claim_digest?: string | null
           claimed_at?: string | null
           claimed_by_name?: string | null
           created_at?: string
@@ -158,6 +163,7 @@ export type Database = {
           time_of_day: Database["public"]["Enums"]["time_of_day"]
         }
         Update: {
+          claim_digest?: string | null
           claimed_at?: string | null
           claimed_by_name?: string | null
           created_at?: string
@@ -228,6 +234,7 @@ export type Database = {
     Functions: {
       create_period_with_slots: {
         Args: {
+          p_caretaker_note?: string
           p_end_date: string
           p_pet_ids: string[]
           p_start_date: string
@@ -235,6 +242,7 @@ export type Database = {
           p_token_digest: string
         }
         Returns: {
+          caretaker_note: string | null
           created_at: string
           end_date: string
           id: string

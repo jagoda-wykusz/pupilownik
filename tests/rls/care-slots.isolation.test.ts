@@ -119,41 +119,77 @@ describe("care_slots RLS owner-isolation", () => {
     expect(error).not.toBeNull();
   });
 
-  it("refuses a half-claimed slot — the two claim columns move together", async () => {
+  it("refuses a partly-claimed slot — all three claim columns move together", async () => {
+    const { data: aSlots } = await a.client.from("care_slots").select("id").eq("period_id", aPeriodId).limit(1);
+    const aSlotId = aSlots?.[0]?.id;
+    if (!aSlotId) {
+      throw new Error("care_slots RLS test: A's period generated no slots");
+    }
+    const digest = "a".repeat(64);
+
+    // Any strict subset is refused by care_slots_claim_complete.
+    //
+    // Two of the three columns were tied together in S-02 (20260906094254) because a row
+    // recording a claim time while every reader keyed on claimed_by_name would still be
+    // called free, letting `update ... where claimed_by_name is null` hand the slot to a
+    // second caretaker. S-03 widened the constraint to include claim_digest for the mirror
+    // reason: a slot taken but attributable to NO capability makes `claim_digest is null` an
+    // untruthful test of "unclaimed", which is what get_claimed_details resolves the
+    // sensitive instruction tier against.
+    //
+    // Every one of these six writes must fail. A single-column assertion would have kept
+    // passing after the constraint was widened, which is precisely the "describes a posture
+    // rather than guarding it" failure in context/foundation/lessons.md.
+    const partials: Record<string, string | null>[] = [
+      { claimed_by_name: "Ala" },
+      { claimed_at: new Date().toISOString() },
+      { claim_digest: digest },
+      { claimed_by_name: "Ala", claimed_at: new Date().toISOString() },
+      { claimed_by_name: "Ala", claim_digest: digest },
+      { claimed_at: new Date().toISOString(), claim_digest: digest },
+    ];
+    for (const partial of partials) {
+      const attempt = await a.client.from("care_slots").update(partial).eq("id", aSlotId);
+      expect(attempt.error, `partial write ${JSON.stringify(partial)} should be refused`).not.toBeNull();
+    }
+
+    // All three together is what S-03's claim function writes, and it is allowed.
+    const complete = await a.client
+      .from("care_slots")
+      .update({ claimed_by_name: "Ala", claimed_at: new Date().toISOString(), claim_digest: digest })
+      .eq("id", aSlotId)
+      .select("id");
+    expect(complete.error).toBeNull();
+    expect(complete.data).toEqual([{ id: aSlotId }]);
+
+    // And releasing it clears all three.
+    const released = await a.client
+      .from("care_slots")
+      .update({ claimed_by_name: null, claimed_at: null, claim_digest: null })
+      .eq("id", aSlotId);
+    expect(released.error).toBeNull();
+  });
+
+  it("refuses a claim digest that is not a 64-char lowercase hex SHA-256", async () => {
     const { data: aSlots } = await a.client.from("care_slots").select("id").eq("period_id", aPeriodId).limit(1);
     const aSlotId = aSlots?.[0]?.id;
     if (!aSlotId) {
       throw new Error("care_slots RLS test: A's period generated no slots");
     }
 
-    // Either half alone is refused by care_slots_claim_complete. Without it, a row could
-    // record a claim time while every reader — all of which key on claimed_by_name — still
-    // called the slot free, and S-03's `update ... where claimed_by_name is null` would let
-    // a second caretaker take it.
-    const nameOnly = await a.client.from("care_slots").update({ claimed_by_name: "Ala" }).eq("id", aSlotId);
-    expect(nameOnly.error).not.toBeNull();
-
-    const timeOnly = await a.client
-      .from("care_slots")
-      .update({ claimed_at: new Date().toISOString() })
-      .eq("id", aSlotId);
-    expect(timeOnly.error).not.toBeNull();
-
-    // Both together is what S-03 will write, and it is allowed.
-    const both = await a.client
-      .from("care_slots")
-      .update({ claimed_by_name: "Ala", claimed_at: new Date().toISOString() })
-      .eq("id", aSlotId)
-      .select("id");
-    expect(both.error).toBeNull();
-    expect(both.data).toEqual([{ id: aSlotId }]);
-
-    // And releasing it clears both.
-    const released = await a.client
-      .from("care_slots")
-      .update({ claimed_by_name: null, claimed_at: null })
-      .eq("id", aSlotId);
-    expect(released.error).toBeNull();
+    // care_slots_claim_digest_format pins what the claim function is allowed to store. The
+    // app derives the digest with digestInviteToken (hex SHA-256, lowercase), byte-identical
+    // to encode(sha256(...),'hex') in Postgres — so any other shape is a bug, not a variant.
+    // Uppercase is the case that matters: hex is case-insensitive to a human but not to the
+    // equality test get_claimed_details performs, so a mixed-case digest would silently never
+    // match and the caretaker would lose their reveal with no error anywhere.
+    for (const bad of ["A".repeat(64), "a".repeat(63), "a".repeat(65), "not-hex" + "a".repeat(57), ""]) {
+      const attempt = await a.client
+        .from("care_slots")
+        .update({ claimed_by_name: "Ala", claimed_at: new Date().toISOString(), claim_digest: bad })
+        .eq("id", aSlotId);
+      expect(attempt.error, `digest ${JSON.stringify(bad)} should be refused`).not.toBeNull();
+    }
   });
 
   it("rejects a duplicate slot within the same period (unique constraint)", async () => {
