@@ -713,18 +713,18 @@ coerce them if that ever stops being true. Seeding a period linked to the seeded
 
 #### Automated
 
-- [x] 1.1 Migration applies cleanly on a reset database
-- [x] 1.2 Types regenerate and match the new signature and columns
-- [x] 1.3 Unit tests pass
-- [x] 1.4 Integration tests pass with the four RPC-seeding suites untouched
-- [x] 1.5 Type checking and linting pass
+- [x] 1.1 Migration applies cleanly on a reset database — 3f20b91
+- [x] 1.2 Types regenerate and match the new signature and columns — 3f20b91
+- [x] 1.3 Unit tests pass — 3f20b91
+- [x] 1.4 Integration tests pass with the four RPC-seeding suites untouched — 3f20b91
+- [x] 1.5 Type checking and linting pass — 3f20b91
 
 #### Manual
 
-- [x] 1.6 `has_function_privilege` confirms the create RPC's grant posture from the catalog
-- [x] 1.7 Exactly one `create_period_with_slots` exists in `pg_proc`
-- [x] 1.8 A two-of-three claim-column write is rejected by the constraint
-- [x] 1.9 Creating a trip with and without a note both succeed; the note round-trips
+- [x] 1.6 `has_function_privilege` confirms the create RPC's grant posture from the catalog — 3f20b91
+- [x] 1.7 Exactly one `create_period_with_slots` exists in `pg_proc` — 3f20b91
+- [x] 1.8 A two-of-three claim-column write is rejected by the constraint — 3f20b91
+- [x] 1.9 Creating a trip with and without a note both succeed; the note round-trips — 3f20b91
 
 ### Phase 2: The claim function
 

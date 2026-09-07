@@ -45,6 +45,12 @@ interface PeriodRow {
   start_date: string;
   end_date: string;
   revoked_at: string | null;
+  // Read back to the owner here because this is the only screen that shows it at all: the
+  // note is set once, on the create form, and from S-03 Phase 3 onwards only a caretaker who
+  // claimed a slot ever sees it. Without this the field is write-only — an owner could mistype
+  // a flat number and never find out. Safe to render: unlike claimed_by_name above, the note
+  // is the owner's OWN input, so no caretaker-side boundary applies.
+  caretaker_note: string | null;
   care_slots: SlotRow[];
   pets: PetRow[];
 }
@@ -60,7 +66,7 @@ if (periodId === null) {
     // `pets(...)` resolves the many-to-many through care_period_pets; see the list page for
     // why this embed is bounded and not a repeat of impl-review F8.
     .select(
-      "id, title, start_date, end_date, revoked_at, care_slots(id, slot_date, time_of_day, claimed_at), pets(id, name)",
+      "id, title, start_date, end_date, revoked_at, caretaker_note, care_slots(id, slot_date, time_of_day, claimed_at), pets(id, name)",
     )
     .eq("id", periodId)
     .maybeSingle();
@@ -145,6 +151,22 @@ const takenCount = slots.filter((slot) => slot.claimed_at !== null).length;
               {takenCount} z {slots.length} terminów zajętych
               {period.revoked_at !== null && " · link został unieważniony"}
             </p>
+
+            {/* Rendered only when there is one: createPeriodSchema normalises "" to NULL, so
+                `caretaker_note !== null` is an honest test and an owner who typed nothing sees
+                no empty box. `whitespace-pre-line` keeps the line breaks the owner typed —
+                this is an address and a set of instructions, where a collapsed newline
+                changes the meaning. The label states who reads it, mirroring the create
+                form's hint: from Phase 3 on, only a caretaker who actually claimed a slot. */}
+            {period.caretaker_note !== null && (
+              <>
+                <h2 class="font-heading text-foreground mt-8 mb-1 text-[17px] font-bold">Notatka</h2>
+                <p class="text-muted-foreground mb-3 text-[13px]">Widzą ją tylko opiekunowie, którzy zajmą termin.</p>
+                <p class="border-border bg-card text-foreground rounded-lg border-[1.5px] p-4 text-[15px] leading-[1.5] whitespace-pre-line">
+                  {period.caretaker_note}
+                </p>
+              </>
+            )}
 
             <h2 class="font-heading text-foreground mt-8 mb-3 text-[17px] font-bold">Terminy</h2>
             <ul class="space-y-3">
