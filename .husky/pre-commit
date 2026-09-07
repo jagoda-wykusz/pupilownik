@@ -1,8 +1,19 @@
 npx lint-staged
 
 # Typecheck the whole project. Deliberately NOT a per-edit agent hook: it costs
-# ~26s here, which would stall the agent loop on every Write/Edit. Per-edit
+# ~40s here, which would stall the agent loop on every Write/Edit. Per-edit
 # formatting and scoped tests live in .claude/settings.json instead.
-# (`astro check` also covers .astro templates but costs ~38s — promote it if a
-# template type error ever slips through.)
-npx tsc --noEmit
+#
+# `astro check`, not `tsc --noEmit`. This hook shipped with tsc and a note saying
+# "promote astro check if a template type error ever slips through" — one did:
+# src/pages/pets/index.astro indexed an enum-keyed Record with a `string`, which
+# `astro build` does not check and `tsc --noEmit` does not see inside a .astro
+# template. astro check covers BOTH the templates and the .ts files, so it
+# replaces tsc here rather than being added alongside it.
+#
+# It was also worth nothing until 2026-09-07: husky was a devDependency with a
+# hook file but no `prepare` script, so core.hooksPath was never set and this
+# hook had never run. Three type errors reached main that way. If it stops
+# firing again, check `git config core.hooksPath` first — an unset value means
+# `npm install` (or `npx husky`) has not wired it in this clone.
+npx astro check
