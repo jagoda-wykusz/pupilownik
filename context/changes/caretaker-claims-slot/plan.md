@@ -752,6 +752,23 @@ section is where they are corrected, so the diff between plan and reality stays 
   to be coerced. Disclosed at the phase gate and in `3f20b91`'s body. `title`'s missing CHECK
   is pre-existing debt this change deliberately did not replicate — and did not fix either.
 
+- **A7 — Phase 5 has more work than its Phase block assumes: the component layer it builds on
+  is smaller than the roadmap claimed.** Phase 5 above says "add a success/positive token
+  trio … so the design's 'Zapisano!' banner has something to render with", which presumes a
+  banner component exists to paint. It does not. Verified from `src/` on 2026-09-07 and
+  cross-checked against S-07's own archived plan, which excluded these explicitly
+  (§What We're NOT Doing: *"No domain components. Pet card, instruction row with time badge,
+  sensitive-data callout and chip … land with the slices that use them"*). What actually
+  exists: `ui/Input`, `ui/ScreenHeading`, `ui/AuthScreen` (S-07), `ui/Chip` (S-08),
+  `ui/button` (bootstrap), `ui/Textarea` (this phase). **Missing and therefore Phase 5's to
+  build: the sensitive-data callout, the success banner, and the time-of-day badge** — plus
+  there is no shadow token in `global.css` at all, so the design's "delikatne cienie" have no
+  token either. `Banner.astro` (starter leftover, info/warning/error) and `LibBadge.astro`
+  (zero call sites, starter colours) must not be mistaken for the design's banner and badge.
+  The roadmap's S-07 `Outcome` and `## Done` entry were corrected the same day; that error
+  originated in an aspirational roadmap field which `/10x-archive` copied verbatim into
+  `## Done`.
+
 - **A6 — The claim-digest index was made partial after review (impl-review F3).** Measured:
   198 of 198 `care_slots` rows carried a NULL digest, and that stays lopsided by design.
   `20260907122450_partial_claim_digest_index.sql` drops and re-creates it with
