@@ -58,14 +58,20 @@ beforeAll(async () => {
   // later with a cryptic error instead of this guidance. Probe BOTH backends the suite
   // uses: auth (signUp) and PostgREST (from("profiles")) can come up independently.
   const { anonKey } = getTestEnv();
-  const reachable = async (path: string, init?: RequestInit): Promise<boolean> => {
+  // `accept` decides what counts as ready. It defaults to res.ok, but the data-API probe below
+  // needs something else: it asks for a table anon may not read, so a healthy answer is 401.
+  const reachable = async (
+    path: string,
+    init?: RequestInit,
+    accept: (res: Response) => boolean = (res) => res.ok,
+  ): Promise<boolean> => {
     const controller = new AbortController();
     const timeout = setTimeout(() => {
       controller.abort();
     }, 3000);
     try {
       const res = await fetch(`${url}${path}`, { ...init, signal: controller.signal });
-      return res.ok;
+      return accept(res);
     } catch {
       return false;
     } finally {
@@ -77,8 +83,27 @@ beforeAll(async () => {
   if (!(await reachable("/auth/v1/health"))) {
     throw new Error(`Local Supabase auth API is not ready at ${url}. ${notReady}`);
   }
-  // PostgREST root needs the apikey header; a 200 means the data API is serving.
-  if (!(await reachable("/rest/v1/", { headers: { apikey: anonKey } }))) {
-    throw new Error(`Local Supabase data API (PostgREST) is not ready at ${url}. ${notReady}`);
+  // Probe a real TABLE, not the root. `/rest/v1/` answers 200 as soon as the process is
+  // listening — which is strictly BEFORE it has loaded the schema cache. Straight after a
+  // `db:reset` that window is wide enough to fail a whole run with
+  // `PGRST205: Could not find the table 'public.pets' in the schema cache`, which reads like a
+  // broken migration and is really a race with startup. Measured on 2026-09-07: 13 files and 6
+  // tests failed that way while this very probe reported "ready".
+  //
+  // `pets` is the table to ask for — the oldest domain table (S-01), so it exists in every
+  // migration state this suite can run against.
+  //
+  // The status codes are the whole point, and they separate cleanly:
+  //   404 — PGRST205, the table is not in the schema cache yet. NOT ready.
+  //   401 — the table resolved and RLS refused anon, which holds no grant on `pets`. READY.
+  //   200 — resolved and readable.
+  // So `res.ok` is the wrong predicate here: it would reject the 401 that means success and
+  // hang until the timeout. Checked against the running stack rather than assumed.
+  const dataApiReady = (res: Response): boolean => res.status === 200 || res.status === 401 || res.status === 403;
+
+  if (!(await reachable("/rest/v1/pets?select=id&limit=1", { headers: { apikey: anonKey } }, dataApiReady))) {
+    throw new Error(
+      `Local Supabase data API (PostgREST) is not ready at ${url} — either it is not listening, or it is up but has not loaded its schema cache yet. ${notReady}`,
+    );
   }
 });
