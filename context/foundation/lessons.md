@@ -23,6 +23,11 @@
 - **Context**: Każde twierdzenie o stanie systemu, którego nie widać w kodzie aplikacji —
   granty i uprawnienia w bazie, polityki RLS, nagłówki odpowiedzi, volatility funkcji,
   domyślne privileges. Dotyczy też każdego testu, który ma pilnować takiej warstwy.
+  **Oraz — i to jest szerszy zasięg niż sugeruje pierwotne brzmienie — każdego dokumentu,
+  który zapisuje stan:** pól `Outcome` i `## Done` w roadmapie, rejestru kontraktów
+  (`docs/reference/*`), sekcji planu, wpisów w `change.md`. Tam nie istnieje test, który
+  mógłby upaść, więc jedyną obroną jest przeczytanie artefaktu przeciw kodowi **w momencie
+  pisania**.
 - **Problem**: W S-02 zdarzyło się to cztery razy. Trzy razy komentarz migracji opisywał
   posturę grantów, której baza nie miała: `revoke ... from public` nie odbiera uprawnień rolom
   `anon`/`authenticated`/`service_role`, bo Supabase nadaje je osobno przez ALTER DEFAULT
@@ -31,12 +36,29 @@
   anon", a katalog pokazał pełny zestaw uprawnień. Czwarty raz był w teście: „anon nie może
   czytać tabeli" przechodził, bo `expect(data ?? []).toEqual([])` nie odróżnia odmowy 42501 od
   pustego wyniku po RLS — przeszedłby po usunięciu całej warstwy grantów, którą miał pilnować.
+- **Problem (2026-09-07, rozszerzenie na dokumenty)**: ta sama klasa wystąpiła trzy razy
+  w jeden dzień, ani razu w SQL-u. (1) Wpis `## Done` dla S-07 w roadmapie twierdził, że
+  wylądowały: karta, chip, badge pory, callout wrażliwych danych i baner sukcesu — a plan
+  S-07 wykluczył je **wprost** we własnym §What We're NOT Doing. (2) To samo zdanie stało
+  w polu `Outcome` slice'u, bo `/10x-archive` kopiuje `Outcome` żywcem do `## Done`:
+  **aspiracyjne zdanie z etapu planowania zamienia się w rekord historyczny bez żadnego kroku,
+  który skonfrontowałby je z kodem.** To pułapka strukturalna, nie niedbalstwo. (3) Kilka
+  godzin po przeczytaniu tej lekcji dopisałem do `contract-surfaces.md`, że `caretaker_note`
+  jest „served only by `get_claimed_details`" — funkcję, która miała powstać dopiero dwie fazy
+  później. Wniosek o samej lekcji: w pierwotnym brzmieniu czyta się ona jak reguła o SQL-u
+  i grantach, więc **nie odpala się, gdy pisze się prozę** — a to teraz jej częstszy przypadek.
 - **Rule**: Nigdy nie przyjmuj twierdzenia o posturze systemu na podstawie komentarza, planu
   ani intencji migracji. Odczytaj je z katalogu (`has_function_privilege`,
   `information_schema.role_table_grants`, `pg_policies`, `pg_proc`) albo przypnij testem, który
   UPADA, gdy postura znika. Asercja przechodząca również przy braku tej warstwy nie jest jej
   testem, tylko jej opisem.
-- **Applies to**: plan, plan-review, implement, impl-review
+- **Rule (dokumenty)**: Zdanie o tym, co istnieje, pisz w czasie teraźniejszym **tylko wtedy,
+  gdy właśnie sprawdziłeś to w `src/` albo w katalogu**. Cokolwiek zamierzonego oznacz jawnie
+  („planned — faza N; nic tego jeszcze nie czyta ani nie zapisuje"). Rozdzielaj „co projekt
+  rysuje / zamierza" od „co istnieje" — zlanie tych dwóch w jedno zdanie jest tym, co pozwala
+  czytać opis jako inwentarz. Zanim zamkniesz slice, przeczytaj jego `Outcome` przeciw kodowi:
+  to pole zostanie skopiowane do `## Done` i przestanie być prognozą, a stanie się historią.
+- **Applies to**: plan, plan-review, implement, impl-review, roadmap, archive
 
 ## Ubij serwer dev, zanim uruchomisz `npm run build`
 
