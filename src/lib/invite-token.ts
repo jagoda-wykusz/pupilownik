@@ -1,5 +1,6 @@
-// Invite-token minting and digesting — the single place the app and the database agree on
-// how a caretaker link is encoded.
+// Bearer-secret minting and digesting — the single place the app and the database agree on
+// how a caretaker's credentials are encoded. Two of them now live here: the invite token
+// (which period is this?) and the claim capability secret (which caretaker are you?).
 //
 // The raw token exists exactly once: it is generated here, its digest is stored, and it is
 // returned to the owner on the create/regenerate response. It is never written to the
@@ -36,4 +37,22 @@ export async function digestInviteToken(token: string): Promise<string> {
   return Array.from(new Uint8Array(hash))
     .map((byte) => byte.toString(16).padStart(2, "0"))
     .join("");
+}
+
+// The caretaker's capability secret (S-03) is the SAME primitive as the invite token: 32
+// bytes of CSPRNG entropy, base64url, stored only as its hex SHA-256, returned to the holder
+// exactly once — into an HttpOnly cookie rather than onto a page. It is deliberately an alias
+// and not a second implementation: the two values are compared against digests computed by
+// the same `encode(sha256(convert_to(x, 'UTF8')), 'hex')` expression in Postgres, so any
+// drift between them would be a silent never-matches bug rather than a failure.
+//
+// They get their own names anyway, because the call sites are about entirely different
+// things and `digestInviteToken(secret)` at the claim route would read as a mistake.
+
+export function generateClaimSecret(): string {
+  return generateInviteToken();
+}
+
+export function digestClaimSecret(secret: string): Promise<string> {
+  return digestInviteToken(secret);
 }

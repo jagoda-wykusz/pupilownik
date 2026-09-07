@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { digestInviteToken, generateInviteToken } from "@/lib/invite-token";
+import {
+  digestClaimSecret,
+  digestInviteToken,
+  generateClaimSecret,
+  generateInviteToken,
+} from "@/lib/invite-token";
 
 // Pure logic — no Supabase, so this runs in the `unit` project with Docker down.
 describe("invite token", () => {
@@ -32,5 +37,37 @@ describe("invite token", () => {
     expect(first).toBe(second);
     expect(first).toMatch(/^[0-9a-f]{64}$/);
     await expect(digestInviteToken(generateInviteToken())).resolves.not.toBe(first);
+  });
+});
+
+// The caretaker capability secret (S-03) reuses the token primitive on purpose. These
+// assertions are what keeps that reuse honest: if either name is ever re-implemented rather
+// than aliased, "byte-identical to what Postgres computes" stops being true silently, and the
+// only symptom would be a claim secret that never matches its stored digest.
+describe("claim capability secret", () => {
+  it("mints the same 43-character base64url shape as an invite token", () => {
+    const secret = generateClaimSecret();
+
+    expect(secret).toHaveLength(43);
+    expect(secret).toMatch(/^[A-Za-z0-9_-]+$/);
+  });
+
+  it("mints a different secret every time", () => {
+    const secrets = new Set(Array.from({ length: 50 }, () => generateClaimSecret()));
+    expect(secrets.size).toBe(50);
+  });
+
+  it("digests to the same hex SHA-256 the database computes", async () => {
+    // Same known vector as the token above: sha256("abc"). The database side is
+    // encode(sha256(convert_to(x, 'UTF8')), 'hex'), and care_slots_claim_digest_format pins
+    // the column to exactly this shape.
+    await expect(digestClaimSecret("abc")).resolves.toBe(
+      "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+    );
+
+    const secret = generateClaimSecret();
+    await expect(digestClaimSecret(secret)).resolves.toMatch(/^[0-9a-f]{64}$/);
+    // Not merely "looks the same" — the two names must resolve to one implementation.
+    await expect(digestClaimSecret(secret)).resolves.toBe(await digestInviteToken(secret));
   });
 });

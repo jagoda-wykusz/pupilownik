@@ -85,30 +85,50 @@ a **function**, not an anon policy.
    returned to the owner exactly once, on the create/regenerate response. It is
    never stored, never logged, and cannot be read back — losing it means
    regenerating, which invalidates the previous link.
-2. **One `SECURITY DEFINER` function is the entire anon-reachable surface.**
-   `public.get_period_by_token(p_token text)` computes the digest inside the
-   function, resolves **at most one** active period, and returns the period plus
-   its slots' free/taken state — no instruction rows, no `owner_id`, no
-   `token_digest`, and no parameter that could widen the result set. Its body is
-   the whole authorization boundary: there is no policy behind it. Hence
+2. **`SECURITY DEFINER` functions are the entire anon-reachable surface.**
+   Until S-03 Phase 2 there was exactly one, and the heading said so; there are
+   now two. The rule was always about the *shape* rather than the count — each
+   is a named function whose body is the whole authorization boundary, with no
+   policy behind it, and never an anon policy on a table. Both carry
    `set search_path = ''`, fully-qualified objects, and an explicit
    `revoke execute … from public, anon, authenticated, service_role` followed by
    `grant execute … to anon, authenticated`.
+   - **The read door**: `public.get_period_by_token(p_token text)`, `STABLE`.
+     Computes the digest inside the function, resolves **at most one** active
+     period, and returns the period plus its slots' free/taken state — no
+     instruction rows, no `owner_id`, no `token_digest`, and no parameter that
+     could widen the result set.
+   - **The write door**: `public.claim_slots(p_token, p_slot_ids,
+     p_claim_digest, p_name)`, `VOLATILE` — a separate function because Postgres
+     forbids a `STABLE` one from writing. It **derives** the period from the
+     token and never accepts a period id, which is the only thing that makes a
+     slot uuid from another period unusable, and it claims a set of slots
+     all-or-nothing through a single guarded `update`.
 3. **No anon policy on any table, and no anon table grants.** Supabase's
    `ALTER DEFAULT PRIVILEGES` grants anon SELECT/INSERT/UPDATE/DELETE on every
    new table in `public`, so the S-02 migration explicitly revokes them on
    `care_periods` and `care_slots`. Deny-by-default already returned zero rows,
    but the claim "the function is the only door" should rest on two layers, not
    one. The function still reads those tables because it runs as its owner.
-4. **Uniform failure.** Unknown, malformed and revoked tokens all return NULL,
-   and the page renders one 404 with one message. A distinct "this link was
-   revoked" answer would confirm the period exists. The copy carries the "ask the
-   owner for a new link" guidance the response deliberately withholds.
+4. **Uniform failure — with one deliberate widening for writes.** Unknown,
+   malformed and revoked tokens all return NULL, and the page renders one 404
+   with one message. A distinct "this link was revoked" answer would confirm the
+   period exists. The copy carries the "ask the
+   owner for a new link" guidance the response deliberately withholds. A WRITE
+   cannot keep this whole: a claim must distinguish "won" from "refused", which
+   is a signal a read never emitted. `claim_slots` therefore returns NULL for an
+   unresolvable token — the half that is the security property, since it is what
+   would otherwise confirm a period exists — but *raises* when a requested slot
+   is no longer free, carrying the conflicting `{slot_date, time_of_day}` rows so
+   the page can name the term. That leaks nothing beyond the period the caller
+   already holds a valid token for.
 
 **The rule for future slices:** a new caretaker capability *extends this
 function* (or adds another one under the same four rules). It does **not** add an
-anon policy to a table. S-03's slot claiming and S-04's occupancy view both land
-under this rule.
+anon policy to a table. S-03's slot claiming did exactly that, adding
+`claim_slots`; its sensitive-tier read (`get_claimed_details`) is planned for the
+same slice's Phase 3 and does not exist yet. S-04's occupancy view lands under the
+same rule.
 
 **Response headers.** The token travels in a URL path segment, because the server
 has to resolve it before rendering — a fragment never reaches the server. That

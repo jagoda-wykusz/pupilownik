@@ -775,6 +775,47 @@ section is where they are corrected, so the diff between plan and reality stays 
   `where claim_digest is not null`, since the only intended reader always supplies a non-null
   digest.
 
+### Phase 2 (implementation 2026-09-07)
+
+- **A8 — The grant-posture test is behavioural, not a `has_function_privilege` read.** Phase
+  2's test-group prose says "grant posture, read from `has_function_privilege`". PostgREST
+  exposes only functions in `public`, so no test client in this repo can read `pg_catalog` —
+  a genuine catalog read would need a `pg` devDependency, which §What We're NOT Doing rules
+  out. `tests/rls/claim-slots.test.ts` instead asserts the posture from both sides: `anon` and
+  `authenticated` get past the permission check (the function's own NULL comes back), and
+  `service_role` is refused with SQLSTATE `42501`. That still FAILS when the posture changes
+  in either direction, which is what `lessons.md` asks for. The catalog read stays as manual
+  criterion 2.4, where the plan's Success Criteria already put it.
+
+- **A9 — Failure signalling uses PostgREST's `PTxxx` SQLSTATE convention.** The plan said the
+  refusal must `raise` but did not say how the route would tell a refusal from a 500. The
+  function raises `PT409` for "a slot is no longer free" and `PT400` for a malformed argument;
+  PostgREST maps the last three digits onto the HTTP status, so Phase 4's route branches on
+  `error.code` rather than pattern-matching message text. The conflicting slots ride in the
+  exception's DETAIL as a jsonb array of `{slot_date, time_of_day}`, so the Polish sentence
+  that names the term is composed in TypeScript with the existing `formatDay` /
+  `TIME_OF_DAY_LABEL` rather than in SQL.
+
+- **A10 — The receipt carries `end_date`, and re-claiming a slot you already hold is
+  refused.** `claim_slots` returns `{period_id, end_date, name, claimed_count, slot_ids}`.
+  `end_date` is there so Phase 4 can compute the capability cookie's `Max-Age` without a
+  second round trip; every value in the receipt is already reachable through
+  `get_period_by_token` with the same token, so the payload widens nothing. Separately: the
+  update's freeness guard is `claimed_by_name is null` with no exemption for the caller's own
+  digest, so re-submitting a slot the same capability already holds is refused as a conflict
+  rather than treated as a no-op. Phase 4's UI makes taken slots unselectable, so it should
+  not arise; the slot IS listed in the refusal DETAIL, so the message is never empty.
+
+- **A11 — `docs/reference/data-access.md` was corrected in this phase, not Phase 3.** The plan
+  puts that rewrite in Phase 3. But rule 2's heading ("One `SECURITY DEFINER` function is the
+  **entire** anon-reachable surface") and rule 4 (uniform failure, unqualified) both became
+  false the moment `claim_slots` shipped, and `lessons.md` forbids leaving a present-tense
+  claim standing against code that contradicts it for a whole phase. Rule 2 now describes the
+  read door and the write door; rule 4 records the write widening. The instruction-tier half
+  of that rewrite is still Phase 3's. `contract-surfaces.md` was updated for the same reason:
+  its `care_slots` claim-columns row said `claim_digest` "has no reader or writer yet", which
+  stopped being true. Its `get_claimed_details` sentences are left marked as unbuilt.
+
 ## Follow-ups (outside this change)
 
 - **PRD clarification.** `prd.md:144` §Non-Goals should record that a per-claim capability is
@@ -810,16 +851,16 @@ section is where they are corrected, so the diff between plan and reality stays 
 
 #### Automated
 
-- [ ] 2.1 New `claim-slots` suite passes
-- [ ] 2.2 Full integration suite still passes
-- [ ] 2.3 Type checking and linting pass
+- [x] 2.1 New `claim-slots` suite passes
+- [x] 2.2 Full integration suite still passes
+- [x] 2.3 Type checking and linting pass
 
 #### Manual
 
-- [ ] 2.4 `has_function_privilege` confirms `claim_slots` grant posture
-- [ ] 2.5 `provolatile` for `claim_slots` is `v`
-- [ ] 2.6 A partial selection leaves every requested slot unclaimed
-- [ ] 2.7 The concurrency invariant holds across repeated runs
+- [x] 2.4 `has_function_privilege` confirms `claim_slots` grant posture
+- [x] 2.5 `provolatile` for `claim_slots` is `v`
+- [x] 2.6 A partial selection leaves every requested slot unclaimed
+- [x] 2.7 The concurrency invariant holds across repeated runs
 
 ### Phase 3: The reveal
 
