@@ -1,5 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { createOwnerWithPet, type OwnerWithPetContext } from "../helpers/auth";
+import type { Database } from "@/db/database.types";
 
 // Risk #1 — owner-isolation on public.care_slots (S-02).
 //
@@ -140,7 +141,12 @@ describe("care_slots RLS owner-isolation", () => {
     // Every one of these six writes must fail. A single-column assertion would have kept
     // passing after the constraint was widened, which is precisely the "describes a posture
     // rather than guarding it" failure in context/foundation/lessons.md.
-    const partials: Record<string, string | null>[] = [
+    // Typed to the three claim columns rather than Record<string, string | null>, which
+    // `update()` rejects: an open index signature widens to `{ [x: string]: never }`.
+    type ClaimPartial = Partial<
+      Pick<Database["public"]["Tables"]["care_slots"]["Update"], "claimed_by_name" | "claimed_at" | "claim_digest">
+    >;
+    const partials: ClaimPartial[] = [
       { claimed_by_name: "Ala" },
       { claimed_at: new Date().toISOString() },
       { claim_digest: digest },
