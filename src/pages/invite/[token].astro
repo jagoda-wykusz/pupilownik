@@ -3,9 +3,12 @@ import Layout from "@/layouts/Layout.astro";
 import ThemeToggle from "@/components/ThemeToggle";
 import { createClient } from "@/lib/supabase";
 import { resolveTheme, THEME_COOKIE } from "@/lib/theme";
-import { formatDay, formatRange, formatWeekday, TIMES_OF_DAY, TIME_OF_DAY_LABEL } from "@/lib/period-format";
+// formatWeekday and TIME_OF_DAY_LABEL moved to ClaimSlots with the slot grid it now owns.
+import { formatDay, formatRange, TIMES_OF_DAY } from "@/lib/period-format";
 import { resolveInviteView } from "@/lib/invite-view";
 import { SPECIES_LABEL, type Species } from "@/lib/pet-format";
+import { CLAIM_COOKIE } from "@/lib/claim-cookie";
+import ClaimSlots from "@/components/invite/ClaimSlots";
 import type { TimeOfDay } from "@/lib/period-format";
 
 // The caretaker's view. Deliberately NOT in PROTECTED_ROUTES: whoever holds the link has
@@ -18,14 +21,24 @@ import type { TimeOfDay } from "@/lib/period-format";
 // `authenticated`. get_period_by_token is granted to both, so no new client type is needed
 // and nothing here has to know which one it is.
 //
-// This page is READ-ONLY. Claiming a slot is Phase 4 and occupancy by name is S-04, so the
-// function still returns neither and there is nothing here to accidentally render.
+// TWO reads, and which one runs is the whole access model:
 //
-// It DOES render instructions as of Phase 3 — but only the public tier, and only because
-// `get_period_by_token` returns only that tier. The sensitive rows and the trip note come
-// from a different function (`get_claimed_details`) which this page does not yet call: the
-// capability cookie that would unlock it is Phase 4. So the split is enforced one layer down,
-// in SQL, and this template cannot leak what was never fetched.
+//   get_period_by_token  — the link alone. Period, slots, pets, PUBLIC instruction rows.
+//   get_claimed_details  — the link AND the capability cookie. Sensitive rows, the trip note,
+//                          and this caretaker's own slots. Returns NULL unless that capability
+//                          actually holds a claimed slot on THIS trip.
+//
+// The second call is made with the RAW cookie value. Both functions hash it internally, so
+// nothing here derives a digest — a `digestClaimSecret` call on this page would be a mistake
+// (S-03 Phase 2 impl-review F1).
+//
+// The two payloads PARTITION the instructions: the reveal carries only the sensitive rows, so
+// the page composes them per pet rather than replacing one list with the other (Phase 3
+// addendum A21). Occupancy by name is still S-04, and neither function returns it.
+//
+// The cookie is HttpOnly, so the island cannot read it and the sensitive rows are never handed
+// to client-side code — they are rendered here, server-side, and the island reloads the page
+// after a successful claim rather than swapping state in the browser.
 const supabase = createClient(Astro.request.headers, Astro.cookies);
 const theme = resolveTheme(Astro.cookies.get(THEME_COOKIE)?.value);
 const token = Astro.params.token ?? "";
@@ -54,6 +67,13 @@ interface TokenPayload {
   slots: TokenSlot[];
   pets: TokenPet[];
 }
+interface ClaimedDetails {
+  name: string;
+  caretaker_note: string | null;
+  slots: { id: string; slot_date: string; time_of_day: TimeOfDay }[];
+  /** Same pet shape, but `instructions` carries ONLY the is_sensitive rows. */
+  pets: TokenPet[];
+}
 
 let payload: TokenPayload | null = null;
 let loadError = false;
@@ -74,13 +94,35 @@ if (supabase) {
   loadError = true;
 }
 
+// The capability read. Only attempted when the token itself resolved — there is nothing to
+// reveal on a dead link, and asking would be a second query for no answer. A NULL comes back
+// for a wrong secret, a capability holding nothing here, or a cookie earned on another trip;
+// all three degrade silently to the pre-claim view, which is what resolveInviteView's branch
+// order enforces.
+let claimed: ClaimedDetails | null = null;
+const claimSecret = Astro.cookies.get(CLAIM_COOKIE)?.value;
+
+if (supabase && payload && claimSecret) {
+  const { data, error } = await supabase.rpc("get_claimed_details", {
+    p_token: token,
+    p_claim_secret: claimSecret,
+  });
+  // A failure here is NOT a page failure: the public half already loaded, and showing the
+  // error page would hide a trip the visitor can legitimately see. Degrade to pre-claim.
+  claimed = error ? null : (data as ClaimedDetails | null);
+}
+
 // Unknown, tampered, malformed and revoked tokens all land on one page with one status and
 // one title. That uniformity is a security property, not a UX choice: a distinct "this link
 // was revoked" answer would confirm the period exists. The decision lives in
 // resolveInviteView so it is pinned by tests/unit/invite-view.test.ts rather than by an `if`
 // nobody checks — this exact shape (a status set inside a branch) is what the phase-3 review
 // had to catch by reading, because no test could.
-const view = resolveInviteView({ failed: loadError, periodTitle: payload?.period.title ?? null });
+const view = resolveInviteView({
+  failed: loadError,
+  periodTitle: payload?.period.title ?? null,
+  hasClaims: claimed !== null,
+});
 const inactive = view.kind === "inactive";
 Astro.response.status = view.status;
 
@@ -98,6 +140,14 @@ const freeCount = slots.filter((slot) => !slot.is_claimed).length;
 // produce one. The function answers `pets: []` rather than null for exactly this reason, and
 // the block below is skipped rather than rendering an empty heading.
 const pets = payload?.pets ?? [];
+
+// Compose the two payloads per pet. The reveal returns only sensitive rows and only for a
+// caretaker who claimed, so before that this map is empty and every pet renders its public
+// list alone. Keyed by pet id rather than by index: the two payloads order pets identically
+// today (both `order by pet.name, pet.id`), but relying on that would make a future ordering
+// change a silent mismatch of instructions to animals.
+const sensitiveByPet = new Map((claimed?.pets ?? []).map((pet) => [pet.id, pet.instructions]));
+const myDays = [...new Set((claimed?.slots ?? []).map((slot) => slot.slot_date))].sort();
 ---
 
 <Layout title={view.title}>
@@ -145,6 +195,17 @@ const pets = payload?.pets ?? [];
                 : `Wolnych terminów: ${freeCount} z ${slots.length}.`}
             </p>
 
+            {claimed && (
+              <div class="border-primary bg-secondary mt-6 rounded-lg border-[1.5px] p-4">
+                <p class="text-secondary-foreground text-[15px] font-bold">Zapisano, {claimed.name}!</p>
+                <p class="text-secondary-foreground mt-1 text-[14px]">
+                  {myDays.length === 1
+                    ? `Masz 1 dzien: ${formatDay(myDays[0])}.`
+                    : `Masz ${myDays.length} dni: ${myDays.map((day) => formatDay(day)).join(", ")}.`}
+                </p>
+              </div>
+            )}
+
             {pets.length > 0 && (
               <>
                 <h2 class="font-heading text-foreground mt-8 mb-3 text-[17px] font-bold">Zwierzaki</h2>
@@ -157,21 +218,46 @@ const pets = payload?.pets ?? [];
                           {SPECIES_LABEL[pet.species]}
                         </span>
                       </p>
-                      {pet.instructions.length === 0 ? (
+                      {pet.instructions.length === 0 && (sensitiveByPet.get(pet.id) ?? []).length === 0 ? (
                         <p class="text-muted-foreground mt-2 text-[13px]">
                           Właściciel nie dodał jeszcze wskazówek dla tego zwierzaka.
                         </p>
                       ) : (
-                        <ul class="mt-3 space-y-2">
-                          {pet.instructions.map((instruction) => (
-                            <li class="border-input rounded-lg border-[1.5px] px-3 py-2">
-                              <p class="text-foreground text-[14px] font-semibold">{instruction.title}</p>
-                              {instruction.body && (
-                                <p class="text-muted-foreground mt-1 text-[13px] leading-[1.5]">{instruction.body}</p>
-                              )}
-                            </li>
-                          ))}
-                        </ul>
+                        <>
+                          {pet.instructions.length > 0 && (
+                            <ul class="mt-3 space-y-2">
+                              {pet.instructions.map((instruction) => (
+                                <li class="border-input rounded-lg border-[1.5px] px-3 py-2">
+                                  <p class="text-foreground text-[14px] font-semibold">{instruction.title}</p>
+                                  {instruction.body && (
+                                    <p class="text-muted-foreground mt-1 text-[13px] leading-[1.5]">
+                                      {instruction.body}
+                                    </p>
+                                  )}
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                          {/* The sensitive tier, visually SEPARATED rather than merged into the
+                              list above: the design draws it as its own callout, and mixing the
+                              two would lose the distinction this whole slice is about. Phase 5
+                              gives it the designed treatment; --destructive is the closest
+                              existing token that reads as "handle with care". */}
+                          {(sensitiveByPet.get(pet.id) ?? []).length > 0 && (
+                            <ul class="mt-3 space-y-2">
+                              {(sensitiveByPet.get(pet.id) ?? []).map((instruction) => (
+                                <li class="border-destructive/40 bg-destructive/10 rounded-lg border-[1.5px] px-3 py-2">
+                                  <p class="text-foreground text-[14px] font-semibold">{instruction.title}</p>
+                                  {instruction.body && (
+                                    <p class="text-muted-foreground mt-1 text-[13px] leading-[1.5]">
+                                      {instruction.body}
+                                    </p>
+                                  )}
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </>
                       )}
                     </li>
                   ))}
@@ -179,44 +265,32 @@ const pets = payload?.pets ?? [];
               </>
             )}
 
-            <h2 class="font-heading text-foreground mt-8 mb-3 text-[17px] font-bold">Terminy</h2>
-            <ul class="space-y-3">
-              {byDay.map((entry) => (
-                <li class="border-border bg-card rounded-lg border-[1.5px] p-4">
-                  <p class="text-foreground text-[15px] font-bold">
-                    {formatDay(entry.day)}
-                    <span class="text-muted-foreground ml-2 text-[13px] font-normal">{formatWeekday(entry.day)}</span>
-                  </p>
-                  <ul class="mt-3 grid grid-cols-3 gap-2">
-                    {entry.slots.map((slot) => (
-                      <li
-                        class:list={[
-                          "rounded-lg border-[1.5px] px-3 py-2 text-center text-[13px]",
-                          slot.is_claimed
-                            ? "border-primary bg-secondary text-secondary-foreground font-bold"
-                            : "border-input text-muted-foreground",
-                        ]}
-                      >
-                        <span class="block">{TIME_OF_DAY_LABEL[slot.time_of_day]}</span>
-                        <span class="block text-[12px]">{slot.is_claimed ? "zajęte" : "wolne"}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </li>
-              ))}
-            </ul>
+            {claimed?.caretaker_note && (
+              <>
+                <h2 class="font-heading text-foreground mt-8 mb-3 text-[17px] font-bold">Notatka od właściciela</h2>
+                <p class="border-destructive/40 bg-destructive/10 text-foreground rounded-lg border-[1.5px] p-4 text-[14px] leading-[1.6] whitespace-pre-line">
+                  {claimed.caretaker_note}
+                </p>
+              </>
+            )}
 
-            {/* One note, not two. Phase 3 briefly shipped two that contradicted each other:
-                one said the sensitive tier unlocks "po zapisaniu się na termin", the other
-                said signing up is not available yet — so the page pointed at an action it
-                does not offer (impl-review F9). Merged here, and deliberately OUTSIDE the
-                pets guard: a trip with no linked pets is representable, and it still needs
-                the explanation. Phase 4 replaces this paragraph with the claim UI. */}
-            <p class="text-muted-foreground mt-6 text-[13px] leading-[1.5]">
-              Zapisywanie się na terminy będzie dostępne wkrótce — a razem z nim część wskazówek, na przykład dostęp do
-              mieszkania, którą właściciel udostępnia dopiero zapisanym opiekunom. Na razie ustal z właścicielem, który
-              termin bierzesz.
-            </p>
+            <h2 class="font-heading text-foreground mt-8 mb-3 text-[17px] font-bold">Terminy</h2>
+            {/* The island replaces the read-only list Phase 3 left behind. `byDay` was already
+                the natural serializable prop. `hasCapability` is the ONLY thing about the
+                capability that crosses to the client - the secret stays in an HttpOnly cookie
+                the browser cannot read, and the revealed rows are rendered above, server-side. */}
+            <ClaimSlots byDay={byDay} token={token} hasCapability={claimed !== null} client:load />
+
+            {/* The tier hint, now that claiming exists. Shown only BEFORE claiming: once the
+                sensitive rows are on the page, saying they are withheld would be false. Kept
+                outside the pets guard for the reason Phase 3's review gave - a trip with no
+                linked pets is representable and still needs the explanation. */}
+            {!claimed && (
+              <p class="text-muted-foreground mt-6 text-[13px] leading-[1.5]">
+                Część wskazówek — na przykład dostęp do mieszkania — właściciel udostępnia dopiero po zapisaniu się na
+                termin.
+              </p>
+            )}
           </>
         )
       }

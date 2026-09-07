@@ -108,3 +108,10 @@ export function countDays(startDate: string, endDate: string): number {
 // 80 rather than MAX_TITLE_LENGTH's 120: this is a person's name, and the bound exists to cap
 // what an anonymous caller can store, not to accommodate a long one.
 export const MAX_CLAIMANT_NAME_LENGTH = 80;
+
+// Upper bound on how many slots one claim request may carry. 93 = MAX_SPAN_DAYS x 3 times of
+// day, which is every slot in the longest possible trip — so this is not a product limit a
+// caretaker can hit, it is the cap that stops an anonymous caller sending an unbounded array
+// to the only write in this schema they can reach. `claim_slots` enforces it with a raise;
+// this constant is what turns that into a clean 400 (S-03 Phase 2).
+export const MAX_SLOTS_PER_CLAIM = MAX_SPAN_DAYS * TIMES_OF_DAY.length;

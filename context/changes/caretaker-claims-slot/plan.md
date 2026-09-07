@@ -1002,6 +1002,43 @@ section is where they are corrected, so the diff between plan and reality stays 
   not available yet. Merged into one sentence and moved outside the `pets.length > 0` guard, since
   a petless trip is representable and still needs the explanation.
 
+### Phase 4 (implementation 2026-09-07)
+
+- **A28 — One capability cookie serves EVERY trip, because it is keyed by path, not by
+  period.** `Path=/invite` means the same cookie rides along on every invite link this browser
+  opens. That is deliberate and it is what the Phase 3 review's cross-trip test exists to
+  support: one browser presenting one capability against two trips is a valid state, both
+  `claim_slots` and `get_claimed_details` scope by `period_id`, and it is what lets a caretaker
+  help two households without re-entering their name. Two consequences: (a) `Max-Age` is
+  rewritten by whichever trip was claimed most recently, so claiming an earlier trip after a
+  later one shortens the window — accepted, since the floor is still a day past that trip's own
+  end; (b) `MIN_AGE_SECONDS` exists for the case that actually happens, a last-minute favour on
+  a trip ending today, where the computed age would otherwise be zero or negative and the
+  browser would drop the cookie immediately — the caretaker would claim successfully and then
+  be shown the pre-claim page, which reads as "it didn't work".
+
+- **A29 — The island reloads the page on success rather than swapping state.** The revealed
+  tier is rendered SERVER-side from the HttpOnly cookie the response just set. The island
+  cannot read that cookie, and must not be handed the sensitive rows to render — so a reload is
+  what makes the reveal happen. `hasCapability` (a boolean) is the only thing about the
+  capability that crosses to the client.
+
+- **A30 — The route suite twice asserted the wrong thing before the guard was added.** The
+  seeded period had 9 slots and the suite consumed all of them, so `freeSlots(1)` began
+  returning `[]`. An empty `slot_ids` is caught by zod as a 400 — which meant the "uniform 404"
+  and "409 names the term" tests both passed the wrong assertion rather than failing. Fixed by
+  widening the period to 19 days and making the helper **throw** on exhaustion instead of
+  silently returning a short array. Recorded because the failure mode is generic: a seeding
+  helper that degrades quietly turns a shared fixture into a source of false green.
+
+- **A31 — The claim schema is its own module, and `MAX_SLOTS_PER_CLAIM` joined the shared
+  bounds.** Phase 4's Changes Required describes the zod schema inside the route section;
+  it lives in `src/lib/schemas/claim.ts` instead, matching `schemas/period.ts` — the island
+  needs `MAX_CLAIMANT_NAME_LENGTH` for its `maxLength` and must not pull zod into the browser
+  bundle, which is the same reason `period-format.ts` exists. `MAX_SLOTS_PER_CLAIM` is derived
+  (`MAX_SPAN_DAYS * TIMES_OF_DAY.length`) rather than written as 93, so the SQL literal and the
+  TypeScript bound cannot drift apart silently.
+
 ## Follow-ups (outside this change)
 
 - **PRD clarification.** `prd.md:144` §Non-Goals should record that a per-claim capability is
@@ -1067,19 +1104,19 @@ section is where they are corrected, so the diff between plan and reality stays 
 
 #### Automated
 
-- [ ] 4.1 New route suite passes
-- [ ] 4.2 The uniform-failure unit test passes with the fourth view kind
-- [ ] 4.3 Full suite passes
-- [ ] 4.4 Type checking and linting pass
+- [x] 4.1 New route suite passes
+- [x] 4.2 The uniform-failure unit test passes with the fourth view kind
+- [x] 4.3 Full suite passes
+- [x] 4.4 Type checking and linting pass
 
 #### Manual
 
-- [ ] 4.5 End-to-end claim on a phone-sized viewport reveals the sensitive tier and the note
-- [ ] 4.6 A second claim from the same browser needs no name and updates the count
-- [ ] 4.7 Incognito shows the pre-claim view
-- [ ] 4.8 Invite headers present; capability cookie is `HttpOnly` with `Path=/invite`
-- [ ] 4.9 The cookie is absent from `/periods` and `/dashboard` requests
-- [ ] 4.10 A conflicting selection refuses entirely and names the term
+- [x] 4.5 End-to-end claim on a phone-sized viewport reveals the sensitive tier and the note
+- [x] 4.6 A second claim from the same browser needs no name and updates the count
+- [x] 4.7 Incognito shows the pre-claim view
+- [x] 4.8 Invite headers present; capability cookie is `HttpOnly` with `Path=/invite`
+- [x] 4.9 The cookie is absent from `/periods` and `/dashboard` requests
+- [x] 4.10 A conflicting selection refuses entirely and names the term
 
 ### Phase 5: Design layer
 

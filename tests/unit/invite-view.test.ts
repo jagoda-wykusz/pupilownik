@@ -52,3 +52,52 @@ describe("caretaker page view resolution", () => {
     expect(resolveInviteView({ failed: true, periodTitle: "Wyjazd" }).kind).toBe("error");
   });
 });
+
+// The fourth state, added in S-03 Phase 4. The uniform-failure property is what this file
+// exists to protect, so the cases that matter are the ones where a capability is present AND
+// the token does not resolve — a post-claim branch must never become a way to tell a dead link
+// from a live one.
+describe("caretaker page view resolution — post-claim", () => {
+  it("shows the claimed view when a capability resolves on a live trip", () => {
+    expect(resolveInviteView({ failed: false, periodTitle: "Weekend u rodziców", hasClaims: true })).toEqual({
+      kind: "claimed",
+      status: 200,
+      title: "Opieka: Weekend u rodziców",
+    });
+  });
+
+  it("degrades a capability on an unresolvable token to the same inactive page", () => {
+    // The cookie survives the trip being revoked, and it survives being carried to a different
+    // link — Path=/invite means it rides along on every invite URL. Both must land on the one
+    // uniform failure.
+    const withCapability = resolveInviteView({ failed: false, periodTitle: null, hasClaims: true });
+    const without = resolveInviteView({ failed: false, periodTitle: null, hasClaims: false });
+
+    expect(withCapability).toEqual(without);
+    expect(withCapability).toEqual({ kind: "inactive", status: 404, title: INACTIVE_TITLE });
+  });
+
+  it("keeps a load failure distinct from a capability, and checks it first", () => {
+    // Branch order again: a broken backend cannot resolve a capability either, so `failed`
+    // must win — otherwise a transport error would render as a post-claim page with no content.
+    expect(resolveInviteView({ failed: true, periodTitle: "Wyjazd", hasClaims: true }).kind).toBe("error");
+  });
+
+  it("gives the claimed view the same title as the pre-claim one", () => {
+    const pre = resolveInviteView({ failed: false, periodTitle: "Wyjazd", hasClaims: false });
+    const post = resolveInviteView({ failed: false, periodTitle: "Wyjazd", hasClaims: true });
+
+    // The tab, and therefore browser history, must not announce that this visitor holds slots.
+    expect(post.title).toBe(pre.title);
+    expect(post.status).toBe(pre.status);
+    expect(post.kind).not.toBe(pre.kind);
+  });
+
+  it("treats an absent capability exactly as a false one", () => {
+    // The page passes `hasClaims` only when it resolved something; `undefined` must not be a
+    // third behaviour.
+    expect(resolveInviteView({ failed: false, periodTitle: "Wyjazd" })).toEqual(
+      resolveInviteView({ failed: false, periodTitle: "Wyjazd", hasClaims: false }),
+    );
+  });
+});

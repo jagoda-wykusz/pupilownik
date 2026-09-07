@@ -11,6 +11,7 @@
 
 export type InviteView =
   | { kind: "period"; status: number; title: string }
+  | { kind: "claimed"; status: number; title: string }
   | { kind: "inactive"; status: number; title: string }
   | { kind: "error"; status: number; title: string };
 
@@ -20,13 +21,30 @@ export type InviteView =
 // and it is reachable only by a broken backend, never by varying the token.
 export const INACTIVE_TITLE = "Link nieaktywny";
 
-export function resolveInviteView(input: { failed: boolean; periodTitle: string | null }): InviteView {
+export function resolveInviteView(input: {
+  failed: boolean;
+  periodTitle: string | null;
+  /** True when this visitor presented a capability that resolved to claimed slots on THIS
+   *  trip. Phase 4. Deliberately a boolean rather than the payload: this function decides
+   *  what to show, and handing it the revealed content would invite it to grow branches on
+   *  the content's shape. */
+  hasClaims?: boolean;
+}): InviteView {
   if (input.failed) {
     return { kind: "error", status: 200, title: INACTIVE_TITLE };
   }
   if (input.periodTitle === null) {
-    // Every unresolved token lands here, whatever made it unresolvable.
+    // Every unresolved token lands here, whatever made it unresolvable. Note the ORDER: this
+    // is tested before hasClaims on purpose. A capability that no longer resolves — the period
+    // was revoked, or the cookie belongs to a different trip — must degrade to the same
+    // inactive page as any other dead link, never to a post-claim view with nothing in it.
     return { kind: "inactive", status: 404, title: INACTIVE_TITLE };
+  }
+  if (input.hasClaims === true) {
+    // Same status and the same title shape as `period`. The title must NOT announce that this
+    // visitor holds slots: it is the browser tab, it lands in history, and on a shared phone
+    // it would say more than the page does.
+    return { kind: "claimed", status: 200, title: `Opieka: ${input.periodTitle}` };
   }
   return { kind: "period", status: 200, title: `Opieka: ${input.periodTitle}` };
 }
