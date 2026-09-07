@@ -116,15 +116,42 @@ lands; before that, it is `planned`.
 
 | Gate | Where | Required? | Catches |
 |------|-------|-----------|---------|
-| lint + typecheck | local (husky/lint-staged + `npm run lint`) + Cloudflare Workers Builds | required (wired) | syntactic / type drift |
+| format (prettier, edited file) | per-edit agent hook (`.claude/hooks/format-edited-file.mjs`) | required (wired) | formatting drift; a file the formatter cannot parse |
+| lint | local (husky/lint-staged on staged files + `npm run lint`) + Cloudflare Workers Builds | required (wired) | syntactic drift |
+| typecheck | local (husky pre-commit, `tsc --noEmit`) + Cloudflare Workers Builds | required (wired) | type drift |
 | build | local (`npm run build`) + Cloudflare Workers Builds | required (wired) | broken SSR build |
 | unit + integration | local + CI | required after §3 Phase 1 | logic + RLS regressions |
+| unit + integration, scoped to the edited file | per-edit agent hook for risk-area files (`.claude/hooks/related-tests.mjs`) | required (wired) | logic + RLS regressions on the path just edited |
 | secret-leak grep on build output | CI | required after §3 Phase 3 | Secret/PII shipped to client |
 | Supabase advisors (security) | local (`npx supabase db advisors`) | recommended on every migration | RLS / definer-function issues |
 | e2e on critical flows | CI on PR | optional (deferred to post-Phase 4) | broken critical user paths |
 
 CI runs via Cloudflare Workers Builds connected to the GitHub repo; there is
 no GitHub Actions workflow. New gates wire into that flow.
+
+### Which layer each gate lives in
+
+Gates are placed by measured cost, not by preference. Measured on this project
+(Windows, 2026-09-07):
+
+| Check | Scope | Cost | Layer |
+|-------|-------|------|-------|
+| `prettier --write <file>` | one file | ~0.3s | per-edit agent hook |
+| `vitest related <file> --run` | one file's import graph | ~2s | per-edit agent hook, risk areas only |
+| `eslint --fix <file>` | one file | 12-22s (type-aware, `projectService: true`) | pre-commit (lint-staged) |
+| `eslint .` | whole project | ~110s | CI |
+| `tsc --noEmit` | whole project | ~26s | pre-commit |
+| `astro check` | whole project + templates | ~38s | not wired — promote if a template type error slips through |
+
+Two consequences worth knowing before changing the wiring:
+
+- **Lint is not a per-edit hook here.** `projectService: true` makes ESLint
+  build a TS program per invocation, so even single-file linting costs 12-22s.
+  It stays on staged files at commit time.
+- **The scoped test hook skips instead of failing when the local Supabase stack
+  is down.** The suite needs it; a stack-down failure says nothing about the
+  edit, and a blocking exit code there would train the agent to ignore the hook.
+  Migrations are also skipped (verifying them needs `npm run db:reset`).
 
 ## 6. Cookbook Patterns
 

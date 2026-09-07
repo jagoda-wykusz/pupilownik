@@ -1,1 +1,8 @@
 npx lint-staged
+
+# Typecheck the whole project. Deliberately NOT a per-edit agent hook: it costs
+# ~26s here, which would stall the agent loop on every Write/Edit. Per-edit
+# formatting and scoped tests live in .claude/settings.json instead.
+# (`astro check` also covers .astro templates but costs ~38s — promote it if a
+# template type error ever slips through.)
+npx tsc --noEmit

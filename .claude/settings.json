@@ -1,0 +1,25 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [".claude/hooks/format-edited-file.mjs"],
+            "timeout": 30,
+            "statusMessage": "Formatting edited file"
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [".claude/hooks/related-tests.mjs"],
+            "timeout": 180,
+            "statusMessage": "Running related tests"
+          }
+        ]
+      }
+    ]
+  }
+}
