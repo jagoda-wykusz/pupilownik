@@ -891,6 +891,58 @@ section is where they are corrected, so the diff between plan and reality stays 
   submitting overlapping multi-slot selections within milliseconds — which is why this is a
   route-level guard rather than a schema change.
 
+### Phase 3 (implementation 2026-09-07)
+
+- **A18 — `tests/api/periods.post.test.ts` needed no edit; the plan named it wrongly.** Phase
+  3's Changes Required lists it among the payload consumers "that pin the payload's exact key
+  sets (`invite-token.test.ts:54`, `periods.post.test.ts:218,282-283`)". Read against the file:
+  lines 218 and 283 take only `payload.period.id` out of the RPC result, and the exact key set
+  pinned at line 209 belongs to the **API response**, not to `get_period_by_token`'s payload.
+  Adding `pets` is additive, so nothing there broke. The only genuine payload pin was
+  `invite-token.test.ts`, which was updated: its top-level key set now reads
+  `["period", "pets", "slots"]`, and its `not.toContain("instruction")` assertion — false the
+  moment this phase shipped — was replaced by named-column assertions
+  (`claimed_by_name`, `claim_digest`, `caretaker_note`, `token_digest`, `owner_id`). Note the
+  trap that cost one failing run: `not.toContain("claim")` fails on the legitimate key
+  `is_claimed`, so these have to be spelled out in full rather than matched by substring.
+
+- **A19 — Phase 3 shipped a new test file and rendered the public tier; the plan named
+  neither.** Its Changes Required says only "widen the page's local `TokenPayload` interface".
+  Two additions, both deliberate:
+  (a) `tests/rls/reveal-instructions.test.ts` (13 tests). The tier split is Risk #4 and rests
+  entirely on two predicates with no policy behind them, so it earns its own file next to
+  `claim-slots.test.ts` rather than being appended to a suite about the token model. It
+  searches the WHOLE serialized pre-claim payload for the sensitive body text rather than
+  checking a named field — `test-plan.md:64`'s anti-pattern is "asserting the DB column split
+  while the API leaks the field anyway".
+  (b) The caretaker page renders the pets and their public instructions. Widening the
+  interface without rendering would leave the data fetched and dropped, and no later phase
+  picks it up: Phase 4 is the claim plus the post-claim state, Phase 5 is design polish on a
+  block it assumes exists (criterion 5.6 reads "the sensitive callout is visually separated
+  from the public list"). Deliberately unstyled beyond existing tokens.
+
+- **A20 — Species labels extracted to `src/lib/pet-format.ts`, and two out-of-scope files
+  migrated.** The caretaker page would have been the THIRD copy of "Pies / Kot / Inne", after
+  `src/pages/pets/index.astro:44` (a `Record`) and `src/components/pets/AddPetForm.tsx:16` (a
+  `{value,label}[]`). `context/foundation/lessons.md` requires enumerating consumers before
+  changing something shared and forbids passing one over in silence, so this was surfaced and
+  approved rather than decided quietly. `SPECIES_LABEL` is keyed by the `pet_species` enum, so
+  a new species without a label is now a type error instead of an `undefined` on a page; that
+  also made the `?? pet.species` fallback in `pets/index.astro` statically dead, and it was
+  removed. `SPECIES_OPTIONS` is derived from the map rather than written out again.
+
+- **A21 — The reveal returns ONLY sensitive rows, and the page composes the two payloads.**
+  The plan's contract line says `pets: [{ …, instructions: [ …sensitive rows… ] }]` while
+  §Desired End State says the caretaker sees "the full instruction list including the sensitive
+  tier". Implemented as the contract line reads: the two payloads **partition** the instruction
+  set. Reasons: the public rows already reached the page through `get_period_by_token`, so
+  repeating them would make two sources of truth for the same row; and the design draws the
+  sensitive block as a visually separated callout, not as entries mixed into one list. A pet
+  with no sensitive rows still appears with `instructions: []`, so the two payloads never
+  disagree about which pets are on the trip. Pinned both ways —
+  `reveal-instructions.test.ts` asserts the public body is absent from the reveal and the
+  sensitive body is absent from the read door.
+
 ## Follow-ups (outside this change)
 
 - **PRD clarification.** `prd.md:144` §Non-Goals should record that a per-claim capability is
@@ -941,16 +993,16 @@ section is where they are corrected, so the diff between plan and reality stays 
 
 #### Automated
 
-- [ ] 3.1 Both payload-pinning suites pass with updated key sets
-- [ ] 3.2 Unit tests pass
-- [ ] 3.3 Type checking and linting pass
+- [x] 3.1 Both payload-pinning suites pass with updated key sets
+- [x] 3.2 Unit tests pass
+- [x] 3.3 Type checking and linting pass
 
 #### Manual
 
-- [ ] 3.4 `get_claimed_details` grant posture and `provolatile = s` confirmed
-- [ ] 3.5 Token alone returns public rows and no sensitive rows
-- [ ] 3.6 A zero-pet period returns `pets: []` and renders
-- [ ] 3.7 A wrong or absent claim secret returns NULL
+- [x] 3.4 `get_claimed_details` grant posture and `provolatile = s` confirmed
+- [x] 3.5 Token alone returns public rows and no sensitive rows
+- [x] 3.6 A zero-pet period returns `pets: []` and renders
+- [x] 3.7 A wrong or absent claim secret returns NULL
 
 ### Phase 4: Route, cookie & a working claim
 

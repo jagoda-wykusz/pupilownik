@@ -1,6 +1,7 @@
 ---
 import Layout from "@/layouts/Layout.astro";
 import { createClient } from "@/lib/supabase";
+import { SPECIES_LABEL } from "@/lib/pet-format";
 
 // Protected by middleware (PROTECTED_ROUTES includes "/pets"): an unauthenticated
 // request is redirected to /auth/signin before this frontmatter runs. The query
@@ -40,8 +41,6 @@ if (supabase) {
   // than an empty list, so a misconfiguration doesn't masquerade as "no pets".
   loadError = true;
 }
-
-const SPECIES_LABEL: Record<string, string> = { dog: "Pies", cat: "Kot", other: "Inne" };
 ---
 
 <Layout title="Moje zwierzęta">
@@ -87,7 +86,7 @@ const SPECIES_LABEL: Record<string, string> = { dog: "Pies", cat: "Kot", other: 
                 <li class="rounded-2xl border border-white/10 bg-white/10 p-5 backdrop-blur-xl">
                   <div class="mb-1 flex items-baseline justify-between">
                     <h2 class="text-xl font-semibold text-white">{pet.name}</h2>
-                    <span class="text-xs text-blue-100/60">{SPECIES_LABEL[pet.species] ?? pet.species}</span>
+                    <span class="text-xs text-blue-100/60">{SPECIES_LABEL[pet.species]}</span>
                   </div>
                   <p class="text-sm text-blue-100/70">
                     {[pet.breed, pet.age].filter(Boolean).join(" · ") || "Brak dodatkowych danych"}

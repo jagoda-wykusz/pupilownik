@@ -4,20 +4,13 @@ import { FormField } from "@/components/auth/FormField";
 import { ServerError } from "@/components/auth/ServerError";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { SPECIES_OPTIONS, type Species } from "@/lib/pet-format";
 
 // Add-pet React island (client:load). Mirrors SignInForm's approach: local state
 // with client-side validation for UX, but the server (/api/pets → zod) is the
 // source of truth. Submits JSON (nested instructions) and, on 201, navigates to
 // the owner's pet list. Species is a segmented control; instructions are a
 // dynamic add/remove list with a public/sensitive toggle.
-
-type Species = "dog" | "cat" | "other";
-
-const SPECIES: { value: Species; label: string }[] = [
-  { value: "dog", label: "Pies" },
-  { value: "cat", label: "Kot" },
-  { value: "other", label: "Inne" },
-];
 
 interface InstructionRow {
   title: string;
@@ -136,7 +129,7 @@ export default function AddPetForm() {
       <div>
         <span className="mb-1 block text-sm text-blue-100/80">Gatunek</span>
         <div className="grid grid-cols-3 gap-2" role="group" aria-label="Gatunek">
-          {SPECIES.map((s) => (
+          {SPECIES_OPTIONS.map((s) => (
             <button
               key={s.value}
               type="button"

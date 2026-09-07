@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase";
 import { resolveTheme, THEME_COOKIE } from "@/lib/theme";
 import { formatDay, formatRange, formatWeekday, TIMES_OF_DAY, TIME_OF_DAY_LABEL } from "@/lib/period-format";
 import { resolveInviteView } from "@/lib/invite-view";
+import { SPECIES_LABEL, type Species } from "@/lib/pet-format";
 import type { TimeOfDay } from "@/lib/period-format";
 
 // The caretaker's view. Deliberately NOT in PROTECTED_ROUTES: whoever holds the link has
@@ -17,9 +18,14 @@ import type { TimeOfDay } from "@/lib/period-format";
 // `authenticated`. get_period_by_token is granted to both, so no new client type is needed
 // and nothing here has to know which one it is.
 //
-// This page is READ-ONLY. Claiming a slot is S-03, occupancy by name is S-04, and
-// instructions are S-03's guardrail — the function returns none of them, so there is
-// nothing here to accidentally render.
+// This page is READ-ONLY. Claiming a slot is Phase 4 and occupancy by name is S-04, so the
+// function still returns neither and there is nothing here to accidentally render.
+//
+// It DOES render instructions as of Phase 3 — but only the public tier, and only because
+// `get_period_by_token` returns only that tier. The sensitive rows and the trip note come
+// from a different function (`get_claimed_details`) which this page does not yet call: the
+// capability cookie that would unlock it is Phase 4. So the split is enforced one layer down,
+// in SQL, and this template cannot leak what was never fetched.
 const supabase = createClient(Astro.request.headers, Astro.cookies);
 const theme = resolveTheme(Astro.cookies.get(THEME_COOKIE)?.value);
 const token = Astro.params.token ?? "";
@@ -30,9 +36,23 @@ interface TokenSlot {
   time_of_day: TimeOfDay;
   is_claimed: boolean;
 }
+interface TokenInstruction {
+  id: string;
+  title: string;
+  body: string | null;
+  sort_order: number;
+}
+interface TokenPet {
+  id: string;
+  name: string;
+  species: Species;
+  // PUBLIC rows only — see the note above. Already ordered by sort_order in SQL.
+  instructions: TokenInstruction[];
+}
 interface TokenPayload {
   period: { id: string; title: string; start_date: string; end_date: string };
   slots: TokenSlot[];
+  pets: TokenPet[];
 }
 
 let payload: TokenPayload | null = null;
@@ -72,6 +92,12 @@ const byDay = [...new Set(slots.map((slot) => slot.slot_date))].sort().map((day)
   ),
 }));
 const freeCount = slots.filter((slot) => !slot.is_claimed).length;
+
+// A period with ZERO pets is representable by decision: create_period_with_slots enforces
+// "at least one pet" and nothing else does, so a raw insert or a deleted last pet both
+// produce one. The function answers `pets: []` rather than null for exactly this reason, and
+// the block below is skipped rather than rendering an empty heading.
+const pets = payload?.pets ?? [];
 ---
 
 <Layout title={view.title}>
@@ -118,6 +144,48 @@ const freeCount = slots.filter((slot) => !slot.is_claimed).length;
                 ? "Wszystkie terminy są już zajęte."
                 : `Wolnych terminów: ${freeCount} z ${slots.length}.`}
             </p>
+
+            {pets.length > 0 && (
+              <>
+                <h2 class="font-heading text-foreground mt-8 mb-3 text-[17px] font-bold">Zwierzaki</h2>
+                <ul class="space-y-3">
+                  {pets.map((pet) => (
+                    <li class="border-border bg-card rounded-lg border-[1.5px] p-4">
+                      <p class="text-foreground text-[15px] font-bold">
+                        {pet.name}
+                        <span class="text-muted-foreground ml-2 text-[13px] font-normal">
+                          {SPECIES_LABEL[pet.species]}
+                        </span>
+                      </p>
+                      {pet.instructions.length === 0 ? (
+                        <p class="text-muted-foreground mt-2 text-[13px]">
+                          Właściciel nie dodał jeszcze wskazówek dla tego zwierzaka.
+                        </p>
+                      ) : (
+                        <ul class="mt-3 space-y-2">
+                          {pet.instructions.map((instruction) => (
+                            <li class="border-input rounded-lg border-[1.5px] px-3 py-2">
+                              <p class="text-foreground text-[14px] font-semibold">{instruction.title}</p>
+                              {instruction.body && (
+                                <p class="text-muted-foreground mt-1 text-[13px] leading-[1.5]">{instruction.body}</p>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+                {/* Named so a caretaker does not assume this is everything there is to know.
+                    The sensitive tier exists and is deliberately withheld until they claim —
+                    saying so beats silence, and it is the same reasoning as the "no claim
+                    button yet" note below. */}
+                <p class="text-muted-foreground mt-3 text-[13px] leading-[1.5]">
+                  Część wskazówek — na przykład dostęp do mieszkania — właściciel udostępnia dopiero po zapisaniu się na
+                  termin.
+                </p>
+              </>
+            )}
 
             <h2 class="font-heading text-foreground mt-8 mb-3 text-[17px] font-bold">Terminy</h2>
             <ul class="space-y-3">

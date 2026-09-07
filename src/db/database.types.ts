@@ -292,6 +292,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      get_claimed_details: {
+        Args: { p_claim_secret: string; p_token: string }
+        Returns: Json
+      }
       get_period_by_token: { Args: { p_token: string }; Returns: Json }
       regenerate_period_token: {
         Args: { p_period_id: string; p_token_digest: string }

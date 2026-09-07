@@ -13,9 +13,22 @@ import type { Database } from "@/db/database.types";
 // Every call here goes through createAnonClient() — a client with no session, carrying the
 // `anon` role, which is what a caretaker following a link actually is.
 
+interface TokenInstruction {
+  id: string;
+  title: string;
+  body: string | null;
+  sort_order: number;
+}
+interface TokenPet {
+  id: string;
+  name: string;
+  species: string;
+  instructions: TokenInstruction[];
+}
 interface TokenPayload {
   period: { id: string; title: string; start_date: string; end_date: string };
   slots: { id: string; slot_date: string; time_of_day: string; is_claimed: boolean }[];
+  pets: TokenPet[];
 }
 
 describe("invite token access model", () => {
@@ -114,18 +127,29 @@ describe("invite token access model", () => {
     expect(outcomes).toEqual([null, null, null, null, null]);
   });
 
-  it("carries no instruction rows in the payload", async () => {
+  it("carries exactly the three top-level keys, and no caretaker identity", async () => {
     const payload = await resolve(aToken);
 
-    expect(Object.keys(payload ?? {}).sort()).toEqual(["period", "slots"]);
-    // Nor the owner identity or the digest the link is compared against.
+    // `pets` joined in S-03 Phase 3. The assertion stays an EXACT key set rather than a
+    // subset check: this payload is read by anyone holding the link, so a new key must be a
+    // deliberate edit here, never a silent widening.
+    expect(Object.keys(payload ?? {}).sort()).toEqual(["period", "pets", "slots"]);
+    // Not the owner identity, not the digest the link is compared against — and not
+    // caretaker_note, which is sensitive tier and belongs to get_claimed_details.
     expect(Object.keys(payload?.period ?? {}).sort()).toEqual(["end_date", "id", "start_date", "title"]);
     // The SLOT keys matter most: adding `claimed_by_name` to the function's
     // jsonb_build_object is the likeliest leak in this whole payload — a caretaker's identity
     // belongs to S-04 (FR-006), and anyone holding the link can read this. Pinning the exact
     // key set makes that a failing test rather than a silent widening.
     expect(Object.keys(payload?.slots[0] ?? {}).sort()).toEqual(["id", "is_claimed", "slot_date", "time_of_day"]);
-    expect(JSON.stringify(payload)).not.toContain("instruction");
+    // Named exactly, not by substring: `is_claimed` is a legitimate key and a `not.toContain
+    // ("claim")` assertion fails on it. These two are the columns that must never travel.
+    const serialized = JSON.stringify(payload);
+    expect(serialized).not.toContain("claimed_by_name");
+    expect(serialized).not.toContain("claim_digest");
+    expect(serialized).not.toContain("caretaker_note");
+    expect(serialized).not.toContain("token_digest");
+    expect(serialized).not.toContain("owner_id");
   });
 
   it("is the only door — anon cannot select either table directly", async () => {

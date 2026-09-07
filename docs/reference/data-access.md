@@ -96,15 +96,26 @@ a **function**, not an anon policy.
    Until S-03 Phase 2 there was exactly one, and the heading said so; there are
    now two. The rule was always about the *shape* rather than the count — each
    is a named function whose body is the whole authorization boundary, with no
-   policy behind it, and never an anon policy on a table. Both carry
+   policy behind it, and never an anon policy on a table. There are three as of
+   S-03 Phase 3. Both carry
    `set search_path = ''`, fully-qualified objects, and an explicit
    `revoke execute … from public, anon, authenticated, service_role` followed by
    `grant execute … to anon, authenticated`.
    - **The read door**: `public.get_period_by_token(p_token text)`, `STABLE`.
      Computes the digest inside the function, resolves **at most one** active
-     period, and returns the period plus its slots' free/taken state — no
-     instruction rows, no `owner_id`, no `token_digest`, and no parameter that
-     could widen the result set.
+     period, and returns the period plus its slots' free/taken state and its pets
+     with their **public** (`is_sensitive = false`) instruction rows — no
+     sensitive rows, no `caretaker_note`, no `claimed_by_name`, no `owner_id`, no
+     `token_digest`, and no parameter that could widen the result set. A period
+     with no linked pets returns `pets: []`.
+   - **The reveal door**: `public.get_claimed_details(p_token, p_claim_secret)`,
+     `STABLE`. Requires BOTH credentials and returns NULL unless that capability
+     holds at least one claimed slot in that period. Serves the sensitive
+     instruction tier, the trip's `caretaker_note` and the caretaker's own slots.
+     Separate from the read door rather than a parameter on it, because a
+     `p_reveal_sensitive` argument is exactly the "parameter that could widen the
+     result set" this rule forbids — the tier split would then rest on one boolean
+     invisible from outside.
    - **The write door**: `public.claim_slots(p_token, p_slot_ids,
      p_claim_secret, p_name)`, `VOLATILE` — a separate function because Postgres
      forbids a `STABLE` one from writing. It **derives** the period from the
@@ -136,9 +147,22 @@ a **function**, not an anon policy.
 **The rule for future slices:** a new caretaker capability *extends this
 function* (or adds another one under the same four rules). It does **not** add an
 anon policy to a table. S-03's slot claiming did exactly that, adding
-`claim_slots`; its sensitive-tier read (`get_claimed_details`) is planned for the
-same slice's Phase 3 and does not exist yet. S-04's occupancy view lands under the
+`claim_slots` and then `get_claimed_details`. S-04's occupancy view lands under the
 same rule.
+
+**The instruction tier split is two predicates, and nothing else.** Both reading
+functions are `SECURITY DEFINER`, so they run as their owner and RLS on `pets`
+and `care_instructions` does not apply inside them — which is the point, since
+`anon` has no policy on either table and could not read them otherwise. What
+separates the public tier from the sensitive one is therefore
+`is_sensitive = false` in `get_period_by_token` and `is_sensitive = true` in
+`get_claimed_details`. There is no second layer behind either predicate. The two
+payloads **partition** the instruction set rather than overlapping: the reveal
+returns only the sensitive rows, and the page composes them with the public ones
+it already has. `tests/rls/reveal-instructions.test.ts` searches the whole
+serialized pre-claim payload for the sensitive body text, rather than checking a
+named field, because the failure to catch is "the column split is right but the
+API serializes it anyway".
 
 **Response headers.** The token travels in a URL path segment, because the server
 has to resolve it before rendering — a fragment never reaches the server. That
