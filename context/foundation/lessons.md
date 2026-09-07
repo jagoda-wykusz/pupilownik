@@ -60,23 +60,42 @@
   to pole zostanie skopiowane do `## Done` i przestanie być prognozą, a stanie się historią.
 - **Applies to**: plan, plan-review, implement, impl-review, roadmap, archive
 
-## Ubij serwer dev, zanim uruchomisz `npm run build`
+## Ubij serwer dev, zanim cokolwiek ruszy `node_modules/.vite` (build, astro check, commit)
 
 - **Context**: Każda weryfikacja fazy w tym repo wykonywana przy działającym `npm run dev` —
   a `npm run build` jest kryterium sukcesu w KAŻDYM planie, więc trafia się to za każdym
   razem. Dotyczy też `rm -rf node_modules/.vite` i każdej innej operacji na tym katalogu.
+  **Od `45432b6` dotyczy też KAŻDEGO commita**: hook pre-commit uruchamia `npx astro check`,
+  które również przebudowuje `node_modules/.vite`. Czyli nie tylko jawny build — samo
+  zacommitowanie czegokolwiek wywraca działający serwer dev.
 - **Problem**: W S-02 i S-08 zdarzyło się to trzy razy i za każdym razem diagnoza szła w złą
   stronę. `astro dev` i `astro build` dzielą `node_modules/.vite`; build przebudowuje cache
   zoptymalizowanych zależności, a działający serwer dev zostaje z URL-ami, których już nie ma
   („The file does not exist at .../deps/lucide-react.js?v=6391e524"). Objawy są mylące, bo
   **build kończy się sukcesem** — psuje się dev: `TypeError: Cannot read properties of null
-  (reading 'useHostTransitionStatus')`, `jsxDEV is not a function`, albo SSR zwraca 200 z
+(reading 'useHostTransitionStatus')`, `jsxDEV is not a function`, albo SSR zwraca 200 z
   pustym ciałem i znikają wszystkie formularze. Dwa razy odesłałem użytkownika na twardy
   reload, zanim zrozumiałem przyczynę; raz szukałem błędu w kodzie, którego tam nie było.
-- **Rule**: Zanim uruchomisz `npm run build` — albo cokolwiek ruszy `node_modules/.vite` —
-  ubij serwer dev. Gdy dev zaczyna się psuć (null-owy hook Reacta, `jsxDEV is not a function`,
+- **Problem (2026-09-07, S-03 faza 4 — reguła znana i mimo to złamana)**: przeczytałem tę
+  lekcję na starcie fazy, po czym uruchomiłem `npm run build` i `astro check` przy serwerze dev
+  działającym od dwóch godzin, a następnie **odesłałem użytkownika do `npm run dev` ze zdaniem
+  „build właśnie przebiegł, więc cache Vite jest świeży"** — czyli znałem regułę i wyciągnąłem
+  z niej wniosek odwrotny do jej treści. Objaw był nowy i mylący: `Invalid hook call … more
+than one copy of React`, co czyta się jak zdublowana zależność, a nie jak cache (w
+  `node_modules` była jedna kopia Reacta — sprawdzone). Diagnozę uratowało tylko zdanie
+  „nie diagnozuj kodu, dopóki tego nie wykluczysz": dowodem były znaczniki czasu — proces node
+  z 20:00, `node_modules/.vite/deps` przepisany o 22:05.
+- **Rule**: Zanim uruchomisz `npm run build`, `npx astro check`, `git commit` — albo cokolwiek
+  innego, co rusza `node_modules/.vite` — ubij serwer dev. Gdy dev zaczyna się psuć (null-owy
+  hook Reacta, `Invalid hook call`, `more than one copy of React`, `jsxDEV is not a function`,
   puste SSR), najpierw zrestartuj serwer i poszukaj w logu „does not exist … optimize deps
-  directory"; nie diagnozuj kodu, dopóki tego nie wykluczysz.
+  directory"; nie diagnozuj kodu, dopóki tego nie wykluczysz. Twardy reload w przeglądarce NIE
+  wystarcza — stare ścieżki trzyma serwer, nie klient.
+- **Rule (kierunek wnioskowania)**: „Cache jest świeży" to stan NIEBEZPIECZNY dla procesu,
+  który już działa, a nie zaleta. Świeżość liczy się względem procesu, który wystartował PO
+  przebudowie. Nigdy nie odsyłaj nikogo do `npm run dev` argumentem „build właśnie przebiegł" —
+  to jest dokładnie ta sytuacja, w której trzeba najpierw wyczyścić katalog i wystartować od
+  nowa.
 - **Applies to**: implement, impl-review
 
 ## Nie czytaj kodu wyjścia z potoku
