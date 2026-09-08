@@ -18,6 +18,9 @@ interface InputProps {
   error?: string;
   /** Renders the show/hide control. Only meaningful on a password field. */
   revealable?: boolean;
+  /** Locks the field while a request is in flight. Defaults to false, so the four call
+   *  sites that predate it (sign-in, sign-up, add pet, new period) are untouched. */
+  disabled?: boolean;
 }
 
 export function Input({
@@ -31,6 +34,7 @@ export function Input({
   autoComplete,
   error,
   revealable = false,
+  disabled = false,
 }: InputProps) {
   const generatedId = useId();
   const inputId = id ?? generatedId;
@@ -49,6 +53,7 @@ export function Input({
           "bg-card flex h-[52px] items-center gap-3 rounded-lg border-[1.5px] px-[18px]",
           "focus-within:ring-ring/50 focus-within:ring-[3px]",
           error ? "border-destructive" : "border-input",
+          disabled && "opacity-60",
         )}
       >
         <input
@@ -61,6 +66,7 @@ export function Input({
           }}
           placeholder={placeholder}
           autoComplete={autoComplete}
+          disabled={disabled}
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? errorId : undefined}
           className="text-foreground placeholder:text-muted-foreground min-w-0 flex-1 bg-transparent text-[15px] outline-none"
@@ -71,6 +77,7 @@ export function Input({
             onClick={() => {
               setRevealed((current) => !current);
             }}
+            disabled={disabled}
             // The accessible name states the action, not the state: a screen-reader
             // user hears what pressing it will do.
             aria-label={revealed ? "Ukryj hasło" : "Pokaż hasło"}

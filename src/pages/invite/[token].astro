@@ -195,14 +195,37 @@ const myDays = [...new Set((claimed?.slots ?? []).map((slot) => slot.slot_date))
                 : `Wolnych terminów: ${freeCount} z ${slots.length}.`}
             </p>
 
+            {/* The success banner. The design draws it as a full-bleed gradient hero with a
+                white tick (the post-claim artboard, tpl 72-77); this page is a plain document
+                rather than a phone mock, so it lands as a card in the --success accent the
+                phase added — same anatomy (tick, "Zapisano!", the day count), same tokens as
+                the rest of the page. Body text stays on --foreground: --success is an accent,
+                and only the heading is set in it. */}
             {claimed && (
-              <div class="border-primary bg-secondary mt-6 rounded-lg border-[1.5px] p-4">
-                <p class="text-secondary-foreground text-[15px] font-bold">Zapisano, {claimed.name}!</p>
-                <p class="text-secondary-foreground mt-1 text-[14px]">
-                  {myDays.length === 1
-                    ? `Masz 1 dzień: ${formatDay(myDays[0])}.`
-                    : `Masz ${myDays.length} dni: ${myDays.map((day) => formatDay(day)).join(", ")}.`}
-                </p>
+              <div class="border-success/40 bg-success/10 mt-6 flex items-center gap-3 rounded-lg border-[1.5px] p-4">
+                <span class="bg-success/15 text-success flex size-11 shrink-0 items-center justify-center rounded-full">
+                  <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="3"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M20 6 9 17l-5-5" />
+                  </svg>
+                </span>
+                <div>
+                  <p class="font-heading text-success text-[18px] font-bold">Zapisano, {claimed.name}!</p>
+                  <p class="text-foreground mt-0.5 text-[13px] font-semibold">
+                    {myDays.length === 1
+                      ? `Masz 1 dzień: ${formatDay(myDays[0])}.`
+                      : `Masz ${myDays.length} dni: ${myDays.map((day) => formatDay(day)).join(", ")}.`}
+                  </p>
+                </div>
               </div>
             )}
 
@@ -212,9 +235,9 @@ const myDays = [...new Set((claimed?.slots ?? []).map((slot) => slot.slot_date))
                 <ul class="space-y-3">
                   {pets.map((pet) => (
                     <li class="border-border bg-card rounded-lg border-[1.5px] p-4">
-                      <p class="text-foreground text-[15px] font-bold">
+                      <p class="font-heading text-foreground text-[18px] font-bold">
                         {pet.name}
-                        <span class="text-muted-foreground ml-2 text-[13px] font-normal">
+                        <span class="text-muted-foreground ml-2 text-[13px] font-semibold">
                           {SPECIES_LABEL[pet.species]}
                         </span>
                       </p>
@@ -224,38 +247,90 @@ const myDays = [...new Set((claimed?.slots ?? []).map((slot) => slot.slot_date))
                         </p>
                       ) : (
                         <>
+                          {/* The design's instruction card: a 50px leading square in the accent
+                              tint, then title and body. The square carries an ICON, not the
+                              artboard's "8·18" / "wiecz." hour — `care_instructions` stores
+                              (title, body, is_sensitive, sort_order) and no time at all, so a
+                              time there would be invented data on the one screen where a wrong
+                              dosing hour is dangerous. Decided at the phase gate, 2026-09-08. */}
                           {pet.instructions.length > 0 && (
-                            <ul class="mt-3 space-y-2">
+                            <ul class="mt-3 flex flex-col gap-2.5">
                               {pet.instructions.map((instruction) => (
-                                <li class="border-input rounded-lg border-[1.5px] px-3 py-2">
-                                  <p class="text-foreground text-[14px] font-semibold">{instruction.title}</p>
-                                  {instruction.body && (
-                                    <p class="text-muted-foreground mt-1 text-[13px] leading-[1.5]">
-                                      {instruction.body}
+                                <li class="border-border bg-card flex gap-3 rounded-[18px] border-[1.5px] p-3.5">
+                                  <span class="bg-secondary text-secondary-foreground flex size-[50px] shrink-0 items-center justify-center rounded-[15px]">
+                                    <svg
+                                      width="22"
+                                      height="22"
+                                      viewBox="0 0 24 24"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      stroke-width="1.8"
+                                      stroke-linecap="round"
+                                      stroke-linejoin="round"
+                                      aria-hidden="true"
+                                    >
+                                      <path d="M9 6h11M9 12h11M9 18h11" />
+                                      <path d="M4.5 6h.01M4.5 12h.01M4.5 18h.01" />
+                                    </svg>
+                                  </span>
+                                  <div class="min-w-0 flex-1">
+                                    <p class="font-heading text-foreground text-[15px] font-bold">
+                                      {instruction.title}
                                     </p>
-                                  )}
+                                    {instruction.body && (
+                                      <p class="text-muted-foreground mt-0.5 text-[13px] leading-[1.4]">
+                                        {instruction.body}
+                                      </p>
+                                    )}
+                                  </div>
                                 </li>
                               ))}
                             </ul>
                           )}
                           {/* The sensitive tier, visually SEPARATED rather than merged into the
-                              list above: the design draws it as its own callout, and mixing the
-                              two would lose the distinction this whole slice is about. Phase 5
-                              gives it the designed treatment; --destructive is the closest
-                              existing token that reads as "handle with care". */}
+                              list above: the design draws it as its own amber callout (the
+                              post-claim artboard's "Klucze u sąsiadki" block, tpl 105-110), and
+                              mixing the two would lose the distinction this whole slice is
+                              about. Phase 5 replaces Phase 3's --destructive placeholder with
+                              the --notice token cut from that block: red reads as "something
+                              went wrong", amber as "handle with care", and nothing here is
+                              wrong. Its own heading, because a caretaker who never claimed
+                              never sees this and one who did should know why it appeared. */}
                           {(sensitiveByPet.get(pet.id) ?? []).length > 0 && (
-                            <ul class="mt-3 space-y-2">
-                              {(sensitiveByPet.get(pet.id) ?? []).map((instruction) => (
-                                <li class="border-destructive/40 bg-destructive/10 rounded-lg border-[1.5px] px-3 py-2">
-                                  <p class="text-foreground text-[14px] font-semibold">{instruction.title}</p>
-                                  {instruction.body && (
-                                    <p class="text-muted-foreground mt-1 text-[13px] leading-[1.5]">
-                                      {instruction.body}
+                            <div class="border-notice/50 bg-notice/10 mt-3 rounded-[18px] border-[1.5px] p-3.5">
+                              <p class="text-foreground flex items-center gap-2 text-[13px] font-bold">
+                                <svg
+                                  width="15"
+                                  height="15"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  stroke-width="2"
+                                  stroke-linecap="round"
+                                  stroke-linejoin="round"
+                                  class="text-notice"
+                                  aria-hidden="true"
+                                >
+                                  <rect width="18" height="11" x="3" y="11" rx="2" />
+                                  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                                </svg>
+                                Tylko dla opiekuna
+                              </p>
+                              <ul class="mt-2.5 flex flex-col gap-2">
+                                {(sensitiveByPet.get(pet.id) ?? []).map((instruction) => (
+                                  <li>
+                                    <p class="font-heading text-foreground text-[14px] font-bold">
+                                      {instruction.title}
                                     </p>
-                                  )}
-                                </li>
-                              ))}
-                            </ul>
+                                    {instruction.body && (
+                                      <p class="text-foreground/80 mt-0.5 text-[13px] leading-[1.5]">
+                                        {instruction.body}
+                                      </p>
+                                    )}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
                           )}
                         </>
                       )}
@@ -267,8 +342,12 @@ const myDays = [...new Set((claimed?.slots ?? []).map((slot) => slot.slot_date))
 
             {claimed?.caretaker_note && (
               <>
+                {/* The design's NOTATKA, and the same amber as the sensitive rows on purpose:
+                    the artboard fills this field with "Klucze u sąsiadki, mieszkanie 4…", so
+                    it carries the same kind of content and earns the same reveal rule and the
+                    same treatment. */}
                 <h2 class="font-heading text-foreground mt-8 mb-3 text-[17px] font-bold">Notatka od właściciela</h2>
-                <p class="border-destructive/40 bg-destructive/10 text-foreground rounded-lg border-[1.5px] p-4 text-[14px] leading-[1.6] whitespace-pre-line">
+                <p class="border-notice/50 bg-notice/10 text-foreground rounded-[18px] border-[1.5px] p-4 text-[14px] leading-[1.6] whitespace-pre-line">
                   {claimed.caretaker_note}
                 </p>
               </>

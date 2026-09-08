@@ -3,7 +3,7 @@ change_id: caretaker-claims-slot
 title: Caretaker claims slot
 status: impl_reviewed
 created: 2026-09-06
-updated: 2026-09-07
+updated: 2026-09-08
 archived_at: null
 ---
 

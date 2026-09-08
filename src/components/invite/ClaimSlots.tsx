@@ -1,30 +1,38 @@
 import { useState } from "react";
 import { Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/Input";
 import { ServerError } from "@/components/auth/ServerError";
-import {
-  formatDay,
-  formatWeekday,
-  MAX_CLAIMANT_NAME_LENGTH,
-  TIME_OF_DAY_LABEL,
-  type TimeOfDay,
-} from "@/lib/period-format";
+import PeriodCalendar, { type CalendarDay } from "@/components/invite/PeriodCalendar";
+import { cn } from "@/lib/utils";
+import { formatDay, formatWeekday, MAX_CLAIMANT_NAME_LENGTH, TIME_OF_DAY_LABEL } from "@/lib/period-format";
 
 // The claim island. Modelled on RegenerateLinkButton — own `pending` flag, status-branched
 // ServerError, and a "refuse up front" branch — rather than on NewPeriodForm, which is a much
 // larger form with its own validation layer.
 //
-// Deliberately unstyled beyond the tokens the page already uses. The design's month grid,
-// success banner and sensitive-data callout are Phase 5; this exists so the flow WORKS on the
-// flat day list that Phase 3 left behind, which is the plan's stated cut line.
+// Phase 5 gives it the design's shape: the month grid (PeriodCalendar) picks a DAY, and the
+// slot cards below it are the design's "Rano · 7:30 / WOLNE / Zapisuję się" cards for that one
+// day. Two deliberate departures from the artboard, recorded rather than silent:
+//
+//   1. The design's card button claims ONE slot on tap and never asks for a name. We keep
+//      multi-select plus a single submit, because `claim_slots` is all-or-nothing across a
+//      selection and the name has to be collected once. The card button therefore TOGGLES
+//      selection and the accent submit below carries the count.
+//   2. The design draws no taken-slot card state. Ours is invented: the pill reads ZAJĘTE and
+//      the card is inert. Leaving it out would mean a caretaker on a partly-taken day sees
+//      only the free cards and cannot tell the rest exist.
 //
 // It does NOT import FormField or PasswordToggle (both superseded), and copies nothing from
 // AddPetForm, which hardcodes starter colours.
 
+// A superset of PeriodCalendar's CalendarSlot: the grid needs only the time and the taken
+// flag, this island also needs the id it posts. Structural assignability is what lets the same
+// `byDay` array feed both without a second projection.
 export interface ClaimSlot {
   id: string;
   slot_date: string;
-  time_of_day: TimeOfDay;
+  time_of_day: CalendarDay["slots"][number]["time_of_day"];
   is_claimed: boolean;
 }
 
@@ -51,6 +59,18 @@ export default function ClaimSlots({ byDay, token, hasCapability }: Props) {
   const [pending, setPending] = useState(false);
 
   const free = byDay.flatMap((entry) => entry.slots).filter((slot) => !slot.is_claimed);
+
+  // Open on the first day that still has something to take, so the caretaker lands on a
+  // useful day rather than on a full one they have to navigate away from.
+  const [selectedDay, setSelectedDay] = useState<string | null>(() => {
+    // `.at(0)` rather than `[0]`: without noUncheckedIndexedAccess an index read is typed
+    // non-nullable, and an empty `byDay` is reachable — the "wszystko zajęte" branch below
+    // renders after the hooks have already run.
+    const opening = byDay.find((entry) => entry.slots.some((slot) => !slot.is_claimed)) ?? byDay.at(0);
+    return opening?.day ?? null;
+  });
+
+  const day = byDay.find((entry) => entry.day === selectedDay) ?? null;
 
   function toggle(slotId: string) {
     setSelected((current) => {
@@ -131,70 +151,98 @@ export default function ClaimSlots({ byDay, token, hasCapability }: Props) {
   }
 
   return (
-    <form onSubmit={submit} className="space-y-4">
-      <ul className="space-y-3">
-        {byDay.map((entry) => (
-          <li key={entry.day} className="border-border bg-card rounded-lg border-[1.5px] p-4">
-            <p className="text-foreground text-[15px] font-bold">
-              {formatDay(entry.day)}
-              <span className="text-muted-foreground ml-2 text-[13px] font-normal">{formatWeekday(entry.day)}</span>
-            </p>
-            <ul className="mt-3 grid grid-cols-3 gap-2">
-              {entry.slots.map((slot) => {
-                const isSelected = selected.has(slot.id);
-                return (
-                  <li key={slot.id}>
-                    <button
-                      type="button"
-                      // A taken slot is not selectable. That is also why claim_slots refusing
-                      // an already-held slot does not bite in practice — but the server still
-                      // treats a retry as satisfied rather than conflicting, because a lost
-                      // response is not a click.
-                      disabled={slot.is_claimed || pending}
-                      aria-pressed={isSelected}
-                      onClick={() => {
-                        toggle(slot.id);
-                      }}
-                      className={[
-                        "w-full rounded-lg border-[1.5px] px-3 py-2 text-center text-[13px]",
-                        slot.is_claimed
-                          ? "border-input text-muted-foreground cursor-not-allowed opacity-60"
-                          : isSelected
-                            ? "border-primary bg-secondary text-secondary-foreground font-bold"
-                            : "border-input text-muted-foreground hover:border-primary",
-                      ].join(" ")}
-                    >
-                      <span className="block">{TIME_OF_DAY_LABEL[slot.time_of_day]}</span>
-                      <span className="block text-[12px]">
-                        {slot.is_claimed ? "zajęte" : isSelected ? "biorę" : "wolne"}
+    <form onSubmit={submit} className="space-y-5">
+      <div className="border-border bg-card rounded-lg border-[1.5px] p-4">
+        <PeriodCalendar days={byDay} selectedDay={selectedDay} onSelect={setSelectedDay} disabled={pending} />
+      </div>
+
+      {day && (
+        <div>
+          <p className="font-heading text-foreground px-0.5 text-[16px] font-bold">
+            {formatWeekday(day.day)}, {formatDay(day.day)}
+          </p>
+
+          <ul className="mt-2 flex flex-col gap-2.5">
+            {day.slots.map((slot) => {
+              const isSelected = selected.has(slot.id);
+              return (
+                <li key={slot.id}>
+                  <button
+                    type="button"
+                    // A taken slot is not selectable. That is also why claim_slots refusing an
+                    // already-held slot does not bite in practice — but the server still treats
+                    // a retry as satisfied rather than conflicting, because a lost response is
+                    // not a click.
+                    disabled={slot.is_claimed || pending}
+                    aria-pressed={isSelected}
+                    onClick={() => {
+                      toggle(slot.id);
+                    }}
+                    className={cn(
+                      "bg-card w-full rounded-[16px] border-[1.5px] px-3.5 py-3 text-left",
+                      "focus-visible:ring-ring/50 outline-none focus-visible:ring-[3px]",
+                      slot.is_claimed
+                        ? "border-border cursor-not-allowed opacity-60"
+                        : isSelected
+                          ? "border-primary"
+                          : "border-border hover:border-primary",
+                    )}
+                  >
+                    <span className="mb-2 flex items-center justify-between gap-3">
+                      <span className="font-heading text-foreground text-[14px] font-bold">
+                        {TIME_OF_DAY_LABEL[slot.time_of_day]}
                       </span>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          </li>
-        ))}
-      </ul>
+                      <span
+                        className={cn(
+                          "rounded-[14px] px-2.5 py-[3px] text-[10px] font-bold tracking-wide",
+                          slot.is_claimed ? "bg-muted text-muted-foreground" : "bg-secondary text-secondary-foreground",
+                        )}
+                      >
+                        {slot.is_claimed ? "ZAJĘTE" : isSelected ? "WYBRANE" : "WOLNE"}
+                      </span>
+                    </span>
+                    <span className="flex items-center justify-between gap-3">
+                      <span className="text-muted-foreground text-[12px]">
+                        {slot.is_claimed ? "Ktoś już się zapisał." : "Wolny termin — możesz go wziąć."}
+                      </span>
+                      {!slot.is_claimed && (
+                        <span
+                          className={cn(
+                            "font-heading flex h-[34px] shrink-0 items-center justify-center rounded-[10px] px-4 text-[12px] font-bold",
+                            isSelected
+                              ? "bg-primary text-primary-foreground"
+                              : "border-primary text-primary border-[1.5px]",
+                          )}
+                        >
+                          {isSelected ? "Wybrane" : "Zapisuję się"}
+                        </span>
+                      )}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
 
       {!hasCapability && (
         <div>
-          <label htmlFor="claimant-name" className="text-foreground block text-[14px] font-semibold">
-            Twoje imię
-          </label>
-          <input
+          <Input
+            label="TWOJE IMIĘ"
             id="claimant-name"
-            type="text"
             value={name}
-            maxLength={MAX_CLAIMANT_NAME_LENGTH}
-            disabled={pending}
-            onChange={(event) => {
-              setName(event.target.value);
+            // ui/Input exposes no maxLength and Phase 5 adds only `disabled` to it, so the
+            // bound is applied here instead. It is not decoration: `claim_slots` raises PT400
+            // past 80 characters, and clamping means the caretaker never types into a refusal.
+            onChange={(next) => {
+              setName(next.slice(0, MAX_CLAIMANT_NAME_LENGTH));
             }}
-            className="border-input bg-background text-foreground mt-1 w-full rounded-lg border-[1.5px] px-3 py-2 text-[15px]"
             placeholder="Ania"
+            autoComplete="given-name"
+            disabled={pending}
           />
-          <p className="text-muted-foreground mt-1 text-[13px]">
+          <p className="text-muted-foreground mt-1.5 ml-1 text-[13px]">
             Pytamy tylko raz — przy kolejnych terminach nie trzeba go podawać ponownie.
           </p>
         </div>

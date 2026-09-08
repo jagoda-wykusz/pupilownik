@@ -48,6 +48,22 @@
   /* The design defines no error colour. Rather than invent one, keep the value
      the project already shipped with. Revisit when a design covers error states. */
   --destructive: oklch(0.577 0.245 27.325);
+
+  /* Two accents the design DOES define but shadcn's palette has no name for. Both
+     follow --destructive's usage pattern exactly — accent for an icon or a border,
+     the same value at /10 for the ground, body text left on --foreground — so no
+     *-foreground companion is needed and no existing consumer changes.
+
+     --success: the design's positive dot, rgb(60,163,106) on the "Link gotowy do
+     wysłania" card. Darkened here for the same reason --muted-foreground was: the
+     design uses it as a 8px dot, we also set the "Zapisano!" heading in it, and
+     #3ca36a measures ~2.6:1 on --background. #2f7d52 is ~4.9:1 and stays in the
+     design's hue.
+     --notice: the sensitive-data callout, rgb(202,165,58) with its
+     rgb(249,239,214) ground (the post-claim artboard's "Klucze u sąsiadki" block).
+     Amber rather than --destructive: that block is "handle with care", not an error. */
+  --success: #2f7d52;
+  --notice: #caa53a;
 }
 
 .dark {
@@ -75,6 +91,11 @@
   --auth-glow: #3a2a33;
 
   --destructive: oklch(0.704 0.191 22.216);
+
+  /* Lifted toward white: the ground here is dark, so the light-theme values would
+     sink into it. Both clear 4.5:1 on --background. */
+  --success: #6fc999;
+  --notice: #e0bf63;
 }
 
 /* High-contrast mode: pure black on pure white, deeper accent. It shares the
@@ -99,6 +120,9 @@
   --input: #000000;
   --ring: #8a0f49;
   --primary-hover: #5a0a30;
+  /* Pushed to the edge of their hues, like every other value in this mode. */
+  --success: #0f5c33;
+  --notice: #6b5205;
   /* Flat: a gradient would soften the edge this mode exists to keep hard. */
   --auth-glow: #ffffff;
 }
@@ -131,6 +155,11 @@
     --auth-glow: #3a2a33;
 
     --destructive: oklch(0.704 0.191 22.216);
+
+    /* Lifted toward white: the ground here is dark, so the light-theme values would
+     sink into it. Both clear 4.5:1 on --background. */
+    --success: #6fc999;
+    --notice: #e0bf63;
   }
 }
 
@@ -161,6 +190,8 @@
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
+  --color-success: var(--success);
+  --color-notice: var(--notice);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);

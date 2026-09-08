@@ -1044,6 +1044,63 @@ section is where they are corrected, so the diff between plan and reality stays 
   (`MAX_SPAN_DAYS * TIMES_OF_DAY.length`) rather than written as 93, so the SQL literal and the
   TypeScript bound cannot drift apart silently.
 
+### Phase 5 (implementation 2026-09-08)
+
+- **A32 — The design's instruction time chip carries an ICON, not a time, because the schema
+  stores no time.** The post-claim artboard draws a 50px leading square reading `8·18`, `7·21`,
+  `wiecz.`; `care_instructions` is `(id, pet_id, title, body, is_sensitive, sort_order,
+created_at)` and `time_of_day` exists only on `care_slots`, with nothing linking an
+  instruction to a slot. Rendering an hour there would be invented domain data on the one
+  screen where a wrong dosing hour is dangerous. Decided at the phase gate on 2026-09-08: the
+  square stays (the card anatomy matches the design), its content becomes a list icon, and the
+  sensitive callout gets a lock. Options weighed and rejected: dropping the square entirely
+  (further from the design for no gain) and numbering it from `sort_order` (real data, but it
+  asserts an ORDER the owner never promised).
+
+- **A33 — A second token family, `--notice`, was added beyond the Phase block's "success
+  trio".** Phase 5 §1 asks only for a success/positive token. The sensitive callout needed one
+  too: Phase 3 shipped it on `--destructive` with a comment saying Phase 5 would give it the
+  designed treatment, and the designed treatment is AMBER — `rgb(202,165,58)` on
+  `rgb(249,239,214)` in the artboard's "Klucze u sąsiadki" block. Red reads as "something went
+  wrong"; nothing here is wrong. Per `context/foundation/lessons.md` §"Wylicz konsumentów":
+  both `--success` and `--notice` are NEW names with zero existing consumers, so no screen
+  outside this slice changes. Both follow `--destructive`'s established usage pattern exactly
+  (accent for icon and border, the same value at `/10` for the ground, body text left on
+  `--foreground`), which is why neither needs a `*-foreground` companion. Defined in all four
+  palette blocks — `:root`, `.dark`, `.contrast` AND the `prefers-color-scheme: dark` block;
+  skipping the last would have given an OS-dark visitor with no stamped class the light values.
+  `--success` is `#2f7d52`, not the design's `#3ca36a`: the design uses it as an 8px dot, we
+  also set the "Zapisano!" heading in it, and `#3ca36a` measures ~2.6:1 on `--background`.
+  Same precedent as `--muted-foreground`, already recorded in `global.css`.
+
+- **A34 — The name bound is clamped in `ClaimSlots`, not added to `ui/Input`.** Phase 5 §1 adds
+  exactly one prop to `Input` (`disabled`), and `Input` has no `maxLength`. Rather than widen a
+  shared component with four call sites for one consumer, `onChange` slices to
+  `MAX_CLAIMANT_NAME_LENGTH`. The bound is not decoration — `claim_slots` raises PT400 past 80
+  characters — so it had to survive the move from the raw `<input>` the phase replaced.
+
+- **A35 — The month navigation is hidden, not disabled, on a single-month period.**
+  `MAX_SPAN_DAYS = 31` means a period spans at most two months, so the control is inert most of
+  the time. Two permanently dead arrows are precisely the "broken control" this phase's manual
+  verification asks about, so `‹ ›` renders only when `months.length > 1`; within a two-month
+  period the arrow at the boundary is disabled and dimmed rather than removed, because there
+  the pair is live and one end is temporarily unreachable.
+
+- **A36 — Two card states are invented, and the invention is recorded rather than silent** (the
+  failure `lessons.md` catalogues from S-02's dropped pet selector). (a) The artboard's card
+  button claims ONE slot on tap and the screen has no name field; ours TOGGLES selection and a
+  single accent submit below carries the count, because `claim_slots` is all-or-nothing across
+  a selection and the name must be collected once. (b) The design draws no taken-slot card, so
+  ours is new: pill reads `ZAJĘTE`, the card is inert and has no button. Omitting it would show
+  a caretaker on a partly-taken day only the free cards, with no way to tell the rest exist.
+
+- **A37 — The design's gradient hero header was NOT built.** The caretaker artboard opens with
+  a full-bleed `linear-gradient(135deg, #9c5470, #7d3f59)` hero carrying "Anna prosi o pomoc" /
+  the title / the range. It is not in Phase 5's §Changes Required, this page is a plain
+  document rather than a phone mock, and a gradient hero is exactly what `.contrast` exists to
+  flatten. The existing header typography stays. Noted here so a later reader sees a decision
+  rather than an omission.
+
 ## Follow-ups (outside this change)
 
 - **PRD clarification.** `prd.md:144` §Non-Goals should record that a per-claim capability is
@@ -1133,13 +1190,13 @@ section is where they are corrected, so the diff between plan and reality stays 
 
 #### Automated
 
-- [ ] 5.1 Full suite passes
-- [ ] 5.2 Type checking and linting pass
+- [x] 5.1 Full suite passes
+- [x] 5.2 Type checking and linting pass
 
 #### Manual
 
-- [ ] 5.3 Caretaker calendar matches the design at phone width in all three themes
-- [ ] 5.4 A two-month period navigates; a short period renders no broken control
-- [ ] 5.5 The four existing `Input` call sites are visually unchanged
-- [ ] 5.6 The sensitive callout is visually separated from the public list
-- [ ] 5.7 A fully-taken day renders the day-full state
+- [x] 5.3 Caretaker calendar matches the design at phone width in all three themes
+- [x] 5.4 A two-month period navigates; a short period renders no broken control
+- [x] 5.5 The four existing `Input` call sites are visually unchanged
+- [x] 5.6 The sensitive callout is visually separated from the public list
+- [x] 5.7 A fully-taken day renders the day-full state
