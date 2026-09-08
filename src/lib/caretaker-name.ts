@@ -15,34 +15,32 @@
 //
 // Pure and dependency-free, like period-format.ts, so it unit-tests without a database.
 //
-// Characters are classified by NUMERIC CODEPOINT rather than by a regex character class, and
-// that is deliberate. Every character this module exists to remove is invisible in an editor,
-// so a literal class would be unreviewable — you cannot tell a correct one from a broken one by
-// looking. Numbers you can check against a table.
+// Invisible characters are removed by Unicode PROPERTY, not by a hand-written table. The first
+// cut of this module listed six numeric ranges on the grounds that a literal character class
+// would be unreviewable — true, but a numeric table has the worse problem: it freezes one
+// person's 2026 recollection of the invisible set. Measured against the shipped ranges, a name
+// made of Hangul fillers, soft hyphens, Arabic letter marks, variation selectors, invisible
+// operators or Unicode TAG characters all survived and rendered blank — the exact outcome this
+// module exists to prevent, and in the tag-character case a channel for smuggling hidden text
+// onto the owner's screen. `\p{Default_Ignorable_Code_Point}` covers every one of them, tracks
+// the Unicode version instead of a snapshot, and is more reviewable than a table of hex, not
+// less. Verified: it matches all six original ranges and none of the whitespace the collapse
+// below relies on `\s` for (U+00A0, U+1680, U+2000-200A, U+2028/9, U+202F, U+205F, U+3000).
+const DEFAULT_IGNORABLE = /\p{Default_Ignorable_Code_Point}/gu;
 
-/** Upper bound the database actually enforces, mirrored for the tests that pin the boundary. */
-export const STORED_NAME_MAX = 80;
-
-// Postgres `btrim(x)` with no second argument strips U+0020 and NOTHING else — verified in
-// psql: tab, NBSP and ZWSP all survive it with length 1. So a name consisting of a single tab
-// is non-empty, under the bound, and storable through a direct RPC call. Rows like that may
-// already exist, which is why normalisation lives here at display time rather than in the write
-// path: this is the only layer that can fix what is already stored.
-
-/** Codepoints deleted outright — they are never a word break. */
-const INVISIBLE_RANGES: readonly (readonly [number, number])[] = [
-  [0x200b, 0x200d], // zero-width space, ZWNJ, ZWJ
-  [0x200e, 0x200f], // LRM, RLM
-  [0x202a, 0x202e], // bidi embeddings and overrides — U+202E reverses the rest of the run
-  [0x2060, 0x2060], // word joiner
-  [0x2066, 0x2069], // bidi isolates
-  [0xfeff, 0xfeff], // zero-width no-break space / BOM
+// The three blank-rendering characters the property does not reach: interlinear annotation
+// marks and the Braille blank pattern, which is a printing character that happens to have no
+// ink. Numeric because there is no property that groups them.
+const EXTRA_INVISIBLE_RANGES: readonly (readonly [number, number])[] = [
+  [0xfff9, 0xfffb], // interlinear annotation anchor / separator / terminator
+  [0x2800, 0x2800], // Braille pattern blank
 ];
 
 /**
  * Codepoints replaced by a space. C0 and C1 controls, so tab and newline included — newline
  * matters twice over, because the owner's own note renders with `whitespace-pre-line` and if
  * that class is ever copied onto a caretaker name an 80-character string becomes 40 rows.
+ * Not covered by Default_Ignorable, and a word break rather than nothing, so kept separate.
  */
 const CONTROL_RANGES: readonly (readonly [number, number])[] = [
   [0x00, 0x1f],
@@ -60,6 +58,10 @@ function inRanges(codePoint: number, ranges: readonly (readonly [number, number]
  * unusable". The page renders a neutral fallback for that rather than an empty cell, because
  * `care_slots_claim_complete` guarantees `claimed_at` is set whenever a name is, so "taken with
  * no readable name" is a real state and not a bug to hide.
+ *
+ * Known cosmetic cost, accepted deliberately: removing ZWJ and variation selectors degrades
+ * emoji sequences to their component glyphs in text presentation. A name is still a name after
+ * that, whereas an unstripped tag-character run is invisible smuggled text.
  */
 export function normalizeCaretakerName(raw: string | null): string | null {
   if (raw === null) {
@@ -71,15 +73,24 @@ export function normalizeCaretakerName(raw: string | null): string | null {
   // split into surrogates that then fail the range checks.
   for (const character of raw) {
     const codePoint = character.codePointAt(0) ?? 0;
-    if (inRanges(codePoint, INVISIBLE_RANGES)) {
+    if (inRanges(codePoint, EXTRA_INVISIBLE_RANGES)) {
       continue;
     }
     // A control becomes a space rather than vanishing, so "Ania<TAB>Kowalska" stays two words.
     out += inRanges(codePoint, CONTROL_RANGES) ? " " : character;
   }
 
-  // JS `\s` covers the Unicode whitespace btrim does not — NBSP, the U+2000 block, U+3000.
-  const collapsed = out.replace(/\s+/gu, " ").trim();
+  // Strip BEFORE composing: a combining grapheme joiner sits between a base and its accent
+  // precisely to block composition, so removing it first is what lets NFC do its job.
+  //
+  // NFC matters because grouping keys on this string. Without it "e" + U+0301 and U+00E9 are
+  // two different Map keys rendering as one identical "é" — two caretakers shown as one with
+  // no ordinal, which is the worst outcome this module has.
+  const composed = out.replace(DEFAULT_IGNORABLE, "").normalize("NFC");
+
+  // JS `\s` covers the Unicode whitespace btrim does not — NBSP, U+1680, the U+2000 block,
+  // U+2028/9, U+202F, U+205F, U+3000.
+  const collapsed = composed.replace(/\s+/gu, " ").trim();
 
   return collapsed === "" ? null : collapsed;
 }
@@ -138,13 +149,23 @@ export interface CaretakerGrouping {
  * Ordinals are per-render and mean nothing outside this page. That is a real limitation, not an
  * oversight: there is no stable caretaker identity in this product to number.
  */
+// Plain codepoint order, deliberately NOT localeCompare. These are machine strings — ISO-8601
+// timestamps and uuids — where codepoint order IS the correct order. localeCompare with no
+// locale argument resolves the HOST default locale and uses whatever ICU the Node build ships,
+// and ICU applies variable weighting to exactly the punctuation these strings are made of
+// (`-`, `:`, `.`, `+`). The ordinals below are meant to be stable across reloads; "stable until
+// someone upgrades Node" is not that, and there was never anything to gain here.
+function byCodePoint(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
 export function groupCaretakers(slots: ClaimedSlotInput[]): CaretakerGrouping {
   // Claim order, so both the chosen name per capability and the ordinals are stable across
   // reloads. A null claimed_at cannot occur beside a non-null digest (care_slots_claim_complete
   // ties them), but sorting defensively costs nothing.
   const claimed = slots
     .filter((slot) => slot.claim_digest !== null)
-    .sort((a, b) => (a.claimed_at ?? "").localeCompare(b.claimed_at ?? "") || a.id.localeCompare(b.id));
+    .sort((a, b) => byCodePoint(a.claimed_at ?? "", b.claimed_at ?? "") || byCodePoint(a.id, b.id));
 
   // digest -> the label that capability shows, fixed by its earliest claim.
   const labelByDigest = new Map<string, string>();

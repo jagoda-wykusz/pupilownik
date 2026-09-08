@@ -263,18 +263,28 @@ const claimedByDay = new Map(
                               layout. NOT whitespace-pre-line: that is right for the owner's
                               own note above, and on an 80-character caretaker name it would
                               render 40 rows. */}
-                          <span
+                          {/* <bdi> isolates the name's own direction. Stripping the explicit
+                              bidi overrides in normalizeCaretakerName is necessary but not
+                              sufficient: a name in a strong-RTL script still reorders the
+                              neutral characters around it, which would drag the ordinal to the
+                              visual left of the label it belongs to. */}
+                          <bdi
                             class="text-foreground min-w-0 flex-1 truncate font-semibold"
                             title={claimed.caretaker?.label ?? UNNAMED_CARETAKER_LABEL}
                           >
                             {claimed.caretaker?.label ?? UNNAMED_CARETAKER_LABEL}
-                            {claimed.caretaker?.ordinal != null && (
-                              // Shown only when another capability wears the same label.
-                              // Per-render and meaningless off this page — but the page would
-                              // otherwise show two different people as one.
-                              <span class="text-muted-foreground ml-1 font-normal">({claimed.caretaker.ordinal})</span>
-                            )}
-                          </span>
+                          </bdi>
+                          {claimed.caretaker?.ordinal != null && (
+                            // A SIBLING of the truncating element, not a child: inside it the
+                            // ordinal is the first thing an overflowing name clips away, so two
+                            // caretakers who both type an 80-character name would render as two
+                            // identical ellipsised rows — the page showing two people as one,
+                            // which is the single outcome the ordinal exists to prevent.
+                            // shrink-0 keeps it whole while the name absorbs the truncation.
+                            <span class="text-muted-foreground shrink-0 font-normal">
+                              ({claimed.caretaker.ordinal})
+                            </span>
+                          )}
                         </li>
                       ))}
                     </ul>

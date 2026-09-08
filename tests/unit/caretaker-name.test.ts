@@ -2,10 +2,13 @@ import { describe, expect, it } from "vitest";
 import {
   groupCaretakers,
   normalizeCaretakerName,
-  STORED_NAME_MAX,
   UNNAMED_CARETAKER_LABEL,
   type ClaimedSlotInput,
 } from "@/lib/caretaker-name";
+// The 80-character bound has ONE home: period-format.ts, whose own comment says "change one
+// and you must change both" about the guard inside claim_slots. A second copy here would have
+// made it three.
+import { MAX_CLAIMANT_NAME_LENGTH } from "@/lib/period-format";
 
 // Display-side handling for the one string in this product that an unauthenticated caller
 // writes and an authenticated screen renders. Runs in the `unit` project — no Supabase.
@@ -48,7 +51,7 @@ describe("normalizeCaretakerName", () => {
     expect(normalizeCaretakerName(TAB)).toBeNull();
     expect(normalizeCaretakerName(NBSP)).toBeNull();
     expect(normalizeCaretakerName(ZWSP)).toBeNull();
-    expect(normalizeCaretakerName(ZWSP.repeat(STORED_NAME_MAX))).toBeNull();
+    expect(normalizeCaretakerName(ZWSP.repeat(MAX_CLAIMANT_NAME_LENGTH))).toBeNull();
     expect(normalizeCaretakerName(BOM)).toBeNull();
     expect(normalizeCaretakerName("")).toBeNull();
     expect(normalizeCaretakerName(null)).toBeNull();
@@ -64,10 +67,40 @@ describe("normalizeCaretakerName", () => {
     expect(normalizeCaretakerName(`An${ZWSP}ia`)).toBe("Ania");
   });
 
+  it("removes the invisible characters a hand-written range table missed", () => {
+    // Every one of these survived the first implementation and rendered blank or deceptively.
+    // They are the reason this module classifies by Unicode property rather than by a table.
+    const HANGUL_FILLER = ch(0x3164);
+    const SOFT_HYPHEN = ch(0x00ad);
+    const ARABIC_LETTER_MARK = ch(0x061c);
+    const VARIATION_SELECTOR = ch(0xfe0f);
+    const TAG_LATIN_A = ch(0xe0041);
+    const BRAILLE_BLANK = ch(0x2800);
+    const INTERLINEAR = ch(0xfff9);
+
+    expect(normalizeCaretakerName(HANGUL_FILLER.repeat(3))).toBeNull();
+    expect(normalizeCaretakerName(BRAILLE_BLANK.repeat(3))).toBeNull();
+    expect(normalizeCaretakerName(INTERLINEAR)).toBeNull();
+    // A soft-hyphenated name must key identically to the plain one, or it evades the ordinal.
+    expect(normalizeCaretakerName(`A${SOFT_HYPHEN}n${SOFT_HYPHEN}ia`)).toBe("Ania");
+    expect(normalizeCaretakerName(`Ania${ARABIC_LETTER_MARK}`)).toBe("Ania");
+    expect(normalizeCaretakerName(`Ania${VARIATION_SELECTOR}`)).toBe("Ania");
+    // Tag characters are the hidden-text smuggling channel: arbitrary ASCII, invisible.
+    expect(normalizeCaretakerName(`Ania${TAG_LATIN_A}`)).toBe("Ania");
+  });
+
+  it("composes accents so one rendered name is one key", () => {
+    // "e" + combining acute and precomposed "é" render identically. Without NFC they are two
+    // Map keys, so two caretakers would show as one name with no ordinal to separate them.
+    const decomposed = `Ren${"e" + ch(0x0301)}`;
+    const precomposed = `Ren${ch(0x00e9)}`;
+    expect(normalizeCaretakerName(decomposed)).toBe(normalizeCaretakerName(precomposed));
+  });
+
   it("preserves a name at the stored maximum length", () => {
-    const longest = "a".repeat(STORED_NAME_MAX);
+    const longest = "a".repeat(MAX_CLAIMANT_NAME_LENGTH);
     expect(normalizeCaretakerName(longest)).toBe(longest);
-    expect(normalizeCaretakerName(longest)).toHaveLength(STORED_NAME_MAX);
+    expect(normalizeCaretakerName(longest)).toHaveLength(MAX_CLAIMANT_NAME_LENGTH);
   });
 
   it("keeps Polish characters and astral-plane codepoints intact", () => {
@@ -182,6 +215,62 @@ describe("groupCaretakers", () => {
 
     expect(bySlotId.size).toBe(0);
     expect(caretakerCount).toBe(0);
+  });
+
+  it("breaks a claimed_at tie on id, which is the COMMON path not an edge case", () => {
+    // claim_slots writes every slot of one claim in a single transaction with a single now(),
+    // so equal claimed_at is normal. This tie-break is what makes ordinals stable, and it is
+    // ordered by codepoint rather than locale collation for the same reason.
+    const shared = "2026-11-01T08:00:00Z";
+    const { bySlotId } = groupCaretakers([
+      slot({ id: "s2", claimed_by_name: "Ania", claim_digest: DIGEST_B, claimed_at: shared }),
+      slot({ id: "s1", claimed_by_name: "Ania", claim_digest: DIGEST_A, claimed_at: shared }),
+    ]);
+
+    expect(bySlotId.get("s1")?.ordinal).toBe(1);
+    expect(bySlotId.get("s2")?.ordinal).toBe(2);
+  });
+
+  it("numbers a three-way collision 1, 2, 3", () => {
+    const { bySlotId, caretakerCount } = groupCaretakers([
+      slot({ id: "s1", claimed_by_name: "Ania", claim_digest: DIGEST_A, claimed_at: "2026-11-01T08:00:00Z" }),
+      slot({ id: "s2", claimed_by_name: "Ania", claim_digest: DIGEST_B, claimed_at: "2026-11-01T09:00:00Z" }),
+      slot({ id: "s3", claimed_by_name: "Ania", claim_digest: DIGEST_C, claimed_at: "2026-11-01T10:00:00Z" }),
+    ]);
+
+    expect([bySlotId.get("s1")?.ordinal, bySlotId.get("s2")?.ordinal, bySlotId.get("s3")?.ordinal]).toEqual([1, 2, 3]);
+    expect(caretakerCount).toBe(3);
+  });
+
+  it("falls back for an empty stored name, not just an invisible one", () => {
+    const { bySlotId } = groupCaretakers([
+      slot({ id: "s1", claimed_by_name: "", claim_digest: DIGEST_A, claimed_at: "2026-11-01T08:00:00Z" }),
+    ]);
+
+    expect(bySlotId.get("s1")).toEqual({ label: UNNAMED_CARETAKER_LABEL, ordinal: null });
+  });
+
+  it("tolerates a digest with no claimed_at, which only a direct owner UPDATE can produce", () => {
+    // care_slots_claim_complete ties the three columns, so this is unreachable through any
+    // function — but contract-surfaces.md records that the owner's table grant can break that
+    // invariant, and this page is where they would see the result.
+    const { bySlotId, caretakerCount } = groupCaretakers([
+      slot({ id: "s1", claimed_by_name: "Ania", claim_digest: DIGEST_A, claimed_at: null }),
+    ]);
+
+    expect(bySlotId.get("s1")).toEqual({ label: "Ania", ordinal: null });
+    expect(caretakerCount).toBe(1);
+  });
+
+  it("passes an over-length name through, because display truncation owns that", () => {
+    // Reachable only by a direct owner UPDATE — claim_slots raises past 80. The helper does not
+    // enforce the bound: the page clips with CSS and keeps the whole value in `title`.
+    const overlong = "a".repeat(MAX_CLAIMANT_NAME_LENGTH + 20);
+    const { bySlotId } = groupCaretakers([
+      slot({ id: "s1", claimed_by_name: overlong, claim_digest: DIGEST_A, claimed_at: "2026-11-01T08:00:00Z" }),
+    ]);
+
+    expect(bySlotId.get("s1")?.label).toHaveLength(MAX_CLAIMANT_NAME_LENGTH + 20);
   });
 
   it("never carries a digest in its output", () => {

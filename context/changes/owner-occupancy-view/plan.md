@@ -435,18 +435,18 @@ which is the only option available for them.
 
 #### Automated
 
-- [x] 1.1 Unit tests for `normalizeCaretakerName` pass across the hostile-input classes
-- [x] 1.2 Unit tests for `groupCaretakers` pass, including that its output carries no digest
-- [x] 1.3 Full suite passes
-- [x] 1.4 Type checking and linting pass
+- [x] 1.1 Unit tests for `normalizeCaretakerName` pass across the hostile-input classes — 106ea26
+- [x] 1.2 Unit tests for `groupCaretakers` pass, including that its output carries no digest — 106ea26
+- [x] 1.3 Full suite passes — 106ea26
+- [x] 1.4 Type checking and linting pass — 106ea26
 
 #### Manual
 
-- [x] 1.5 Two caretakers' names render under the right days at phone width in all three themes
-- [x] 1.6 Two caretakers with the same name render as `Ania (1)` and `Ania (2)`
-- [x] 1.7 The header caretaker count matches the names visible below
-- [x] 1.8 View source contains no 64-character hexadecimal string
-- [x] 1.9 A day with no claimed terms renders its grid and no empty list
+- [x] 1.5 Two caretakers' names render under the right days at phone width in all three themes — 106ea26
+- [x] 1.6 Two caretakers with the same name render as `Ania (1)` and `Ania (2)` — 106ea26
+- [x] 1.7 The header caretaker count matches the names visible below — 106ea26
+- [x] 1.8 View source contains no 64-character hexadecimal string — 106ea26
+- [x] 1.9 A day with no claimed terms renders its grid and no empty list — 106ea26
 
 ### Phase 2: The release function
 
