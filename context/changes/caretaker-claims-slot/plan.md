@@ -1190,13 +1190,13 @@ created_at)` and `time_of_day` exists only on `care_slots`, with nothing linking
 
 #### Automated
 
-- [x] 5.1 Full suite passes
-- [x] 5.2 Type checking and linting pass
+- [x] 5.1 Full suite passes — 016f9b5
+- [x] 5.2 Type checking and linting pass — 016f9b5
 
 #### Manual
 
-- [x] 5.3 Caretaker calendar matches the design at phone width in all three themes
-- [x] 5.4 A two-month period navigates; a short period renders no broken control
-- [x] 5.5 The four existing `Input` call sites are visually unchanged
-- [x] 5.6 The sensitive callout is visually separated from the public list
-- [x] 5.7 A fully-taken day renders the day-full state
+- [x] 5.3 Caretaker calendar matches the design at phone width in all three themes — 016f9b5
+- [x] 5.4 A two-month period navigates; a short period renders no broken control — 016f9b5
+- [x] 5.5 The four existing `Input` call sites are visually unchanged — 016f9b5
+- [x] 5.6 The sensitive callout is visually separated from the public list — 016f9b5
+- [x] 5.7 A fully-taken day renders the day-full state — 016f9b5
