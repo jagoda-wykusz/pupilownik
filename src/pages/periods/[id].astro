@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase";
 import { periodIdSchema } from "@/lib/schemas/period";
 import { resolveTheme, THEME_COOKIE } from "@/lib/theme";
 import { formatDay, formatRange, formatWeekday, TIMES_OF_DAY, TIME_OF_DAY_LABEL } from "@/lib/period-format";
+import { groupCaretakers, UNNAMED_CARETAKER_LABEL } from "@/lib/caretaker-name";
 import type { TimeOfDay } from "@/lib/period-format";
 
 // Protected by middleware (PROTECTED_ROUTES includes "/periods"). The read carries no
@@ -29,11 +30,24 @@ interface SlotRow {
   id: string;
   slot_date: string;
   time_of_day: TimeOfDay;
-  // claimed_at, not claimed_by_name: the page needs "is this taken", not who took it —
-  // that is S-04 (FR-006). The care_slots_claim_complete CHECK makes the two columns null
-  // together, so this is an exact substitute that cannot render an identity even by
-  // accident. Same standard /periods applies via its aggregate.
   claimed_at: string | null;
+  // S-04 (FR-006) is the slice that takes identity off this page's "cannot see it, cannot
+  // leak it" footing, and it does so deliberately. Until now this interface carried only
+  // `claimed_at`, on the grounds that the page needed "is this taken", not who took it — a
+  // structural guarantee, since a page without the column cannot render it by accident.
+  //
+  // What replaces that guarantee, now that both columns are read:
+  //   - `claimed_by_name` is anon-written and reaches the screen ONLY through
+  //     `groupCaretakers`, which normalises it (see src/lib/caretaker-name.ts for what
+  //     `claim_slots` does and does not validate).
+  //   - `claim_digest` is read HERE, in server-only frontmatter, and must travel no further.
+  //     Astro serializes island props into the HTML, so a digest in a prop is a disclosure —
+  //     `20260907171514_claim_secret_not_digest.sql:14-19` names this payload as the one to
+  //     avoid. `CaretakerLabel` has no digest field, which makes that a type error rather
+  //     than a review catch, and a unit test pins the shape.
+  // `/periods` keeps the old posture: its aggregate still never reads either column.
+  claimed_by_name: string | null;
+  claim_digest: string | null;
 }
 interface PetRow {
   id: string;
@@ -66,7 +80,7 @@ if (periodId === null) {
     // `pets(...)` resolves the many-to-many through care_period_pets; see the list page for
     // why this embed is bounded and not a repeat of impl-review F8.
     .select(
-      "id, title, start_date, end_date, revoked_at, caretaker_note, care_slots(id, slot_date, time_of_day, claimed_at), pets(id, name)",
+      "id, title, start_date, end_date, revoked_at, caretaker_note, care_slots(id, slot_date, time_of_day, claimed_at, claimed_by_name, claim_digest), pets(id, name)",
     )
     .eq("id", periodId)
     .maybeSingle();
@@ -98,6 +112,34 @@ const byDay = [...new Set(slots.map((slot) => slot.slot_date))].sort().map((day)
   ),
 }));
 const takenCount = slots.filter((slot) => slot.claimed_at !== null).length;
+
+// Who holds what. Grouping happens once for the whole period rather than per day, because an
+// ordinal is only meaningful against every other caretaker on the trip — a caretaker who holds
+// Monday and Wednesday must carry the same number in both places.
+//
+// This is the last point at which `claim_digest` exists on this page: `groupCaretakers` takes
+// it as input and returns labels that have no digest field. Nothing below may reach back into
+// `slot.claim_digest`.
+const caretakers = groupCaretakers(slots);
+
+// Resolve each day's claimed terms to a rendered label HERE rather than in the template.
+// Doing the lookup inline would leave `bySlotId.get(id)?.ordinal !== null` as the guard, and
+// that is true when the map has no entry at all — `undefined !== null` — so a slot missing
+// from the grouping would render an empty "()". `care_slots_claim_complete` makes that
+// unreachable in theory, but contract-surfaces.md records that a direct owner UPDATE can break
+// that very invariant, and this page is where the owner would see the result.
+const claimedByDay = new Map(
+  byDay.map((entry) => [
+    entry.day,
+    entry.slots
+      .filter((slot) => slot.claimed_at !== null)
+      .map((slot) => ({
+        id: slot.id,
+        time_of_day: slot.time_of_day,
+        caretaker: caretakers.bySlotId.get(slot.id) ?? null,
+      })),
+  ]),
+);
 ---
 
 <Layout title={period?.title ?? "Wyjazd"}>
@@ -147,8 +189,14 @@ const takenCount = slots.filter((slot) => slot.claimed_at !== null).length;
             ) : (
               <p class="text-muted-foreground mt-1 text-[15px]">Bez przypisanych zwierząt</p>
             )}
+            {/* "Opiekunowie: N" rather than a declined noun: Polish agreement here would be
+                1 opiekun / 2-4 opiekunów / 5+ opiekunów, and the label form sidesteps it
+                without a pluralisation helper this repo does not otherwise need. The count is
+                distinct CAPABILITIES, which is the closest the schema gets to "people" — see
+                groupCaretakers for why that is not the same thing. */}
             <p class="text-muted-foreground mt-2 text-[13px]">
               {takenCount} z {slots.length} terminów zajętych
+              {caretakers.caretakerCount > 0 && ` · opiekunowie: ${caretakers.caretakerCount}`}
               {period.revoked_at !== null && " · link został unieważniony"}
             </p>
 
@@ -191,6 +239,46 @@ const takenCount = slots.filter((slot) => slot.claimed_at !== null).length;
                       </li>
                     ))}
                   </ul>
+
+                  {/* Names live BELOW the grid, not inside its cells, and that placement is
+                      load-bearing rather than cosmetic. `grid-cols-3` compiles to
+                      `repeat(3, minmax(0, 1fr))`, so a cell cannot grow and has no wrapping —
+                      80 characters would paint straight over its neighbours. It would also put
+                      an anon-written string immediately beside the literal "wolne" / "zajęte"
+                      labels, separated only by colour and weight, so a caretaker named "wolne"
+                      could pass as a status. Down here each name gets a full row, and the
+                      release control (phase 3) gets somewhere to put its confirmation.
+
+                      Days with nothing claimed render the grid alone — no empty list, no
+                      heading for zero rows. */}
+                  {(claimedByDay.get(entry.day) ?? []).length > 0 && (
+                    <ul class="border-border mt-3 space-y-2 border-t pt-3">
+                      {(claimedByDay.get(entry.day) ?? []).map((claimed) => (
+                        <li class="flex items-center gap-3 text-[13px]">
+                          <span class="text-muted-foreground w-[86px] shrink-0">
+                            {TIME_OF_DAY_LABEL[claimed.time_of_day]}
+                          </span>
+                          {/* min-w-0 + truncate + title, following InviteLinkPanel.tsx:48 —
+                              the repo's one precedent for a long string that must not break a
+                              layout. NOT whitespace-pre-line: that is right for the owner's
+                              own note above, and on an 80-character caretaker name it would
+                              render 40 rows. */}
+                          <span
+                            class="text-foreground min-w-0 flex-1 truncate font-semibold"
+                            title={claimed.caretaker?.label ?? UNNAMED_CARETAKER_LABEL}
+                          >
+                            {claimed.caretaker?.label ?? UNNAMED_CARETAKER_LABEL}
+                            {claimed.caretaker?.ordinal != null && (
+                              // Shown only when another capability wears the same label.
+                              // Per-render and meaningless off this page — but the page would
+                              // otherwise show two different people as one.
+                              <span class="text-muted-foreground ml-1 font-normal">({claimed.caretaker.ordinal})</span>
+                            )}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </li>
               ))}
             </ul>

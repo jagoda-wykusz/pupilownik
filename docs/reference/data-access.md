@@ -174,8 +174,20 @@ p_claim_secret, p_name)`, `VOLATILE` — a separate function because Postgres
 **The rule for future slices:** a new caretaker capability _extends this
 function_ (or adds another one under the same four rules). It does **not** add an
 anon policy to a table. S-03's slot claiming did exactly that, adding
-`claim_slots` and then `get_claimed_details`. S-04's occupancy view lands under the
-same rule.
+`claim_slots` and then `get_claimed_details`. S-05's caretaker-visible names
+(FR-011) is the next slice that lands under this rule — it would have to widen one
+of the doors above, which is a schema-level decision, not a page-level one.
+
+**And the corollary, because this heading has already misled once:** a slice whose
+reader is the OWNER does not land under these rules at all. Until S-04 this
+paragraph closed by filing the owner's occupancy view here, which sent a reader
+looking for a door to extend for a feature that needs none. The owner is
+`authenticated` and reaches `care_slots` through the ordinary F-01 path — the four
+policies at the top of this document, table-level grants, no column ACLs — so
+`claimed_by_name` was readable by the owner from the day S-02 created the table.
+S-04's occupancy view added no function, no grant and no policy — it widened a
+`.select()` string. Check which role a slice serves before reaching for a
+`SECURITY DEFINER` door.
 
 **The instruction tier split is two predicates, and nothing else.** Both reading
 functions are `SECURITY DEFINER`, so they run as their owner and RLS on `pets`
