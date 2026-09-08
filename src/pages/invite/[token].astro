@@ -202,7 +202,7 @@ const myDays = [...new Set((claimed?.slots ?? []).map((slot) => slot.slot_date))
                 the rest of the page. Body text stays on --foreground: --success is an accent,
                 and only the heading is set in it. */}
             {claimed && (
-              <div class="border-success/40 bg-success/10 mt-6 flex items-center gap-3 rounded-lg border-[1.5px] p-4">
+              <div class="border-success bg-success/10 mt-6 flex items-center gap-3 rounded-lg border-[1.5px] p-4">
                 <span class="bg-success/15 text-success flex size-11 shrink-0 items-center justify-center rounded-full">
                   <svg
                     width="20"
@@ -219,7 +219,12 @@ const myDays = [...new Set((claimed?.slots ?? []).map((slot) => slot.slot_date))
                   </svg>
                 </span>
                 <div>
-                  <p class="font-heading text-success text-[18px] font-bold">Zapisano, {claimed.name}!</p>
+                  {/* Heading on --foreground, not --success: at 18px bold this is 13.5pt, under
+                      WCAG's 14pt-bold large-text threshold, so it needs 4.5:1 — and #2f7d52 on
+                      the bg-success/10 tint measures 4.13:1, not the 4.9:1 the token's comment
+                      cites against --background (impl-review phase 5, F2). --success stays on
+                      the tick disc, where the 3:1 non-text bar applies and it clears at 3.86:1. */}
+                  <p class="font-heading text-foreground text-[18px] font-bold">Zapisano, {claimed.name}!</p>
                   <p class="text-foreground mt-0.5 text-[13px] font-semibold">
                     {myDays.length === 1
                       ? `Masz 1 dzień: ${formatDay(myDays[0])}.`
@@ -297,7 +302,7 @@ const myDays = [...new Set((claimed?.slots ?? []).map((slot) => slot.slot_date))
                               wrong. Its own heading, because a caretaker who never claimed
                               never sees this and one who did should know why it appeared. */}
                           {(sensitiveByPet.get(pet.id) ?? []).length > 0 && (
-                            <div class="border-notice/50 bg-notice/10 mt-3 rounded-[18px] border-[1.5px] p-3.5">
+                            <div class="border-notice bg-notice/10 mt-3 rounded-[18px] border-[1.5px] p-3.5">
                               <p class="text-foreground flex items-center gap-2 text-[13px] font-bold">
                                 <svg
                                   width="15"
@@ -347,7 +352,7 @@ const myDays = [...new Set((claimed?.slots ?? []).map((slot) => slot.slot_date))
                     it carries the same kind of content and earns the same reveal rule and the
                     same treatment. */}
                 <h2 class="font-heading text-foreground mt-8 mb-3 text-[17px] font-bold">Notatka od właściciela</h2>
-                <p class="border-notice/50 bg-notice/10 text-foreground rounded-[18px] border-[1.5px] p-4 text-[14px] leading-[1.6] whitespace-pre-line">
+                <p class="border-notice bg-notice/10 text-foreground rounded-[18px] border-[1.5px] p-4 text-[14px] leading-[1.6] whitespace-pre-line">
                   {claimed.caretaker_note}
                 </p>
               </>

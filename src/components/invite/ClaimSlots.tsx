@@ -3,7 +3,7 @@ import { Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/Input";
 import { ServerError } from "@/components/auth/ServerError";
-import PeriodCalendar, { type CalendarDay } from "@/components/invite/PeriodCalendar";
+import { PeriodCalendar, type CalendarDay } from "@/components/invite/PeriodCalendar";
 import { cn } from "@/lib/utils";
 import { formatDay, formatWeekday, MAX_CLAIMANT_NAME_LENGTH, TIME_OF_DAY_LABEL } from "@/lib/period-format";
 
@@ -18,7 +18,9 @@ import { formatDay, formatWeekday, MAX_CLAIMANT_NAME_LENGTH, TIME_OF_DAY_LABEL }
 //   1. The design's card button claims ONE slot on tap and never asks for a name. We keep
 //      multi-select plus a single submit, because `claim_slots` is all-or-nothing across a
 //      selection and the name has to be collected once. The card button therefore TOGGLES
-//      selection and the accent submit below carries the count.
+//      selection and the accent submit below carries the count. Scoped to ONE DAY after
+//      impl-review F1 — see `selectDay` for why a selection may not outlive the day that
+//      renders it.
 //   2. The design draws no taken-slot card state. Ours is invented: the pill reads ZAJĘTE and
 //      the card is inert. Leaving it out would mean a caretaker on a partly-taken day sees
 //      only the free cards and cannot tell the rest exist.
@@ -71,6 +73,22 @@ export default function ClaimSlots({ byDay, token, hasCapability }: Props) {
   });
 
   const day = byDay.find((entry) => entry.day === selectedDay) ?? null;
+
+  // Moving to another day CLEARS the selection, so a claim is always confined to one day.
+  // Without this, `selected` outlives the cards that render it: only the selected day's slots
+  // are on screen, so a pick left behind on an earlier day is invisible, uncancellable, and —
+  // because `claim_slots` is all-or-nothing — able to fail the whole request with a 409 naming
+  // a term the caretaker cannot see (impl-review phase 5, F1). Selection stays multi-slot
+  // WITHIN a day, which is what keeps the all-or-nothing guarantee worth having.
+  function selectDay(next: string) {
+    setSelectedDay((current) => {
+      if (current !== next) {
+        setSelected(new Set());
+        setError(null);
+      }
+      return next;
+    });
+  }
 
   function toggle(slotId: string) {
     setSelected((current) => {
@@ -153,7 +171,7 @@ export default function ClaimSlots({ byDay, token, hasCapability }: Props) {
   return (
     <form onSubmit={submit} className="space-y-5">
       <div className="border-border bg-card rounded-lg border-[1.5px] p-4">
-        <PeriodCalendar days={byDay} selectedDay={selectedDay} onSelect={setSelectedDay} disabled={pending} />
+        <PeriodCalendar days={byDay} selectedDay={selectedDay} onSelect={selectDay} disabled={pending} />
       </div>
 
       {day && (
@@ -173,9 +191,20 @@ export default function ClaimSlots({ byDay, token, hasCapability }: Props) {
                     // already-held slot does not bite in practice — but the server still treats
                     // a retry as satisfied rather than conflicting, because a lost response is
                     // not a click.
-                    disabled={slot.is_claimed || pending}
+                    //
+                    // aria-disabled rather than `disabled` for the TAKEN case: `disabled` drops
+                    // the button out of the tab order, so a keyboard-only caretaker would never
+                    // reach it — which defeats the only reason this state exists (A36: "so a
+                    // caretaker on a partly-taken day can tell the rest exist"). Real `disabled`
+                    // is kept for `pending`, where the card genuinely should not be reachable.
+                    // The onClick guard is what actually refuses the click (impl-review F8).
+                    disabled={pending}
+                    aria-disabled={slot.is_claimed}
                     aria-pressed={isSelected}
                     onClick={() => {
+                      if (slot.is_claimed) {
+                        return;
+                      }
                       toggle(slot.id);
                     }}
                     className={cn(

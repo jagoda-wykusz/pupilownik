@@ -590,7 +590,8 @@ cells, `‹ ›` navigation, a legend, and a selected-day state. **Three dots pe
 design's two** — the schema has three times of day, and the design predates that.
 
 **Contract**: Dot states are free (hollow), taken (filled) and day-full (grey). Navigation is
-bounded to the months the period actually spans; `MAX_SPAN_DAYS = 31` means at most two, so the
+bounded to the months the period actually spans; `MAX_SPAN_DAYS = 31` means at most three (see
+the correction in A35 — this line originally said two), so the
 control is often inert and must not render as broken when there is nowhere to go. Selection
 state is local to the island. Mobile-first per the PRD's NFR — the caretaker opens this on a
 phone.
@@ -1080,7 +1081,11 @@ created_at)` and `time_of_day` exists only on `care_slots`, with nothing linking
   characters — so it had to survive the move from the raw `<input>` the phase replaced.
 
 - **A35 — The month navigation is hidden, not disabled, on a single-month period.**
-  `MAX_SPAN_DAYS = 31` means a period spans at most two months, so the control is inert most of
+  `MAX_SPAN_DAYS = 31` means a period spans at most three months (**corrected at impl-review,
+  finding F5** — both this addendum and Phase 5's §Changes Required originally said two;
+  2027-01-30 + 31 days reaches 2027-03-01, which touches January, February and March. The code
+  was never wrong: `months` is an arbitrary-length array derived from the data), so the control
+  is inert most of
   the time. Two permanently dead arrows are precisely the "broken control" this phase's manual
   verification asks about, so `‹ ›` renders only when `months.length > 1`; within a two-month
   period the arrow at the boundary is disabled and dimmed rather than removed, because there
@@ -1100,6 +1105,38 @@ created_at)` and `time_of_day` exists only on `care_slots`, with nothing linking
   document rather than a phone mock, and a gradient hero is exactly what `.contrast` exists to
   flatten. The existing header typography stays. Noted here so a later reader sees a decision
   rather than an omission.
+
+- **A38 — Four incidental restyles rode along with the phase, named here so the diff has no
+  unexplained lines** (impl-review F9). None is in Phase 5's §Changes Required and all sit
+  inside this slice's own screen: (a) the pet name moved to `font-heading` at 18px with a
+  semibold species suffix, matching the artboard's "Burek / pies · labrador · 4 lata" card;
+  (b) the caretaker NOTATKA moved from `--destructive` to `--notice` alongside the sensitive
+  rows, on the grounds that the artboard fills it with the same kind of content and it earns
+  the same reveal rule; (c) `autoComplete="given-name"` on the name field; (d) `PeriodCalendar`
+  took its own `disabled` prop so the island can lock the grid while a claim is in flight.
+
+- **A39 — Phase 5's impl-review found ten items; eight were fixed in place**
+  (`reviews/impl-review-phase-5.md`). The one behavioural fix is F1: a selection may no longer
+  outlive the day that renders it. Before it, `selected` persisted across a calendar day change
+  while only the selected day's cards were on screen, so a pick left on an earlier day was
+  invisible, uncancellable, and — because `claim_slots` is all-or-nothing — able to fail the
+  whole request with a 409 naming a term the caretaker could not see. This was a REGRESSION
+  introduced by this phase: on Phase 4's flat list every slot was always visible. The rest were
+  a11y and documentation: `--success` demoted to an accent after measuring 4.13:1 on the tint it
+  actually renders on rather than the 4.9:1 on `--background` the token comment cited (F2);
+  `--notice` / `--success` borders taken to full strength so they stop opting out of
+  `.contrast`'s `--border: #000000` hard-edge rule (F3); the `Input` consumer count corrected
+  from the plan's "four … add pet" to the eight call sites in three files that grep actually
+  finds (F4); the month bound corrected from two to three (F5, and see A35); the month arrows
+  taught to honour `disabled` (F6); day cells given weekday and month in their labels (F7);
+  taken slot cards moved from `disabled` to `aria-disabled` so a keyboard-only caretaker can
+  still reach them, which is the only reason A36 gives for the state existing (F8); and
+  `PeriodCalendar` switched to a named export (F10).
+
+  **Three of the ten — F2, F4, F5 — are the same failure, and `lessons.md` already names it.**
+  Each was a present-tense claim about system state (a contrast ratio, a consumer list, a
+  numeric bound) written from the plan's prose or from a plausible assumption rather than
+  re-derived at the moment of writing. The lesson was re-read at the start of this phase.
 
 ## Follow-ups (outside this change)
 
@@ -1197,6 +1234,6 @@ created_at)` and `time_of_day` exists only on `care_slots`, with nothing linking
 
 - [x] 5.3 Caretaker calendar matches the design at phone width in all three themes — 016f9b5
 - [x] 5.4 A two-month period navigates; a short period renders no broken control — 016f9b5
-- [x] 5.5 The four existing `Input` call sites are visually unchanged — 016f9b5
+- [x] 5.5 The existing `Input` call sites are visually unchanged (eight, in three files — the plan's "four" was wrong; impl-review phase 5, F4) — 016f9b5
 - [x] 5.6 The sensitive callout is visually separated from the public list — 016f9b5
 - [x] 5.7 A fully-taken day renders the day-full state — 016f9b5

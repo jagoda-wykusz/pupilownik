@@ -55,10 +55,13 @@
      *-foreground companion is needed and no existing consumer changes.
 
      --success: the design's positive dot, rgb(60,163,106) on the "Link gotowy do
-     wysłania" card. Darkened here for the same reason --muted-foreground was: the
-     design uses it as a 8px dot, we also set the "Zapisano!" heading in it, and
-     #3ca36a measures ~2.6:1 on --background. #2f7d52 is ~4.9:1 and stays in the
-     design's hue.
+     wysłania" card. Darkened for the same reason --muted-foreground was: #3ca36a
+     measures 2.6:1 on --background, under even the 3:1 non-text bar. #2f7d52 is
+     4.9:1 on --background and 3.86:1 on the bg-success/15 tick disc it actually
+     renders on — the second figure is the one that governs, and naming the wrong
+     ground is what this comment got wrong first time round (impl-review phase 5,
+     F2). It is an ACCENT only: 4.13:1 on the /10 banner ground is short of the
+     4.5:1 that 18px bold needs, so headings stay on --foreground.
      --notice: the sensitive-data callout, rgb(202,165,58) with its
      rgb(249,239,214) ground (the post-claim artboard's "Klucze u sąsiadki" block).
      Amber rather than --destructive: that block is "handle with care", not an error. */

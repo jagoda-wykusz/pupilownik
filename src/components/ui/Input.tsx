@@ -18,8 +18,11 @@ interface InputProps {
   error?: string;
   /** Renders the show/hide control. Only meaningful on a password field. */
   revealable?: boolean;
-  /** Locks the field while a request is in flight. Defaults to false, so the four call
-   *  sites that predate it (sign-in, sign-up, add pet, new period) are untouched. */
+  /** Locks the field while a request is in flight. Defaults to false, so the eight call sites
+   *  that predate it are untouched: SignInForm (2), SignUpForm (3), NewPeriodForm (3). Counted
+   *  by grep at the time of writing, not copied from the plan — the plan said "four call sites
+   *  … add pet", and AddPetForm renders a raw <input> and has never imported this component
+   *  (impl-review phase 5, F4). */
   disabled?: boolean;
 }
 

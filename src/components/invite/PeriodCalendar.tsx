@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
-import { TIMES_OF_DAY, type TimeOfDay } from "@/lib/period-format";
+import { formatDay, formatWeekday, TIMES_OF_DAY, type TimeOfDay } from "@/lib/period-format";
 
 // The caretaker's month grid, from the "Kalendarz opiekuna" artboard
 // (context/design/Pupilownik Hi-fi.html:541-591). It replaces the flat day list Phase 4
@@ -81,12 +81,18 @@ function buildGrid(isoMonth: string): string[] {
   return cells;
 }
 
-export default function PeriodCalendar({ days, selectedDay, onSelect, disabled = false }: Props) {
+// Named export, not default: the repo's split is default for island ENTRYPOINTS (NewPeriodForm,
+// AddPetForm, ClaimSlots) and named for shared children (Chip, Input, ServerError, Button).
+// This carries no client: directive and is only ever rendered by ClaimSlots.
+export function PeriodCalendar({ days, selectedDay, onSelect, disabled = false }: Props) {
   const byDay = useMemo(() => new Map(days.map((entry) => [entry.day, entry])), [days]);
 
-  // MAX_SPAN_DAYS is 31, so a period spans at most two months and the control is often
-  // inert. When there is nowhere to go it is not rendered at all — an always-visible pair
-  // of dead arrows is exactly the "broken control" this phase's verification asks about.
+  // MAX_SPAN_DAYS is 31, so a period spans at most THREE months — 2027-01-30 through
+  // 2027-03-01 is 31 days across January, February and March. (The plan said two; that is
+  // wrong, and the count is only ever derived from the data here, never assumed.) The control
+  // is inert on most periods all the same: when there is nowhere to go it is not rendered at
+  // all, because an always-visible pair of dead arrows is exactly the "broken control" this
+  // phase's verification asks about.
   const months = useMemo(() => [...new Set(days.map((entry) => monthKey(entry.day)))].sort(), [days]);
 
   // Initial month only: after mount the arrows own it, so a caretaker who paged to August
@@ -112,7 +118,7 @@ export default function PeriodCalendar({ days, selectedDay, onSelect, disabled =
           <div className="flex items-center gap-2">
             <button
               type="button"
-              disabled={monthIndex === 0}
+              disabled={disabled || monthIndex === 0}
               aria-label="Poprzedni miesiąc"
               onClick={() => {
                 setMonthIndex((current) => Math.max(0, current - 1));
@@ -123,7 +129,7 @@ export default function PeriodCalendar({ days, selectedDay, onSelect, disabled =
             </button>
             <button
               type="button"
-              disabled={monthIndex >= months.length - 1}
+              disabled={disabled || monthIndex >= months.length - 1}
               aria-label="Następny miesiąc"
               onClick={() => {
                 setMonthIndex((current) => Math.min(months.length - 1, current + 1));
@@ -144,7 +150,10 @@ export default function PeriodCalendar({ days, selectedDay, onSelect, disabled =
         ))}
       </div>
 
-      <div className="grid grid-cols-7 gap-[5px]">
+      {/* The weekday header above is aria-hidden, and the month sits in a plain <p>, so
+          without these two the grid announces bare numbers — and on a period spanning two or
+          three months, two different cells both read as "1: …" (impl-review phase 5, F7). */}
+      <div className="grid grid-cols-7 gap-[5px]" role="group" aria-label={`Terminy — ${formatMonth(month)}`}>
         {cells.map((cell) => {
           const entry = byDay.get(cell);
           const dayNumber = Number(cell.slice(8, 10));
@@ -170,7 +179,7 @@ export default function PeriodCalendar({ days, selectedDay, onSelect, disabled =
               type="button"
               disabled={disabled}
               aria-pressed={isSelected}
-              aria-label={`${String(dayNumber)}: ${isFull ? "dzień pełny" : "są wolne terminy"}`}
+              aria-label={`${formatWeekday(cell)}, ${formatDay(cell)} — ${isFull ? "dzień pełny" : "są wolne terminy"}`}
               onClick={() => {
                 onSelect(cell);
               }}
