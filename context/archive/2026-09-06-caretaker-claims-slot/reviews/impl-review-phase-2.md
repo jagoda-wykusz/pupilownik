@@ -152,7 +152,7 @@ one, so the test is a check of the guarantee rather than a description of it.
   extend THIS function" — the point rule 2 was corrected on.
 - **Fix**: "only _intended_ writer"; rule 3 → "reads and writes"; drop the
   extend-this-function sentence from the registry row.
-- **Decision**: FIXED — "only *intended* writer" with the catalog source named; rule 3 now says reads AND writes; the extend-this-function sentence replaced.
+- **Decision**: FIXED — "only _intended_ writer" with the catalog source named; rule 3 now says reads AND writes; the extend-this-function sentence replaced.
 
 ### F6 — Addendum A10's "the message is never empty" is wrong
 

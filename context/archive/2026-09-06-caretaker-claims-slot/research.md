@@ -36,13 +36,13 @@ best-solved part of the slice, and surfaced two larger items that are not tracke
    `pet_id` and no join table, so `care_instructions` — which hangs off `pets` — is
    unreachable from a period. FR-008 (the caretaker sees public instructions on arrival) is
    therefore **not implementable at all** until this is built. S-02's plan deferred the
-   *reveal rule* explicitly but deferred the *relation* silently.
+   _reveal rule_ explicitly but deferred the _relation_ silently.
 2. **The unit of the reveal is contested by the project's own documents.** The PRD's
-   Non-Goals forbid caretaker identity and FR-010 was cut *for lack of it*; the roadmap, the
+   Non-Goals forbid caretaker identity and FR-010 was cut _for lack of it_; the roadmap, the
    test plan and the hi-fi design all assume a per-person reveal. This is a product decision
    a plan cannot make.
 3. **Atomicity is already 95% solved by S-02's schema.** The remaining work is a function
-   body and a test — and the test can only prove the *outcome*, not that the row lock was
+   body and a test — and the test can only prove the _outcome_, not that the row lock was
    exercised. Say so rather than claiming proof.
 4. **`get_period_by_token` cannot be extended to claim.** It is declared `STABLE`
    (verified: `provolatile = 's'`), and Postgres forbids writes in a STABLE function. S-03
@@ -72,7 +72,7 @@ What follows, mechanically:
 - **A first-of-its-kind cookie write.** This repo has no precedent for the app setting its own
   HttpOnly cookie; `ThemeToggle.tsx` writes `document.cookie` client-side and only
   `@supabase/ssr` writes server-side. `src/middleware.ts` already sends `Cache-Control:
-  no-store` for `/invite/*`, which is exactly what a cookie-varying response needs.
+no-store` for `/invite/*`, which is exactly what a cookie-varying response needs.
 - **`test-plan.md:65` becomes the authoritative phrasing of Risk #4** ("sensitive fields
   appear only to a caretaker who has claimed"), and `:53` must be reworded to match. Open
   question 8 is resolved by this decision.
@@ -82,8 +82,8 @@ What follows, mechanically:
   that today.
 
 **One reconciliation to make deliberately, not silently.** `prd.md:144` (§Non-Goals) reads
-*"Brak kont i tożsamości opiekunów — opiekun zostaje przy modelu 'link + imię'; żadnych
-logowań, profili ani historii."* A per-claim capability secret is arguably **not** what that
+_"Brak kont i tożsamości opiekunów — opiekun zostaje przy modelu 'link + imię'; żadnych
+logowań, profili ani historii."_ A per-claim capability secret is arguably **not** what that
 forbids: there is no login, no profile and no history — only a bearer capability, which the
 invite link already is. That is a defensible reading and it means the PRD may need a
 clarification rather than an amendment. But it IS a reading, and the plan should state which
@@ -141,12 +141,12 @@ Two things matter for the reveal:
 
 **Cardinality: the evidence says many-to-many.**
 
-- `context/foundation/prd.md:88` — FR-002's recorded Socratic resolution: *"encja zostaje —
-  **jeden okres może obejmować kilka zwierząt** o różnych instrukcjach."* This is the
+- `context/foundation/prd.md:88` — FR-002's recorded Socratic resolution: _"encja zostaje —
+  **jeden okres może obejmować kilka zwierząt** o różnych instrukcjach."_ This is the
   strongest statement and it is a decision, not a hint.
 - The hi-fi design agrees twice: the owner's "Nowy wyjazd" screen has a section labelled
   **"KTÓRE ZWIERZĘTA"** listing two pets (`hf-trip-burek`, `hf-trip-mru`), and the
-  caretaker's calendar header reads **"Opieka: Burek & Mru"** with a side chip *"Mru też"* on
+  caretaker's calendar header reads **"Opieka: Burek & Mru"** with a side chip _"Mru też"_ on
   the post-claim screen.
 - Nothing in the PRD, roadmap or S-02's plan contradicts it.
 
@@ -156,21 +156,21 @@ shape the evidence supports, not a `pet_id` column on `care_periods`.
 **Blast radius — every consumer of `care_periods`.** `context/foundation/lessons.md` makes
 enumerating these mandatory before changing a shared surface. Adding pets to a period touches:
 
-| Consumer | Impact |
-|---|---|
-| `supabase/migrations/20260905234144_…sql` | the table, its 4 RLS policies, its grants |
-| `create_period_with_slots(text,date,date,text)` | **signature change** — see below |
-| `get_period_by_token(text)` | must return instructions; but it is STABLE (§3) |
-| `regenerate_period_token(uuid,text)` | unaffected |
-| `src/pages/api/periods.ts` | must accept and pass pet ids |
-| `src/lib/schemas/period.ts` (`createPeriodSchema`) | new field + bounds |
-| `src/components/periods/NewPeriodForm.tsx` | new control — the design's "KTÓRE ZWIERZĘTA" |
-| `src/pages/periods/index.astro`, `[id].astro` | may show which pets a period covers |
-| `src/pages/invite/[token].astro` | the caretaker's instruction block |
+| Consumer                                                                                                                             | Impact                                                                  |
+| ------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------- |
+| `supabase/migrations/20260905234144_…sql`                                                                                            | the table, its 4 RLS policies, its grants                               |
+| `create_period_with_slots(text,date,date,text)`                                                                                      | **signature change** — see below                                        |
+| `get_period_by_token(text)`                                                                                                          | must return instructions; but it is STABLE (§3)                         |
+| `regenerate_period_token(uuid,text)`                                                                                                 | unaffected                                                              |
+| `src/pages/api/periods.ts`                                                                                                           | must accept and pass pet ids                                            |
+| `src/lib/schemas/period.ts` (`createPeriodSchema`)                                                                                   | new field + bounds                                                      |
+| `src/components/periods/NewPeriodForm.tsx`                                                                                           | new control — the design's "KTÓRE ZWIERZĘTA"                            |
+| `src/pages/periods/index.astro`, `[id].astro`                                                                                        | may show which pets a period covers                                     |
+| `src/pages/invite/[token].astro`                                                                                                     | the caretaker's instruction block                                       |
 | `tests/rls/care-periods.isolation.test.ts`, `care-slots.isolation.test.ts`, `invite-token.test.ts`, `tests/api/periods.post.test.ts` | all four seed periods through the RPC → all break on a signature change |
-| `src/db/database.types.ts` | regenerate |
-| `docs/reference/contract-surfaces.md` | `create_period_with_slots` row + any new function |
-| `docs/reference/data-access.md` | the token-model section describes the payload |
+| `src/db/database.types.ts`                                                                                                           | regenerate                                                              |
+| `docs/reference/contract-surfaces.md`                                                                                                | `create_period_with_slots` row + any new function                       |
+| `docs/reference/data-access.md`                                                                                                      | the token-model section describes the payload                           |
 
 **The `create_period_with_slots` signature problem.** Grants are **per-signature**. Adding a
 parameter creates a new function identity with fresh Supabase default privileges — which
@@ -178,7 +178,7 @@ means the `revoke … from public, anon, service_role` / `grant … to authentic
 re-applied, or anon silently regains execute. This project has been bitten by that class of
 mistake three times (recorded at `20260905234144_…sql:180-188` and `20260906003122_…sql:153-165`).
 **Correction — see §6.** My first reading here was that an added parameter with a default is
-the lower-risk shape. It is not: an added parameter creates a *second* function (an overload)
+the lower-risk shape. It is not: an added parameter creates a _second_ function (an overload)
 which gets its own fresh default grants **and** leaves the old signature reachable with its
 existing grant. §6 has the full reasoning and the opposite recommendation.
 
@@ -194,36 +194,36 @@ The question is whether "after the claim" is conditioned on the **event** or on 
 
 **Written support for the person reading:**
 
-- `context/foundation/prd.md:69` — US-02: *"wrażliwa część instrukcji staje się **dla niej**
-  widoczna"*
-- `prd.md:108` — FR-008's resolution: *"odsłaniają się dopiero **osobie, która wzięła slot**"*
-- `prd.md:138` — §Access Control: *"po zajęciu slotu odsłania **mu** się…"*
-- `context/foundation/roadmap.md:21` — elevated to the product differentiator: *"odsłaniają
-  się dopiero **osobie, która faktycznie wzięła slot**"*
-- `context/foundation/test-plan.md:65` — the pass condition: *"only **to a caretaker who has
-  claimed**"*
+- `context/foundation/prd.md:69` — US-02: _"wrażliwa część instrukcji staje się **dla niej**
+  widoczna"_
+- `prd.md:108` — FR-008's resolution: _"odsłaniają się dopiero **osobie, która wzięła slot**"_
+- `prd.md:138` — §Access Control: _"po zajęciu slotu odsłania **mu** się…"_
+- `context/foundation/roadmap.md:21` — elevated to the product differentiator: _"odsłaniają
+  się dopiero **osobie, która faktycznie wzięła slot**"_
+- `context/foundation/test-plan.md:65` — the pass condition: _"only **to a caretaker who has
+  claimed**"_
 - **The design, and this is the strongest evidence:** the post-claim artboard renders
-  **"Zapisano! Masz 2 dni: 13 i 16 lipca"** — second person, *your* days, aggregated across
+  **"Zapisano! Masz 2 dni: 13 i 16 lipca"** — second person, _your_ days, aggregated across
   the slots this viewer holds. **That screen cannot be rendered without per-person state.** A
   Polish pronoun in prose can be explained away as narration; a UI state cannot.
 
 **Written support for the event reading:**
 
 - `prd.md:121` — the §NFR confidentiality clause has **three** parts, and the third names the
-  boundary: *"nie jest dostępna bez ważnego linku ani przed zajęciem slotu; **nie wycieka poza
-  zaproszony krąg**."* The unit of confidentiality is the *circle*, not the individual.
-- `prd.md:75`, `:107` — the AC and FR-008's body are impersonal: *"dopiero po zajęciu slotu"*.
-- `test-plan.md:53` — Risk #4 states the failure as *"shown **before** a slot is claimed, or
-  to someone **outside** the invite link"* — neither of which an event reveal commits.
+  boundary: _"nie jest dostępna bez ważnego linku ani przed zajęciem slotu; **nie wycieka poza
+  zaproszony krąg**."_ The unit of confidentiality is the _circle_, not the individual.
+- `prd.md:75`, `:107` — the AC and FR-008's body are impersonal: _"dopiero po zajęciu slotu"_.
+- `test-plan.md:53` — Risk #4 states the failure as _"shown **before** a slot is claimed, or
+  to someone **outside** the invite link"_ — neither of which an event reveal commits.
   **The same risk is written two ways in one file** (`:53` vs `:65`).
 
 **And the constraint that makes this a real conflict:**
 
-- `prd.md:144` — §Non-Goals: *"**Brak kont i tożsamości opiekunów** — opiekun zostaje przy
-  modelu 'link + imię'; żadnych logowań, profili ani historii."*
+- `prd.md:144` — §Non-Goals: _"**Brak kont i tożsamości opiekunów** — opiekun zostaje przy
+  modelu 'link + imię'; żadnych logowań, profili ani historii."_
 - `prd.md:116` — FR-010 (caretaker releases own claim) was **cut from the MVP** precisely
-  because *"bez tożsamości opiekuna trudne i ryzykowne… Kandydat do v2 (**po dodaniu lekkiej
-  tożsamości opiekuna**)"*.
+  because _"bez tożsamości opiekuna trudne i ryzykowne… Kandydat do v2 (**po dodaniu lekkiej
+  tożsamości opiekuna**)"_.
 
 So a per-person reveal requires exactly the lightweight caretaker identity the PRD deferred to
 v2 — while the roadmap, the test plan and the design all assume it. This is not ambiguity in
@@ -231,14 +231,14 @@ the reading; it is a contradiction between the sources.
 
 **Mechanisms, against the four token-model rules in `docs/reference/data-access.md:80-111`:**
 
-| # | Mechanism | Rule compatibility | Cost |
-|---|---|---|---|
-| A | Per-claim secret ("claim token"), digest stored on the slot, returned once | Compatible — it is rule 1 applied twice. But the extra parameter must live in a **separate** function to stay clear of *"no parameter that could widen the result set"* (`:91-92`) | The raw secret must live in the browser → collapses into B, or becomes a second bearer credential in the same history/proxy-log class (`:118-120`) |
-| B | Cookie set on claim | Alone: incompatible. If it carries only `claimed=<id>` it is client-forgeable and there is no boundary; if it carries a verified secret it *is* A with a cookie carrier | This repo has **zero** precedent for the app setting its own HttpOnly cookie (`ThemeToggle.tsx` writes `document.cookie` client-side; only `@supabase/ssr` writes server-side). Per-browser → lost on a second device, retained on a shared one |
-| C | Reveal to every link-holder once claimed | **Compatible with all four rules, nothing bent.** The literal shape of *"extends this function"* (`:108-111`) | The trigger is undefined by every document (this slot? any? all?), and it contradicts `roadmap.md:21` / `test-plan.md:65`, which would need re-wording |
-| D | One link per caretaker (token = identity) | Compatible, and per-person falls out free | Contradicts FR-005's recorded resolution (`prd.md:96-97`: *"jeden link… najniższe tarcie"*) and needs a new table — `token_digest` is a single `not null` unique column |
-| E | Server-side anon session (claims table + opaque cookie) | A + B combined | Is "lekka tożsamość opiekuna" under another name |
-| F | Scoped JWT per claim | **Forbidden.** `context/archive/2026-09-06-care-period-and-invite-link/plan.md:18-21` records that *"There is no service_role client in the request path, by design"* rules this out | — |
+| #   | Mechanism                                                                  | Rule compatibility                                                                                                                                                                   | Cost                                                                                                                                                                                                                                            |
+| --- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A   | Per-claim secret ("claim token"), digest stored on the slot, returned once | Compatible — it is rule 1 applied twice. But the extra parameter must live in a **separate** function to stay clear of _"no parameter that could widen the result set"_ (`:91-92`)   | The raw secret must live in the browser → collapses into B, or becomes a second bearer credential in the same history/proxy-log class (`:118-120`)                                                                                              |
+| B   | Cookie set on claim                                                        | Alone: incompatible. If it carries only `claimed=<id>` it is client-forgeable and there is no boundary; if it carries a verified secret it _is_ A with a cookie carrier              | This repo has **zero** precedent for the app setting its own HttpOnly cookie (`ThemeToggle.tsx` writes `document.cookie` client-side; only `@supabase/ssr` writes server-side). Per-browser → lost on a second device, retained on a shared one |
+| C   | Reveal to every link-holder once claimed                                   | **Compatible with all four rules, nothing bent.** The literal shape of _"extends this function"_ (`:108-111`)                                                                        | The trigger is undefined by every document (this slot? any? all?), and it contradicts `roadmap.md:21` / `test-plan.md:65`, which would need re-wording                                                                                          |
+| D   | One link per caretaker (token = identity)                                  | Compatible, and per-person falls out free                                                                                                                                            | Contradicts FR-005's recorded resolution (`prd.md:96-97`: _"jeden link… najniższe tarcie"_) and needs a new table — `token_digest` is a single `not null` unique column                                                                         |
+| E   | Server-side anon session (claims table + opaque cookie)                    | A + B combined                                                                                                                                                                       | Is "lekka tożsamość opiekuna" under another name                                                                                                                                                                                                |
+| F   | Scoped JWT per claim                                                       | **Forbidden.** `context/archive/2026-09-06-care-period-and-invite-link/plan.md:18-21` records that _"There is no service_role client in the request path, by design"_ rules this out | —                                                                                                                                                                                                                                               |
 
 **Abuse lens.** Under **C**, a link-holder who never claimed sees the address and access codes
 — which is the failure `test-plan.md` Risk #4 tracks under one of its two phrasings. Under
@@ -248,7 +248,7 @@ screenshot**, and none narrows the link's bearer-credential exposure.
 
 **Why `claimed_by_name` cannot help.** It is unbounded `text`, no uniqueness, no FK, no
 browser binding (`20260905234144_…sql:50`), and `prd.md:110` accepts it unverified. The
-database can answer *"is this slot claimed?"* and cannot answer *"did **you** claim it?"* Two
+database can answer _"is this slot claimed?"_ and cannot answer _"did **you** claim it?"_ Two
 caretakers typing "Ania" are indistinguishable rows, and S-05/FR-011 puts names on screen
 where a third party can read one and type it back.
 
@@ -267,9 +267,9 @@ regenerate_period_token  | volatile   | f
 claim cannot be an extension of it.** S-03 adds a second `SECURITY DEFINER` function that
 must be `VOLATILE` (the default — do not copy `stable` from the existing one).
 
-`docs/reference/data-access.md:108-111` explicitly sanctions this: *"a new caretaker
+`docs/reference/data-access.md:108-111` explicitly sanctions this: _"a new caretaker
 capability extends this function (**or adds another one under the same four rules**). …
-**S-03's slot claiming** and S-04's occupancy view both land under this rule."*
+**S-03's slot claiming** and S-04's occupancy view both land under this rule."_
 
 But note the rules are **read-shaped in their details**: rule 2's requirements are all about
 result sets, and rule 4's uniform-failure contract ("return NULL") cannot express a claim's
@@ -287,7 +287,7 @@ no RLS behind it, and anon holds no table grants at all (asserted as 42501 in
    period X cannot touch period Y" structural rather than checked.
 3. **Bind the slot id to the derived period** — `and s.period_id = v_period.id`. This is the
    one genuinely new check with no precedent in the read function. A leaked slot uuid from
-   another period is a *valid* uuid; only the join stops it. `test-plan.md:66` names this as
+   another period is a _valid_ uuid; only the join stops it. `test-plan.md:66` names this as
    the IDOR anti-pattern: unguessable ≠ scoped.
 4. **Re-check `revoked_at is null` in the same statement**, not only at resolve time.
 5. **`and claimed_by_name is null`** — the free-slot predicate.
@@ -352,31 +352,31 @@ lesson already recorded for RLS denial (`test-plan.md:204-206`: denial is silent
 **What is load-bearing:**
 
 - `care_slots_claim_complete` (`20260906094254_claim_columns_paired.sql:23-25`) — **yes**, but
-  for the *predicate's truthfulness*, not the locking. It makes `claimed_by_name is null` a
+  for the _predicate's truthfulness_, not the locking. It makes `claimed_by_name is null` a
   trustworthy test of freeness. Without it, `(claimed_at set, claimed_by_name null)` is
   representable and a second caretaker overwrites a claimed row.
 - `care_slots_unique_in_period` — **adjacent, not load-bearing.** Both claims contend on the
-  *same row*, so no unique violation can occur. Its job is slot identity and generation
+  _same row_, so no unique violation can occur. Its job is slot identity and generation
   idempotence.
 
 **Ways to still double-book** (Postgres semantics, not read from this repo):
 
-1. **Read-then-write in two statements.** Being inside one plpgsql function does *not* help —
+1. **Read-then-write in two statements.** Being inside one plpgsql function does _not_ help —
    READ COMMITTED holds no lock between statements. A `select` for the error message must be
-   `for update` *and* the update must still carry the null predicate.
+   `for update` _and_ the update must still carry the null predicate.
 2. Dropping the null predicate, or claiming by `(period_id, slot_date, time_of_day)` without it.
 3. Setting only `claimed_at` — now a constraint error, which is why that migration exists.
 4. **A non-default isolation level.** Under REPEATABLE READ the loser gets SQLSTATE 40001
    instead of 0 rows — still no double-booking, but a handler checking only `row_count = 0`
    misreports it. Worth a note, not a code path.
 
-**Proving it is the honest gap.** S-02 shipped no concurrency test by decision (*"No
-concurrency test. There is nothing to claim yet."*), and its plan already set the precedent of
+**Proving it is the honest gap.** S-02 shipped no concurrency test by decision (_"No
+concurrency test. There is nothing to claim yet."_), and its plan already set the precedent of
 recording an unproven guarantee rather than claiming one (manual check 1.9). For S-03:
 
 - **Where**: the `integration` project only — it needs a live stack.
 - **How**: `Promise.all` over N `createAnonClient()` calls **inside one `it()`**. Vitest here
-  runs test *files* in parallel but tests *within* a file serially, so splitting claimants
+  runs test _files_ in parallel but tests _within_ a file serially, so splitting claimants
   across `it()` blocks produces no contention. There is no `pg` dependency, so every call is
   an HTTP round-trip through PostgREST and no test can hold an open transaction.
 - **Determinism: none.** Nothing forces the two UPDATEs to overlap. **A passing test does not
@@ -388,9 +388,9 @@ recording an unproven guarantee rather than claiming one (manual check 1.9). For
   carries a claim, its name equals the winner's, `claimed_at` is non-null. That invariant
   holds whether or not the calls contended, which is precisely why it is the right assertion —
   a non-flaky outcome check that is opportunistically a mechanism check.
-- **`test-plan.md:64` already prescribes this** and names the anti-pattern by name: *"Testing
-  two sequential claims and calling it concurrency."* It also warns *"'Final status 200' ≠
-  'only one winner'"*.
+- **`test-plan.md:64` already prescribes this** and names the anti-pattern by name: _"Testing
+  two sequential claims and calling it concurrency."_ It also warns _"'Final status 200' ≠
+  'only one winner'"_.
 - A deterministic mechanism proof would need a raw `pg` connection (two sessions, one holding
   an uncommitted claim, observing the other block). That adds a devDependency and direct
   Postgres credentials, and bypasses PostgREST so it stops testing the real path. Hard to
@@ -403,11 +403,11 @@ recording an unproven guarantee rather than claiming one (manual check 1.9). For
 
 **The design covers the claim flow, and it is a two-screen flow, not an in-place expansion.**
 
-*Artboard "Kalendarz opiekuna (zapis na sloty)"* (`context/design/Pupilownik Hi-fi.html:541-591`,
+_Artboard "Kalendarz opiekuna (zapis na sloty)"_ (`context/design/Pupilownik Hi-fi.html:541-591`,
 the last artboard):
 
-- Accent header: eyebrow *"Anna prosi o pomoc"*, H1 *"Opieka: Burek & Mru"*, sub *"12–18 lipca ·
-  zajmij wolne sloty"*.
+- Accent header: eyebrow _"Anna prosi o pomoc"_, H1 _"Opieka: Burek & Mru"_, sub _"12–18 lipca ·
+  zajmij wolne sloty"_.
 - **A month grid with `‹ ›` navigation** — not the flat day list the page renders today.
   Weekday header `Pn Wt Śr Cz Pt So Nd`, square day cells, dot indicators **one per slot**
   (hollow = free, filled = taken, grey = day full), a legend, and a selected-day state.
@@ -419,12 +419,12 @@ the last artboard):
 - **No pre-claim public-instructions block is drawn on this screen at all** — so FR-008's
   first half has no design either.
 
-*Artboard "Po zapisaniu · instrukcje"* (three theme variants): success banner **"Zapisano! /
-Masz 2 dni: 13 i 16 lipca"**, a pet card, heading *"Instrukcje opieki"*, three instruction rows
+_Artboard "Po zapisaniu · instrukcje"_ (three theme variants): success banner **"Zapisano! /
+Masz 2 dni: 13 i 16 lipca"**, a pet card, heading _"Instrukcje opieki"_, three instruction rows
 with time chips, and then — visually separated, below the list — a highlighted callout:
-*"**Klucze** u sąsiadki, mieszkanie 4. / Telefon do Anny: **600 100 200**"*. That callout is
+_"**Klucze** u sąsiadki, mieszkanie 4. / Telefon do Anny: **600 100 200**"_. That callout is
 the **sensitive tier**, drawn as its own emphasized card rather than interleaved. Footer CTA
-*"Napisz do Anny"*.
+_"Napisz do Anny"_.
 
 **Two mismatches to resolve in planning:**
 
@@ -444,18 +444,18 @@ its own error). Plus current-not-superseded `ServerError.tsx` and `SubmitButton.
 - **Do not import `FormField` or `PasswordToggle`** — both superseded; `AddPetForm.tsx` is
   their only remaining consumer and also hardcodes starter colours, so copy nothing from it
   visually. It does, however, contain the only existing public/sensitive UI (`is_sensitive`
-  checkbox labelled *"Wrażliwe (widoczne dopiero po przejęciu opieki)"*).
+  checkbox labelled _"Wrażliwe (widoczne dopiero po przejęciu opieki)"_).
 
 **Closest precedent for the claim island**: `NewPeriodForm.tsx` — fetch, own `submitting` flag,
 status-branched `ServerError`, and an early-return success view that replaces the form. Its
-header comment records *why not* `useFormStatus` (inert for a preventDefaulted fetch form).
+header comment records _why not_ `useFormStatus` (inert for a preventDefaulted fetch form).
 `RegenerateLinkButton.tsx` is the minimal variant and the better model if the claim is a
 per-slot button; it also demonstrates a **"refuse up front"** branch, which maps directly onto
 a slot that is already taken.
 
 **Insertion point**: `src/pages/invite/[token].astro` currently ends its period branch with an
-explicit placeholder paragraph carrying the comment *"Deliberately no claim button: taking a
-slot is S-03."* The per-slot `<li>` elements are non-interactive and `slot.id` is already in
+explicit placeholder paragraph carrying the comment _"Deliberately no claim button: taking a
+slot is S-03."_ The per-slot `<li>` elements are non-interactive and `slot.id` is already in
 scope there, so the data an island needs is available; `byDay` is the natural serializable
 prop. The page's only island today is the theme toggle.
 
@@ -523,13 +523,13 @@ template — that shape is exactly what the phase-3 review had to catch by readi
 **Both blocking decisions are now RESOLVED — see §Decisions above.** They are kept here with
 their original framing so a later reader can see what was weighed.
 
-1. **RESOLVED (claimer).** Is FR-008's reveal conditioned on the claim *event* or on the
-   *claimer*?
-   - *Event* → extend the read path, no new secret, no cookie, all four token-model rules
+1. **RESOLVED (claimer).** Is FR-008's reveal conditioned on the claim _event_ or on the
+   _claimer_?
+   - _Event_ → extend the read path, no new secret, no cookie, all four token-model rules
      untouched, `prd.md:121` and §Non-Goals satisfied literally — **and** `roadmap.md:21`,
      `test-plan.md:65` and the design's "Masz 2 dni" screen must be re-worded/redrawn, because
      the shipped behaviour would contradict them.
-   - *Claimer* → accept the lightweight caretaker identity `prd.md:116` deferred to v2, in the
+   - _Claimer_ → accept the lightweight caretaker identity `prd.md:116` deferred to v2, in the
      minimal form of a per-claim secret in an HttpOnly cookie, plus a second function, a
      `claim_digest` column, a first-of-its-kind cookie write in this repo, an answer for the
      second-device case, and an un-claim path that invalidates the secret.
@@ -575,7 +575,7 @@ Logic lists "definicja **zwierząt** i instrukcji" — plural, as a peer input t
 ### S-02 silently dropped two design elements
 
 The design's "Nowy wyjazd" screen draws **both** a `KTÓRE ZWIERZĘTA` multi-select — and both
-pet chips carry the *selected* styling, so it is a multi-select with both picked, not a
+pet chips carry the _selected_ styling, so it is a multi-select with both picked, not a
 single-choice control — **and** a period-level `NOTATKA` free-text field ("Klucze u sąsiadki,
 mieszkanie 4…"). Neither exists in the schema or in `NewPeriodForm.tsx`. S-02's plan claims
 that screen twice ("The screens match the design's 'Nowy wyjazd + link'") and its
@@ -591,7 +591,7 @@ without being recorded. Two consequences for S-03:
 
 ### The signature change is sharper than §1 stated
 
-Adding a parameter does **not** modify `create_period_with_slots` — it creates a *second*
+Adding a parameter does **not** modify `create_period_with_slots` — it creates a _second_
 function (an overload), and:
 
 - the new signature gets Supabase's `ALTER DEFAULT PRIVILEGES` execute grant to `anon`,
@@ -614,12 +614,12 @@ owner's pet, making pet ownership a database guarantee rather than a handler che
 (`POST /api/periods`) and the documented workflow includes `npm run db:push` to a hosted
 project. S-01 could write "additive migration; no existing domain data" — **S-03 cannot.**
 
-And with a join table, *"a period must have at least one pet"* is **not expressible as a
+And with a join table, _"a period must have at least one pet"_ is **not expressible as a
 column constraint**. The options are a deferred constraint trigger, or enforcing it only in
 `create_period_with_slots` and accepting that a raw insert could create a petless period —
 which is the posture `20260906094254_claim_columns_paired.sql` argues against in its own
 comment ("a constraint in the database outranks a requirement in a document"). Worth noting
-the mirror: that CHECK was added in S-02 *because* the table was still empty. The pet link
+the mirror: that CHECK was added in S-02 _because_ the table was still empty. The pet link
 was not, which is why S-03 inherits this.
 
 ### Smaller additions

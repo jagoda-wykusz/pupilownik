@@ -1,4 +1,5 @@
 <!-- IMPL-REVIEW-REPORT -->
+
 # Implementation Review: Caretaker Claims Slot
 
 - **Plan**: `context/changes/caretaker-claims-slot/plan.md`
@@ -10,24 +11,24 @@
 
 ## Verdicts
 
-| Dimension | Verdict |
-|-----------|---------|
-| Plan Adherence | PASS |
-| Scope Discipline | WARNING |
-| Safety & Quality | PASS |
-| Architecture | WARNING |
+| Dimension           | Verdict |
+| ------------------- | ------- |
+| Plan Adherence      | PASS    |
+| Scope Discipline    | WARNING |
+| Safety & Quality    | PASS    |
+| Architecture        | WARNING |
 | Pattern Consistency | WARNING |
-| Success Criteria | PASS |
+| Success Criteria    | PASS    |
 
 ## Automated criteria, re-verified from scratch
 
-| Criterion | Result |
-|---|---|
-| 1.1 migration applies on a reset database | PASS |
-| 1.2 types in sync | PASS — regeneration produced an empty diff |
-| 1.3 / 1.4 tests | PASS — 141/141, 17 files |
-| 1.5 lint + build | PASS — 0 errors (3 pre-existing `no-console` warnings) |
-| 1.6 / 1.7 catalog posture | PASS — 1 overload; `authenticated=true anon=false service_role=false` |
+| Criterion                                 | Result                                                                |
+| ----------------------------------------- | --------------------------------------------------------------------- |
+| 1.1 migration applies on a reset database | PASS                                                                  |
+| 1.2 types in sync                         | PASS — regeneration produced an empty diff                            |
+| 1.3 / 1.4 tests                           | PASS — 141/141, 17 files                                              |
+| 1.5 lint + build                          | PASS — 0 errors (3 pre-existing `no-console` warnings)                |
+| 1.6 / 1.7 catalog posture                 | PASS — 1 overload; `authenticated=true anon=false service_role=false` |
 
 ## Ruled out (checked, not findings)
 

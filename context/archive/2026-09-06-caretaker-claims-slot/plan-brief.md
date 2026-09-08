@@ -16,7 +16,7 @@ asks for ("at least one caretaker signs up for a slot on their own").
 The caretaker page (`src/pages/invite/[token].astro`) already resolves an invite token and
 renders a read-only day list — it ends with an explicit placeholder saying claiming is S-03.
 The database is unusually well-prepared: S-02 shipped `care_slots_claim_complete`, which makes
-`claimed_by_name is null` a *truthful* freeness test, and the prescribed atomic claim statement
+`claimed_by_name is null` a _truthful_ freeness test, and the prescribed atomic claim statement
 is already written in a schema comment. S-08 shipped `care_period_pets`, so a period can reach
 its pets' instructions at all. What is missing is every write path, the instruction reveal, and
 any caretaker-side interactivity.
@@ -33,21 +33,21 @@ sees the pre-claim view.
 
 ## Key Decisions Made
 
-| Decision | Choice | Why (1 sentence) | Source |
-| --- | --- | --- | --- |
-| Unit of the reveal | Per **claimer**, not per claim event | The design's "Masz 2 dni" screen cannot be rendered without per-person state. | Research (D1) |
-| Period ↔ pet relation | Separate change, shipped first | Kept S-03's outcome whole instead of splitting a must-have FR across two slices. | Research (D2) |
-| Function topology | Three functions | `get_period_by_token` is `STABLE`, so Postgres forbids extending it to write. | Research |
-| Name input (FR-009 vs design) | Asked once, then one-tap | Satisfies must-have FR-009 and explains the design as the state *after* a first claim. | Plan |
-| Claim granularity | Multi-select, one submit | One round trip on a phone beats three. | Plan |
-| Multi-slot semantics | All-or-nothing, naming the conflict | Keeps the claim a single `UPDATE`, so S-02's atomicity guarantee carries over unchanged. | Plan |
-| Transport | JSON `fetch` + explicit `Origin` check | Astro's `checkOrigin` deliberately skips `application/json`, so the framework protects nothing here. | Plan |
-| Capability lifetime | Cookie until period end + buffer | The caretaker needs the address on the day of care, often weeks after claiming. | Plan |
-| Capability storage | `claim_digest` column on `care_slots` | Avoids a new table and the full isolation suite `test-plan.md` §6.5 would require. | Plan |
-| Caretaker note (`NOTATKA`) | Build now | A per-trip note expresses something per-pet instructions cannot. | Plan |
-| Calendar UI | Month grid per design, **3** dots | Design agreement; the two dots it draws predate the three-times-of-day schema. | Plan |
-| PRD §Non-Goals tension | State the reading in the plan; amend PRD separately | A bearer capability is not a login, profile or history — but that is a reading, so it is recorded. | Plan |
-| Cut line under time pressure | DB and claim first, design last | The product works after Phase 4; Phase 5 is polish on a working flow. | Plan |
+| Decision                      | Choice                                              | Why (1 sentence)                                                                                     | Source        |
+| ----------------------------- | --------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | ------------- |
+| Unit of the reveal            | Per **claimer**, not per claim event                | The design's "Masz 2 dni" screen cannot be rendered without per-person state.                        | Research (D1) |
+| Period ↔ pet relation         | Separate change, shipped first                      | Kept S-03's outcome whole instead of splitting a must-have FR across two slices.                     | Research (D2) |
+| Function topology             | Three functions                                     | `get_period_by_token` is `STABLE`, so Postgres forbids extending it to write.                        | Research      |
+| Name input (FR-009 vs design) | Asked once, then one-tap                            | Satisfies must-have FR-009 and explains the design as the state _after_ a first claim.               | Plan          |
+| Claim granularity             | Multi-select, one submit                            | One round trip on a phone beats three.                                                               | Plan          |
+| Multi-slot semantics          | All-or-nothing, naming the conflict                 | Keeps the claim a single `UPDATE`, so S-02's atomicity guarantee carries over unchanged.             | Plan          |
+| Transport                     | JSON `fetch` + explicit `Origin` check              | Astro's `checkOrigin` deliberately skips `application/json`, so the framework protects nothing here. | Plan          |
+| Capability lifetime           | Cookie until period end + buffer                    | The caretaker needs the address on the day of care, often weeks after claiming.                      | Plan          |
+| Capability storage            | `claim_digest` column on `care_slots`               | Avoids a new table and the full isolation suite `test-plan.md` §6.5 would require.                   | Plan          |
+| Caretaker note (`NOTATKA`)    | Build now                                           | A per-trip note expresses something per-pet instructions cannot.                                     | Plan          |
+| Calendar UI                   | Month grid per design, **3** dots                   | Design agreement; the two dots it draws predate the three-times-of-day schema.                       | Plan          |
+| PRD §Non-Goals tension        | State the reading in the plan; amend PRD separately | A bearer capability is not a login, profile or history — but that is a reading, so it is recorded.   | Plan          |
+| Cut line under time pressure  | DB and claim first, design last                     | The product works after Phase 4; Phase 5 is polish on a working flow.                                | Plan          |
 
 ## Scope
 
@@ -65,25 +65,25 @@ structured feeding schedules (PRD Open Question #1); waiting lists and notificat
 ## Architecture / Approach
 
 Three database functions, split because Postgres forces it: `get_period_by_token` stays
-`STABLE` and grows the pets and *public* instruction rows; `claim_slots` is a new `VOLATILE
+`STABLE` and grows the pets and _public_ instruction rows; `claim_slots` is a new `VOLATILE
 SECURITY DEFINER` write; `get_claimed_details` serves the sensitive tier against (token +
 claim secret) — a separate surface because `data-access.md:91-92` forbids widening the read
 function's parameters. The caretaker's identity is a **capability, not an account**: the app
 mints a 32-byte secret exactly as it mints the invite token, stores only its hex SHA-256 on
 the claimed rows, and returns the raw value once into an HttpOnly cookie scoped to `/invite`.
 "My slots" is then a digest filter, which is also how a follow-up claim attaches to the same
-caretaker. Each function body is the *entire* authorization boundary — there is no RLS behind
+caretaker. Each function body is the _entire_ authorization boundary — there is no RLS behind
 it, because anon holds no table grants at all.
 
 ## Phases at a Glance
 
-| Phase | What it delivers | Key risk |
-| --- | --- | --- |
-| 1. Schema & RPC signature | Note and digest columns, three-column claim invariant, note threaded through create | The sixth signature change in this project; grants are per-signature and silently reset |
-| 2. The claim function | Atomic all-or-nothing claim, grants, IDOR and concurrency tests | A `select` before the `update` silently reintroduces read-then-write and double-booking |
-| 3. The reveal | Public tier on the read function, sensitive tier on a new one | The payload is a contract three consumers pin by exact key set |
-| 4. Route, cookie & working claim | **North star delivered** — claim end-to-end on the existing list | Two deliberate inversions (no auth guard, manual origin check) that look like bugs |
-| 5. Design layer | Month grid, success banner, sensitive callout | Two shared surfaces (`global.css`, `Input`) with call sites outside this slice |
+| Phase                            | What it delivers                                                                    | Key risk                                                                                |
+| -------------------------------- | ----------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| 1. Schema & RPC signature        | Note and digest columns, three-column claim invariant, note threaded through create | The sixth signature change in this project; grants are per-signature and silently reset |
+| 2. The claim function            | Atomic all-or-nothing claim, grants, IDOR and concurrency tests                     | A `select` before the `update` silently reintroduces read-then-write and double-booking |
+| 3. The reveal                    | Public tier on the read function, sensitive tier on a new one                       | The payload is a contract three consumers pin by exact key set                          |
+| 4. Route, cookie & working claim | **North star delivered** — claim end-to-end on the existing list                    | Two deliberate inversions (no auth guard, manual origin check) that look like bugs      |
+| 5. Design layer                  | Month grid, success banner, sensitive callout                                       | Two shared surfaces (`global.css`, `Input`) with call sites outside this slice          |
 
 **Prerequisites:** S-08 `period-pets-relation` (landed 2026-09-06); a running local Supabase
 stack for the integration project; the dev server **stopped** before any `npm run build`

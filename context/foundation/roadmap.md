@@ -3,7 +3,7 @@ project: "Pupilownik"
 version: 2
 status: active
 created: 2026-06-27
-updated: 2026-09-07
+updated: 2026-09-08
 prd_version: 1
 design_ref: "context/design/Pupilownik Hi-fi.html"
 main_goal: speed
@@ -38,7 +38,7 @@ Rdzeń wartości — czyli ta jedna cecha, po usunięciu której produkt staje s
 | S-02 | care-period-and-invite-link | właściciel tworzy okres ze slotami i generuje link zapraszający    | S-01          | FR-004, FR-005, US-01         | done     |
 | S-08 | period-pets-relation        | właściciel wskazuje, które zwierzęta obejmuje wyjazd               | S-02          | FR-002, US-01                 | done     |
 | S-07 | ui-design-system            | aplikacja wygląda wg hi-fi designu — system wizualny + reskin auth | —             | (UI wszystkich FR)            | done     |
-| S-03 | caretaker-claims-slot       | opiekun otwiera link i zajmuje wolny slot (bez podwójnej obsady)   | S-08          | FR-007, FR-008, FR-009, US-02 | ready    |
+| S-03 | caretaker-claims-slot       | opiekun otwiera link i zajmuje wolny slot (bez podwójnej obsady)   | S-08          | FR-007, FR-008, FR-009, US-02 | done     |
 | S-04 | owner-occupancy-view        | właściciel widzi pełną obsadę okresu — kto zajął którą porę        | S-03          | FR-006, US-01                 | proposed |
 | S-05 | caretaker-names-visibility  | opiekun widzi imiona innych opiekunów w obrębie okresu             | S-03          | FR-011                        | proposed |
 | S-06 | close-care-period           | właściciel zamyka/odwołuje okres i unieważnia link                 | S-02          | FR-012                        | ready    |
@@ -49,8 +49,8 @@ Pozostała ścieżka must-have (czyli minimalny zestaw wymagań, bez których PR
 
 Navigation aid — groups items that share a Prerequisites chain. Canonical ordering still lives in the dependency graph below; this table is the proposed reading order across parallel tracks.
 
-| Stream | Theme                          | Chain                                               | Note                                                                                                                                              |
-| ------ | ------------------------------ | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Stream | Theme                          | Chain                                               | Note                                                                                                                                               |
+| ------ | ------------------------------ | --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
 | A      | Rdzeń: od zwierzęcia do zapisu | `F-01` → `S-01` → `S-02` → `S-08` → `S-03` → `S-04` | Ścieżka must-have; zawiera gwiazdę przewodnią `S-03`. Pierwsze cztery ogniwa wylądowały — pozostaje `S-03` → `S-04`. Zgodna z celem `szybkość`.    |
 | B      | Dodatki (nice-to-have)         | `S-06` / `S-05`                                     | `S-06` dołącza do Stream A przy `S-02` (już spełnione, więc jest plannowalny od dziś), `S-05` przy `S-03`. Równoległe względem siebie i do `S-03`. |
 | C      | UI / system wizualny           | `S-07`                                              | Domknięty. Ekrany domenowe realizują swoje slice'y na jego komponentach (zob. Design reference).                                                   |
@@ -168,7 +168,7 @@ Otwarty dług z designu: pole **`NOTATKA`** (wolny tekst na poziomie okresu) wyp
   - ~~Jednostka odsłonięcia wrażliwych instrukcji: zdarzenie czy osoba~~ — ROZSTRZYGNIĘTE 2026-09-06 przez użytkownika: **per OSOBA, która zajęła slot** (nie każdy posiadacz linku). Wymaga sekretu per zajęcie i pierwszego w tym repo cookie ustawianego serwerowo. Przyjmuje lekką tożsamość opiekuna, którą PRD odłożyło do v2, jako capability — nie konto. Ograniczenie techniczne znalezione w researchu: `get_period_by_token` jest `STABLE`, więc zajęcie musi być osobną funkcją `VOLATILE`.
   - Pole `NOTATKA` z designu (wolny tekst na poziomie okresu, treścią zachodzący na `is_sensitive`) — wymaganie produktowe czy artefakt designu? Nie ma dla niego FR w PRD. Owner: użytkownik. Block: no.
 - **Risk:** Najbardziej ryzykowny slice i sedno produktu: równoczesne zajęcie tego samego slotu musi dać dokładnie jednego zwycięzcę, a wrażliwe instrukcje nie mogą wyciec przed zajęciem. Research jest domknięty, a schemat przygotowany, więc ryzyko przeniosło się z „czy wiemy jak" na „czy poprawnie zaimplementujemy odsłonięcie per osoba" — to pierwsza w tym repo warstwa capability po stronie serwera, więc nie ma wzorca do skopiowania. Slice pozostaje niepodzielony celowo: zajęcie slotu i odsłonięcie instrukcji dzielą jeden kontrakt bezpieczeństwa (research §Decisions), a rozcięcie ich dałoby stan, w którym slot jest zajęty, ale nikt nie widzi instrukcji.
-- **Status:** ready
+- **Status:** done
 
 ### S-04: Właściciel widzi pełną obsadę okresu
 
@@ -209,17 +209,17 @@ Otwarty dług z designu: pole **`NOTATKA`** (wolny tekst na poziomie okresu) wyp
 
 ## Backlog Handoff
 
-| Roadmap ID | Change ID                   | Suggested issue title                                           | Ready for `/10x-plan` | Notes                                                                   |
-| ---------- | --------------------------- | --------------------------------------------------------------- | --------------------- | ----------------------------------------------------------------------- |
-| F-01       | owner-data-rls-baseline     | Wzorzec dostępu do danych: migracje + RLS izolujące właściciela | done                  | Zarchiwizowane 2026-06-27                                               |
-| S-01       | pet-and-instructions        | Definicja zwierzęcia + instrukcje (public/sensitive)            | done                  | Zarchiwizowane 2026-09-05                                               |
-| S-02       | care-period-and-invite-link | Okres opieki ze slotami + link zapraszający                     | done                  | Zarchiwizowane 2026-09-06                                               |
-| S-08       | period-pets-relation        | Relacja okres ↔ zwierzęta (odblokowuje instrukcje opiekuna)     | done                  | Zarchiwizowane 2026-09-06                                               |
-| S-07       | ui-design-system            | System wizualny wg hi-fi designu + reskin ekranów auth          | done                  | Zarchiwizowane 2026-09-06                                               |
-| S-03       | caretaker-claims-slot       | Opiekun zajmuje slot przez link (atomowo)                       | yes                   | Gwiazda przewodnia. Research gotowy → `/10x-plan caretaker-claims-slot` |
-| S-04       | owner-occupancy-view        | Widok obsady okresu dla właściciela                             | no                    | Ostatni must-have; po S-03                                              |
-| S-05       | caretaker-names-visibility  | Widoczność imion opiekunów w okresie                            | no                    | Nice-to-have; po S-03                                                   |
-| S-06       | close-care-period           | Zamknięcie/odwołanie okresu + unieważnienie linku               | yes                   | Nice-to-have, ale plannowalny równolegle do S-03                        |
+| Roadmap ID | Change ID                   | Suggested issue title                                           | Ready for `/10x-plan` | Notes                                            |
+| ---------- | --------------------------- | --------------------------------------------------------------- | --------------------- | ------------------------------------------------ |
+| F-01       | owner-data-rls-baseline     | Wzorzec dostępu do danych: migracje + RLS izolujące właściciela | done                  | Zarchiwizowane 2026-06-27                        |
+| S-01       | pet-and-instructions        | Definicja zwierzęcia + instrukcje (public/sensitive)            | done                  | Zarchiwizowane 2026-09-05                        |
+| S-02       | care-period-and-invite-link | Okres opieki ze slotami + link zapraszający                     | done                  | Zarchiwizowane 2026-09-06                        |
+| S-08       | period-pets-relation        | Relacja okres ↔ zwierzęta (odblokowuje instrukcje opiekuna)     | done                  | Zarchiwizowane 2026-09-06                        |
+| S-07       | ui-design-system            | System wizualny wg hi-fi designu + reskin ekranów auth          | done                  | Zarchiwizowane 2026-09-06                        |
+| S-03       | caretaker-claims-slot       | Opiekun zajmuje slot przez link (atomowo)                       | done                  | Zarchiwizowane 2026-09-08                        |
+| S-04       | owner-occupancy-view        | Widok obsady okresu dla właściciela                             | no                    | Ostatni must-have; po S-03                       |
+| S-05       | caretaker-names-visibility  | Widoczność imion opiekunów w okresie                            | no                    | Nice-to-have; po S-03                            |
+| S-06       | close-care-period           | Zamknięcie/odwołanie okresu + unieważnienie linku               | yes                   | Nice-to-have, ale plannowalny równolegle do S-03 |
 
 ## Open Roadmap Questions
 
@@ -229,7 +229,7 @@ Otwarty dług z designu: pole **`NOTATKA`** (wolny tekst na poziomie okresu) wyp
 
 ## Parked
 
-- **Konta i tożsamość opiekunów** — Why parked: PRD §Non-Goals — opiekun zostaje przy modelu „link + imię"; tarcie zabija adopcję. Uwaga: S-03 wprowadza sekret per zajęcie jako *capability*, nie konto — to celowo nie narusza tego Non-Goal.
+- **Konta i tożsamość opiekunów** — Why parked: PRD §Non-Goals — opiekun zostaje przy modelu „link + imię"; tarcie zabija adopcję. Uwaga: S-03 wprowadza sekret per zajęcie jako _capability_, nie konto — to celowo nie narusza tego Non-Goal.
 - **Lista rezerwowa / kolejkowanie na zajęty slot** — Why parked: PRD §Non-Goals — obowiązuje wyłącznie „kto pierwszy, ten lepszy"; kierunek v2 (zob. Open Roadmap Questions #2).
 - **Powiadomienia push/email** — Why parked: PRD §Non-Goals — widok obsady i samoobsługa wystarczają na v1 (nie dotyczy maila logowania właściciela).
 - **Marketplace i płatności** — Why parked: PRD §Non-Goals — to zamknięty zaufany krąg, nie giełda opiekunów.
@@ -245,3 +245,4 @@ Otwarty dług z designu: pole **`NOTATKA`** (wolny tekst na poziomie okresu) wyp
 - **S-07: aplikacja wygląda zgodnie z hi-fi designem — ustanowiony system wizualny (tokeny kolorów, tokeny fontów Quicksand/Nunito, `--radius`, tryb jasny/ciemny) oraz komponenty bazowe potrzebne przez ekrany auth: `ui/Input` z „Pokaż" hasła, `ui/ScreenHeading`, `ui/AuthScreen`. Istniejące ekrany logowania/rejestracji (`src/pages/auth/signin.astro`, `signup.astro`) są przeskórowane do designu. Ekrany domenowe (pupile, okresy, kalendarz opiekuna, panel właściciela) **nie** powstają tutaj — są realizowane w swoich slice'ach (S-01…S-04) przy użyciu tego systemu (zob. Design reference).** — Archived 2026-09-06 → `context/archive/2026-09-05-ui-design-system/`. Lesson: „Wylicz konsumentów, zanim zmienisz coś współdzielonego" (`context/foundation/lessons.md`). **Sprostowane 2026-09-07**: ten wpis wymieniał wcześniej kartę, chip, badge pory, callout wrażliwych danych, baner sukcesu i cienie — żadne z nich nie wylądowało w S-07 (jego plan wykluczył je wprost). Pełne rozliczenie w polu `Outcome` slice'u S-07 powyżej.
 - **S-02: właściciel może utworzyć okres opieki (zakres dat), który generuje sloty per pora dnia (rano / popołudnie / wieczór) dla każdego dnia, oraz wygenerować link zapraszający prowadzący wyłącznie do tego okresu.** — Archived 2026-09-06 → `context/archive/2026-09-06-care-period-and-invite-link/`. Lesson: —.
 - **S-08: właściciel może wskazać, które ze swoich zwierząt obejmuje okres opieki, i widzi je na liście wyjazdów oraz w szczegółach okresu.** — Archived 2026-09-06 → `context/archive/2026-09-06-period-pets-relation/`. Lesson: „Ubij serwer dev, zanim uruchomisz `npm run build`" (`context/foundation/lessons.md`).
+- **S-03: opiekun może wejść przez link bez logowania, zobaczyć publiczną część instrukcji i kalendarz okresu, a następnie podać imię i zająć wolny slot; przydział jest atomowy (nigdy podwójna obsada), a po zajęciu odsłaniają się wrażliwe instrukcje. (Gwiazda przewodnia.)** — Archived 2026-09-08 → `context/archive/2026-09-06-caretaker-claims-slot/`. Lesson: —.
