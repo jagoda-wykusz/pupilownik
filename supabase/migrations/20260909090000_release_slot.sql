@@ -13,6 +13,14 @@
 -- UPDATE can write them. A named surface earns its own registry row, its own grant, and its
 -- own test, so a later slice cannot widen the owner-side write path without noticing.
 --
+-- What nulling `claim_digest` costs the caretaker, stated here because the column has a
+-- downstream reader: `get_claimed_details` gates the whole sensitive tier on
+-- `claim_digest = <their secret's digest>` within the period. Freeing ONE of several terms is
+-- harmless — the remaining rows keep the digest — but freeing a capability's LAST term revokes
+-- that caretaker's reveal outright (trip note, sensitive instructions, their stored name), and
+-- to them it is indistinguishable from a bad link. Intended, not a bug: the owner is taking the
+-- term back, and "no notification to the caretaker" is a scope decision, not an oversight.
+--
 -- SECURITY INVOKER, deliberately, and unlike every anon-facing function in this schema: those
 -- are definer because anon has no policy to run under. Here the caller IS the owner, RLS on
 -- care_slots is exactly the authorization boundary we want, and running as definer would
@@ -38,11 +46,23 @@ begin
   -- slot uuid belonging to another of the OWNER'S OWN periods cannot be released through the
   -- wrong period's endpoint.
   --
-  -- `claimed_at is not null` is what makes a double release honest rather than destructive.
-  -- No optimistic concurrency is needed behind it: claim_slots only ever writes
-  -- `where claimed_by_name is null`, so between the page render and the owner's click a row
-  -- can be released by someone else but never re-claimed by a different person. There is no
-  -- newer claim to clobber.
+  -- `claimed_at is not null` is what makes a DOUBLE RELEASE honest rather than destructive:
+  -- the second call matches nothing and answers NULL.
+  --
+  -- It is NOT optimistic concurrency, and this function deliberately has none. Say the
+  -- remaining window plainly, because the plan this migration implements got it wrong: a
+  -- released row is `claimed_by_name is null`, which is exactly the state claim_slots writes
+  -- into, so a freed term CAN be re-taken by a different caretaker. Owner's tab A renders
+  -- showing Ania -> tab B releases -> Basia claims through the still-live link -> tab A
+  -- clicks release on stale UI and silently wipes Basia's newer claim; `claimed_at is not
+  -- null` is true again, so nothing stops it.
+  --
+  -- Accepted for the MVP rather than guarded: it needs two concurrent owner surfaces with a
+  -- caretaker claim landing between them, the slot ends free either way (which is what the
+  -- owner asked for), and the fix — an optimistic `p_claimed_at` argument — would put a
+  -- second value on the release island's props for a race one owner with one tab cannot hit.
+  -- Recorded in prd.md §Open Questions; revisit if the product ever grows co-owners or
+  -- realtime.
   update public.care_slots
   set claimed_by_name = null,
       claimed_at = null,

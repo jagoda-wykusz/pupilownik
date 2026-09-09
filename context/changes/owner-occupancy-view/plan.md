@@ -112,6 +112,17 @@ released by someone else, never re-claimed by a different person. A `claimed_at 
 guard in the UPDATE is therefore sufficient: a double release answers NULL ("already free")
 rather than clobbering a newer claim, and no version token needs to travel to the client.
 
+> **Correction, Phase 2 impl-review F2 (2026-09-09).** The paragraph above is wrong from
+> "never re-claimed by a different person" onward, and the migration's first comment repeated
+> it before being corrected. A released row IS `claimed_by_name is null`, which is exactly the
+> state `claim_slots` writes into, so a freed term can be re-taken between the render and the
+> click: tab A renders showing Ania → tab B releases → Basia claims → tab A releases on stale
+> UI and silently wipes Basia's newer claim. `claimed_at is not null` does not stop it. The
+> conclusion — no version token travels to the client — **stands as an accepted risk**, not as
+> a proved impossibility: the window needs two concurrent owner surfaces and the slot ends free
+> either way. Recorded as `prd.md` §Open Questions item 3. Phase 3 must not re-derive
+> "impossible" from this paragraph.
+
 **Return a scalar, not a composite.** Same reason `regenerate_period_token` documents at
 `20260906003122…:123-126`: a plpgsql function returning a composite answers a miss with a row of
 NULLs rather than NULL, so "nothing was released" would arrive at the route as an object and the
@@ -452,18 +463,18 @@ which is the only option available for them.
 
 #### Automated
 
-- [x] 2.1 Migration applies cleanly on a reset database
-- [x] 2.2 Types regenerate and include `release_slot`
-- [x] 2.3 New `release-slot` RLS suite passes
-- [x] 2.4 Full suite passes with the existing claim suites untouched
-- [x] 2.5 Type checking and linting pass
-- [x] 2.6 Security advisors report nothing new
+- [x] 2.1 Migration applies cleanly on a reset database — b2e0677
+- [x] 2.2 Types regenerate and include `release_slot` — b2e0677
+- [x] 2.3 New `release-slot` RLS suite passes — b2e0677
+- [x] 2.4 Full suite passes with the existing claim suites untouched — b2e0677
+- [x] 2.5 Type checking and linting pass — b2e0677
+- [x] 2.6 Security advisors report nothing new — b2e0677
 
 #### Manual
 
-- [x] 2.7 `has_function_privilege` confirms `authenticated` may execute and `anon` may not
-- [x] 2.8 `provolatile` for `release_slot` is `v`
-- [x] 2.9 Releasing an already-free slot returns NULL and changes no row
+- [x] 2.7 `has_function_privilege` confirms `authenticated` may execute and `anon` may not — b2e0677
+- [x] 2.8 `provolatile` for `release_slot` is `v` — b2e0677
+- [x] 2.9 Releasing an already-free slot returns NULL and changes no row — b2e0677
 
 ### Phase 3: The release control
 

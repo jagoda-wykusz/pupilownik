@@ -127,7 +127,16 @@ describe("release_slot — the owner's release door", () => {
 
       const { error } = await release(anon, claimed.id, claimed.slotIds[0]);
 
+      // The MESSAGE, not just the SQLSTATE. anon holds no UPDATE grant on care_slots either
+      // (verified: has_table_privilege('anon','public.care_slots','update') is false), so
+      // granting EXECUTE back to anon moves the identical 42501 one layer inward — "permission
+      // denied for TABLE care_slots" — and a code-only assertion keeps passing with the
+      // function grant fully widened. Measured: the suite went 8/8 green under
+      // `grant execute on function public.release_slot(uuid,uuid) to anon`. Naming the
+      // function is what makes this a test of the grant rather than a description of it
+      // (context/foundation/lessons.md).
       expect(error?.code).toBe("42501");
+      expect(error?.message).toContain("function release_slot");
 
       // And the term is still taken: the refusal happened before the body ran.
       const slot = (await slotsOf(a, claimed.id)).find((row) => row.id === claimed.slotIds[0]);
