@@ -480,15 +480,15 @@ which is the only option available for them.
 
 #### Automated
 
-- [x] 3.1 New route suite passes
-- [x] 3.2 Full suite passes
-- [x] 3.3 Type checking and linting pass
+- [x] 3.1 New route suite passes — 87347d4
+- [x] 3.2 Full suite passes — 87347d4
+- [x] 3.3 Type checking and linting pass — 87347d4
 
 #### Manual
 
-- [x] 3.4 End-to-end release on a phone-sized viewport frees the term
-- [x] 3.5 "Nie" disarms the confirm and changes nothing
-- [x] 3.6 The freed term is immediately claimable again through the invite link
-- [x] 3.7 A caretaker who lost one of two terms keeps the reveal; one who lost their last falls back
-- [x] 3.8 The release control never appears on a free term
-- [x] 3.9 The header caretaker count drops when a caretaker's last term is released
+- [x] 3.4 End-to-end release on a phone-sized viewport frees the term — 87347d4
+- [x] 3.5 "Nie" disarms the confirm and changes nothing — 87347d4
+- [x] 3.6 The freed term is immediately claimable again through the invite link — 87347d4
+- [x] 3.7 A caretaker who lost one of two terms keeps the reveal; one who lost their last falls back — 87347d4
+- [x] 3.8 The release control never appears on a free term — 87347d4
+- [x] 3.9 The header caretaker count drops when a caretaker's last term is released — 87347d4
