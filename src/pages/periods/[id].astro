@@ -2,6 +2,7 @@
 import Layout from "@/layouts/Layout.astro";
 import ThemeToggle from "@/components/ThemeToggle";
 import RegenerateLinkButton from "@/components/periods/RegenerateLinkButton";
+import ReleaseSlotButton from "@/components/periods/ReleaseSlotButton";
 import { Chip } from "@/components/ui/Chip";
 import { createClient } from "@/lib/supabase";
 import { periodIdSchema } from "@/lib/schemas/period";
@@ -254,7 +255,7 @@ const claimedByDay = new Map(
                   {(claimedByDay.get(entry.day) ?? []).length > 0 && (
                     <ul class="border-border mt-3 space-y-2 border-t pt-3">
                       {(claimedByDay.get(entry.day) ?? []).map((claimed) => (
-                        <li class="flex items-center gap-3 text-[13px]">
+                        <li class="flex flex-wrap items-center gap-3 text-[13px]">
                           <span class="text-muted-foreground w-[86px] shrink-0">
                             {TIME_OF_DAY_LABEL[claimed.time_of_day]}
                           </span>
@@ -285,6 +286,19 @@ const claimedByDay = new Map(
                               ({claimed.caretaker.ordinal})
                             </span>
                           )}
+                          {/* One island per CLAIMED term — this list is already filtered to
+                              `claimed_at !== null`, so the control structurally cannot appear
+                              on a free term. The props are ids plus the two already-rendered
+                              labels; nothing derived from `claim_digest` crosses this line.
+                              The row is flex-wrap so the island can drop to its own line when
+                              it has an error to show, rather than squeezing the name. */}
+                          <ReleaseSlotButton
+                            periodId={period.id}
+                            slotId={claimed.id}
+                            caretakerLabel={claimed.caretaker?.label ?? UNNAMED_CARETAKER_LABEL}
+                            termLabel={`${TIME_OF_DAY_LABEL[claimed.time_of_day]}, ${formatDay(entry.day)}`}
+                            client:load
+                          />
                         </li>
                       ))}
                     </ul>
