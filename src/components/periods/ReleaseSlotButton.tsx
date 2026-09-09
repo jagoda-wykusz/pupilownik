@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ServerError } from "@/components/auth/ServerError";
 
@@ -32,6 +32,26 @@ export default function ReleaseSlotButton({ periodId, slotId, caretakerLabel, te
   const [armed, setArmed] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+
+  // Arming SWAPS the button for two different ones, and disarming swaps them back — React
+  // unmounts the focused element both times and focus falls to <body>. On a page that can carry
+  // one of these per claimed term, that strands a keyboard or screen-reader user who then has to
+  // re-traverse the whole list to find the confirmation they just opened. Moving focus is also
+  // what ANNOUNCES the state change: there is no live region here, so without it the confirm
+  // appears silently.
+  const idleRef = useRef<HTMLButtonElement>(null);
+  const confirmRef = useRef<HTMLButtonElement>(null);
+  // Skips the initial mount. Without this every island on the page would grab focus as it
+  // hydrates, and the last one to finish would win.
+  const mounted = useRef(false);
+
+  useEffect(() => {
+    if (!mounted.current) {
+      mounted.current = true;
+      return;
+    }
+    (armed ? confirmRef : idleRef).current?.focus();
+  }, [armed]);
 
   async function release() {
     setError(null);
@@ -72,6 +92,7 @@ export default function ReleaseSlotButton({ periodId, slotId, caretakerLabel, te
         variant="ghost"
         size="sm"
         className="shrink-0 px-2"
+        ref={idleRef}
         aria-label={`Zwolnij termin: ${termLabel}, ${caretakerLabel}`}
         onClick={() => {
           setArmed(true);
@@ -83,11 +104,15 @@ export default function ReleaseSlotButton({ periodId, slotId, caretakerLabel, te
   }
 
   return (
-    // shrink-0 keeps the two buttons on one line; the parent row is flex-wrap, so when an
-    // error appears this whole control drops to its own line and the message gets the full
-    // width rather than squeezing the caretaker's name.
-    <span className="flex shrink-0 flex-col items-end gap-1">
-      <span className="flex items-center gap-1">
+    // min-w-0, NOT shrink-0, and the distinction is the whole fix. The parent row is
+    // flex-wrap, so this control drops to its own line as soon as it stops fitting beside the
+    // name — but a shrink-0 item on that new line is still sized at max-content, and
+    // ServerError has no width cap, so the 76-character 404 sentence laid out on one line and
+    // ran ~300px off the card at 320px width. min-w-0 lets this column take the line's width
+    // so the message wraps inside it. The button row below keeps its OWN shrink-0, which is
+    // what stops the two buttons breaking apart.
+    <span className="flex min-w-0 flex-col items-end gap-1">
+      <span className="flex shrink-0 items-center gap-1">
         {/* "Na pewno?" IS the confirm. Two taps, and the second one is a different word in a
             different place than the first, so a double-tap on "Zwolnij" cannot release a term
             by itself — which matters on a phone, where these rows are close together and the
@@ -98,7 +123,20 @@ export default function ReleaseSlotButton({ periodId, slotId, caretakerLabel, te
           size="sm"
           className="shrink-0"
           disabled={pending}
-          aria-label={`Potwierdź zwolnienie terminu: ${termLabel}, ${caretakerLabel}`}
+          ref={confirmRef}
+          aria-busy={pending}
+          // The accessible name STARTS with the visible text, which WCAG 2.5.3 requires: a
+          // voice-control user says what they can see ("Na pewno"), and a label that does not
+          // contain it leaves them unable to activate the button at all. The rest of the name
+          // is what makes a dozen otherwise-identical confirms distinguishable to a screen
+          // reader. It tracks `pending` for the same reason — aria-label overrides the visible
+          // text, so a static one would keep saying "Na pewno?" while the button reads
+          // "Zwalnianie...".
+          aria-label={
+            pending
+              ? `Zwalnianie terminu: ${termLabel}, ${caretakerLabel}`
+              : `Na pewno? Potwierdź zwolnienie terminu: ${termLabel}, ${caretakerLabel}`
+          }
           onClick={release}
         >
           {pending ? "Zwalnianie..." : "Na pewno?"}

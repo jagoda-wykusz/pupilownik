@@ -22,13 +22,34 @@ export default defineConfig({
       {
         extends: true,
         test: {
+          // Interactive islands. Needs a DOM, so it cannot live in `unit` (environment: node),
+          // and it must NOT load tests/setup.ts — nothing here touches Supabase, and requiring
+          // the local stack to test a button would be a false dependency. Runs with Docker
+          // down: `npx vitest run --project component`.
+          //
+          // happy-dom rather than jsdom: faster, and this suite needs events and focus, not
+          // layout. Worth stating what that costs — happy-dom computes NO layout, so a CSS
+          // overflow like full-plan review F1 is invisible here. This project covers behaviour;
+          // appearance stays a manual check.
+          name: "component",
+          environment: "happy-dom",
+          include: ["tests/component/**/*.test.tsx"],
+          setupFiles: ["./tests/component/setup.ts"],
+        },
+      },
+      {
+        extends: true,
+        test: {
           name: "integration",
           environment: "node",
           include: ["tests/**/*.test.ts"],
           // Spread the defaults rather than replacing them: a bare `exclude` drops
           // Vitest's own list (node_modules, dist), which only stays harmless while
           // `include` is narrow.
-          exclude: [...configDefaults.exclude, "tests/unit/**"],
+          // `tests/component/**` is excluded explicitly even though its files are .tsx and the
+          // include pattern is .ts: the two only fail to overlap by file extension, which is
+          // not a boundary anyone should have to notice when adding a test.
+          exclude: [...configDefaults.exclude, "tests/unit/**", "tests/component/**"],
           setupFiles: ["./tests/setup.ts"],
           // Integration tests sign users up against the local Supabase stack; keep them
           // serial-friendly and give the network round-trips room.

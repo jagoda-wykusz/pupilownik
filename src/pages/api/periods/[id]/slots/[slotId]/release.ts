@@ -13,6 +13,16 @@ import { periodIdSchema } from "@/lib/schemas/period";
 // startsWith and lists "/periods", not "/api/periods", so nothing upstream gates this path —
 // route-level auth is this handler's job.
 //
+// CSRF, on the other hand, IS handled upstream — but by a mechanism worth naming, because it
+// depends on how the caller happens to fetch. Astro's origin middleware refuses a non-safe
+// method whose request carries NO Content-Type unless the origin matches, and
+// ReleaseSlotButton sends exactly that: `fetch(url, { method: "POST" })`, no header, no body.
+// So a cross-site POST here is refused before this handler runs. `src/pages/invite/claim.ts`
+// needs its own explicit Origin check precisely because it sends application/json, which lands
+// in the middleware's no-check branch; token.ts is in the same position as this route and
+// likewise relies on the shape. **Adding a Content-Type header or a request body to the island
+// would silently remove this protection** — at that point copy claim.ts's check in.
+//
 // release_slot is SECURITY INVOKER, so care_slots_update_own decides whether this owner may
 // touch the row. Four different misses — not this owner's, no such slot, a slot from another
 // of their own periods, and a term that was already free — all come back as NULL and all

@@ -185,8 +185,11 @@ looking for a door to extend for a feature that needs none. The owner is
 `authenticated` and reaches `care_slots` through the ordinary F-01 path — the four
 policies at the top of this document, table-level grants, no column ACLs — so
 `claimed_by_name` was readable by the owner from the day S-02 created the table.
-S-04's occupancy view added no function, no grant and no policy — it widened a
-`.select()` string. Check which role a slice serves before reaching for a
+S-04's occupancy READ added no function, no grant and no policy — it widened a
+`.select()` string. Its release ACTION did add one (`release_slot`, with a grant
+to `authenticated`), but as a named guard over an UPDATE the owner already held
+under `care_slots_update_own` — security INVOKER, so still not a new door, and
+still no anon reachability. Check which role a slice serves before reaching for a
 `SECURITY DEFINER` door.
 
 **The instruction tier split is two predicates, and nothing else.** Both reading

@@ -247,8 +247,10 @@ const claimedByDay = new Map(
                       80 characters would paint straight over its neighbours. It would also put
                       an anon-written string immediately beside the literal "wolne" / "zajęte"
                       labels, separated only by colour and weight, so a caretaker named "wolne"
-                      could pass as a status. Down here each name gets a full row, and the
-                      release control (phase 3) gets somewhere to put its confirmation.
+                      could pass as a status. Down here the name gets room to truncate rather
+                      than overlap, and the release control has somewhere to put its
+                      confirmation — it shares the row, so at phone width `truncate` on the
+                      name absorbs more than it did before phase 3 added the island.
 
                       Days with nothing claimed render the grid alone — no empty list, no
                       heading for zero rows. */}
@@ -290,8 +292,10 @@ const claimedByDay = new Map(
                               `claimed_at !== null`, so the control structurally cannot appear
                               on a free term. The props are ids plus the two already-rendered
                               labels; nothing derived from `claim_digest` crosses this line.
-                              The row is flex-wrap so the island can drop to its own line when
-                              it has an error to show, rather than squeezing the name. */}
+                              The row is flex-wrap so the island drops to its own line as soon
+                              as it stops fitting beside the name; making its error message fit
+                              on that line is the island's own job (min-w-0 there, not
+                              shrink-0 — full-plan review F1). */}
                           <ReleaseSlotButton
                             periodId={period.id}
                             slotId={claimed.id}
