@@ -3,7 +3,7 @@ project: "Pupilownik"
 version: 2
 status: active
 created: 2026-06-27
-updated: 2026-09-08
+updated: 2026-09-09
 prd_version: 1
 design_ref: "context/design/Pupilownik Hi-fi.html"
 main_goal: speed
@@ -39,7 +39,7 @@ Rdzeń wartości — czyli ta jedna cecha, po usunięciu której produkt staje s
 | S-08 | period-pets-relation        | właściciel wskazuje, które zwierzęta obejmuje wyjazd               | S-02          | FR-002, US-01                 | done     |
 | S-07 | ui-design-system            | aplikacja wygląda wg hi-fi designu — system wizualny + reskin auth | —             | (UI wszystkich FR)            | done     |
 | S-03 | caretaker-claims-slot       | opiekun otwiera link i zajmuje wolny slot (bez podwójnej obsady)   | S-08          | FR-007, FR-008, FR-009, US-02 | done     |
-| S-04 | owner-occupancy-view        | właściciel widzi pełną obsadę okresu — kto zajął którą porę        | S-03          | FR-006, US-01                 | proposed |
+| S-04 | owner-occupancy-view        | właściciel widzi pełną obsadę okresu — kto zajął którą porę        | S-03          | FR-006, US-01                 | done     |
 | S-05 | caretaker-names-visibility  | opiekun widzi imiona innych opiekunów w obrębie okresu             | S-03          | FR-011                        | proposed |
 | S-06 | close-care-period           | właściciel zamyka/odwołuje okres i unieważnia link                 | S-02          | FR-012                        | ready    |
 
@@ -180,7 +180,7 @@ Otwarty dług z designu: pole **`NOTATKA`** (wolny tekst na poziomie okresu) wyp
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** Domyka pętlę wartości po stronie właściciela i jest ostatnim must-have. Zależy od istnienia zapisów (S-03), bo „przez kogo" wymaga zajętych slotów — sama obsada wolne/zajęte jest już widoczna w `/periods/[id]`, więc zakres to dołożenie imion i agregatu, nie nowy ekran. Aktualizacja niemal-natychmiastowa (NFR < 1 s) jest celem odczuwalnym, nie twardym SLA.
-- **Status:** proposed
+- **Status:** done
 
 ### S-05: Widoczność imion w obrębie kręgu
 
@@ -246,3 +246,4 @@ Otwarty dług z designu: pole **`NOTATKA`** (wolny tekst na poziomie okresu) wyp
 - **S-02: właściciel może utworzyć okres opieki (zakres dat), który generuje sloty per pora dnia (rano / popołudnie / wieczór) dla każdego dnia, oraz wygenerować link zapraszający prowadzący wyłącznie do tego okresu.** — Archived 2026-09-06 → `context/archive/2026-09-06-care-period-and-invite-link/`. Lesson: —.
 - **S-08: właściciel może wskazać, które ze swoich zwierząt obejmuje okres opieki, i widzi je na liście wyjazdów oraz w szczegółach okresu.** — Archived 2026-09-06 → `context/archive/2026-09-06-period-pets-relation/`. Lesson: „Ubij serwer dev, zanim uruchomisz `npm run build`" (`context/foundation/lessons.md`).
 - **S-03: opiekun może wejść przez link bez logowania, zobaczyć publiczną część instrukcji i kalendarz okresu, a następnie podać imię i zająć wolny slot; przydział jest atomowy (nigdy podwójna obsada), a po zajęciu odsłaniają się wrażliwe instrukcje. (Gwiazda przewodnia.)** — Archived 2026-09-08 → `context/archive/2026-09-06-caretaker-claims-slot/`. Lesson: —.
+- **S-04: właściciel widzi w jednym miejscu obsadę całego okresu — które pory są wolne, które zajęte i przez kogo — oraz może zwolnić zajęty termin.** — Archived 2026-09-09 → `context/archive/2026-09-08-owner-occupancy-view/`. Lesson: —. **Outcome przepisany przy zamknięciu, zgodnie z `lessons.md`:** pole `Outcome` slice'u mówi „aktualizowaną w miarę zapisów opiekunów", co czyta się jak odświeżanie na żywo — a plan wykluczył realtime **wprost** (§What We're NOT Doing): strona odświeża się po WŁASNEJ akcji właściciela, a zapis z innej przeglądarki wymaga ręcznego odświeżenia. Doszła za to rzecz, której `Outcome` nie zapowiadał: zwalnianie terminu przez właściciela (`release_slot` + trasa + wyspa), wciągnięte do tego slice'u decyzją z 2026-09-08 jako domknięcie FR-006.

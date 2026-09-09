@@ -1,10 +1,10 @@
 ---
 change_id: owner-occupancy-view
 title: Owner occupancy view
-status: impl_reviewed
+status: archived
 created: 2026-09-08
 updated: 2026-09-09
-archived_at: null
+archived_at: 2026-09-09T19:49:57Z
 ---
 
 ## Notes
