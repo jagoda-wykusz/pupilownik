@@ -452,18 +452,18 @@ which is the only option available for them.
 
 #### Automated
 
-- [ ] 2.1 Migration applies cleanly on a reset database
-- [ ] 2.2 Types regenerate and include `release_slot`
-- [ ] 2.3 New `release-slot` RLS suite passes
-- [ ] 2.4 Full suite passes with the existing claim suites untouched
-- [ ] 2.5 Type checking and linting pass
-- [ ] 2.6 Security advisors report nothing new
+- [x] 2.1 Migration applies cleanly on a reset database
+- [x] 2.2 Types regenerate and include `release_slot`
+- [x] 2.3 New `release-slot` RLS suite passes
+- [x] 2.4 Full suite passes with the existing claim suites untouched
+- [x] 2.5 Type checking and linting pass
+- [x] 2.6 Security advisors report nothing new
 
 #### Manual
 
-- [ ] 2.7 `has_function_privilege` confirms `authenticated` may execute and `anon` may not
-- [ ] 2.8 `provolatile` for `release_slot` is `v`
-- [ ] 2.9 Releasing an already-free slot returns NULL and changes no row
+- [x] 2.7 `has_function_privilege` confirms `authenticated` may execute and `anon` may not
+- [x] 2.8 `provolatile` for `release_slot` is `v`
+- [x] 2.9 Releasing an already-free slot returns NULL and changes no row
 
 ### Phase 3: The release control
 

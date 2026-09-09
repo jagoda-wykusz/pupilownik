@@ -301,6 +301,10 @@ export type Database = {
         Args: { p_period_id: string; p_token_digest: string }
         Returns: string
       }
+      release_slot: {
+        Args: { p_period_id: string; p_slot_id: string }
+        Returns: string
+      }
     }
     Enums: {
       pet_species: "dog" | "cat" | "other"
