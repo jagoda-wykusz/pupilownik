@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase";
 import { resolveTheme, THEME_COOKIE } from "@/lib/theme";
 // formatWeekday and TIME_OF_DAY_LABEL moved to ClaimSlots with the slot grid it now owns.
 import { formatDay, formatRange, TIMES_OF_DAY } from "@/lib/period-format";
-import { resolveInviteView } from "@/lib/invite-view";
+import { resolveInviteView, splitRevealAnswer, type RevokedClaim } from "@/lib/invite-view";
 import { SPECIES_LABEL, type Species } from "@/lib/pet-format";
 import { CLAIM_COOKIE } from "@/lib/claim-cookie";
 import ClaimSlots from "@/components/invite/ClaimSlots";
@@ -75,13 +75,11 @@ interface ClaimedDetails {
   pets: TokenPet[];
 }
 
-/** What the reveal door answers for a proven claim-holder on a REVOKED period (S-06 Phase 2).
- *  Deliberately carries no trip content — not the title, not the dates, not the pets. The
- *  called-off card is therefore unable to name the trip, which is the point: it is reachable
- *  with only a cookie. */
-interface RevokedClaim {
-  revoked: true;
-}
+/* RevokedClaim — what the reveal door answers for a proven claim-holder on a REVOKED period
+   (S-06 Phase 2) — is imported from invite-view alongside the split that consumes it.
+   Deliberately carries no trip content: not the title, not the dates, not the pets. The
+   called-off card is therefore unable to name the trip, which is the point, since it is
+   reachable with only a cookie. */
 
 let payload: TokenPayload | null = null;
 let loadError = false;
@@ -131,12 +129,12 @@ if (supabase && claimSecret) {
   claimed = error ? null : (data as ClaimedDetails | RevokedClaim | null);
 }
 
-// The reveal answer, split into the two things the page does with it. Everything that renders
-// trip content reads `details`, which is null for the revoked answer — so the called-off card
-// cannot accidentally grow a name, a note or a day list, and a `revoked` payload can never be
-// mistaken for a post-claim view with empty fields.
-const details: ClaimedDetails | null = claimed !== null && !("revoked" in claimed) ? claimed : null;
-const claimRevoked = claimed !== null && "revoked" in claimed;
+// The reveal answer, split into the two things the page does with it. The split lives in
+// invite-view.ts, next to resolveInviteView and pinned by the same test file, because it
+// carries a security property: `details` is what every renderer of trip content reads, and it
+// must be null for the revoked answer. Inline here it was two ternaries enforced by nothing
+// (impl-review F4).
+const { details, claimRevoked } = splitRevealAnswer<ClaimedDetails>(claimed);
 
 // Unknown, tampered and malformed tokens all land on one page with one status and one title,
 // and so does a revoked one for everybody who cannot prove a claim on it. That uniformity is a

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { INACTIVE_TITLE, resolveInviteView } from "@/lib/invite-view";
+import { INACTIVE_TITLE, resolveInviteView, splitRevealAnswer } from "@/lib/invite-view";
 
 // Uniform failure, asserted at the layer that decides it. The SQL side is covered by
 // tests/rls/invite-token.test.ts (every unresolved token returns NULL); this covers what the
@@ -165,5 +165,49 @@ describe("caretaker page view resolution — revoked with a proven claim", () =>
     expect(resolveInviteView({ failed: false, periodTitle: null })).toEqual(
       resolveInviteView({ failed: false, periodTitle: null, claimRevoked: false }),
     );
+  });
+});
+
+// The split that feeds the flag above, extracted from the .astro frontmatter in response to
+// S-06 Phase 2's impl-review F4: the page's whole "the called-off card cannot grow trip
+// content" claim rested on two ternaries that no test touched.
+describe("reveal answer split", () => {
+  interface Details {
+    name: string;
+    caretaker_note: string | null;
+  }
+  const DETAILS: Details = { name: "Ania", caretaker_note: "klucze u sasiadki" };
+
+  it("passes a content answer through untouched", () => {
+    const split = splitRevealAnswer<Details>(DETAILS);
+
+    expect(split.details).toBe(DETAILS);
+    expect(split.claimRevoked).toBe(false);
+  });
+
+  it("turns the revoked marker into NO details", () => {
+    // The load-bearing case. `details` is what every renderer of trip content reads, so a
+    // non-null value here is what would let the called-off card grow a name or a note.
+    const split = splitRevealAnswer<Details>({ revoked: true });
+
+    expect(split.details).toBeNull();
+    expect(split.claimRevoked).toBe(true);
+  });
+
+  it("treats a null answer as neither", () => {
+    const split = splitRevealAnswer<Details>(null);
+
+    expect(split.details).toBeNull();
+    expect(split.claimRevoked).toBe(false);
+  });
+
+  it("suppresses content on an answer that carries BOTH, rather than trusting it", () => {
+    // A door sending content alongside the marker would be a door with a bug. Suppressing is
+    // the safe reading of an answer we do not understand — and asserting it here means a
+    // future SQL edit that merges the two cannot quietly start rendering a revoked trip.
+    const split = splitRevealAnswer<Details>({ ...DETAILS, revoked: true } as never);
+
+    expect(split.details).toBeNull();
+    expect(split.claimRevoked).toBe(true);
   });
 });

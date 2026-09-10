@@ -721,20 +721,20 @@ bodies. Nothing depends on `revoke_period` outside this slice's own route.
 
 #### Automated
 
-- [x] 2.1 Migrations apply cleanly: `npm run db:reset`
-- [x] 2.2 Reveal tests pass, including both directions: `npm run test -- tests/rls/reveal-instructions.test.ts`
-- [x] 2.3 View unit tests pass: `npm run test -- tests/unit/invite-view.test.ts`
-- [x] 2.4 Claim route tests pass unchanged: `npm run test -- tests/api/invite-claim.test.ts`
-- [x] 2.5 Full suite green: `npm run test`
-- [x] 2.6 Types check: `npx astro check`
-- [x] 2.7 Lint passes: `npm run lint`
+- [x] 2.1 Migrations apply cleanly: `npm run db:reset` — 8e32a65
+- [x] 2.2 Reveal tests pass, including both directions: `npm run test -- tests/rls/reveal-instructions.test.ts` — 8e32a65
+- [x] 2.3 View unit tests pass: `npm run test -- tests/unit/invite-view.test.ts` — 8e32a65
+- [x] 2.4 Claim route tests pass unchanged: `npm run test -- tests/api/invite-claim.test.ts` — 8e32a65
+- [x] 2.5 Full suite green: `npm run test` — 8e32a65
+- [x] 2.6 Types check: `npx astro check` — 8e32a65
+- [x] 2.7 Lint passes: `npm run lint` — 8e32a65
 
 #### Manual
 
-- [x] 2.8 Widening fails closed when the revoked branch is moved before the digest gate
-- [x] 2.9 Holder sees the called-off card with no trip content in the response
-- [x] 2.10 Cookie-less window is byte-identical to a random token
-- [x] 2.11 The generic dead-link card no longer mentions asking for a new link
+- [x] 2.8 Widening fails closed when the revoked branch is moved before the digest gate — 8e32a65
+- [x] 2.9 Holder sees the called-off card with no trip content in the response — 8e32a65
+- [x] 2.10 Cookie-less window is byte-identical to a random token — 8e32a65
+- [x] 2.11 The generic dead-link card no longer mentions asking for a new link — 8e32a65
 
 ### Phase 3: The owner's control
 

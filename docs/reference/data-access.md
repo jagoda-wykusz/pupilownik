@@ -188,14 +188,32 @@ p_claim_secret, p_name)`, `VOLATILE` — a separate function because Postgres
    — with the branch hoisted above the gate, the non-holder case fails with
    `expected { revoked: true } to deeply equal null`.
 
+   **Uniform in content is not the same as uniform in work, and the first cut of
+   this widening confused them** (Phase 2 impl-review F2). Dropping the filter
+   means a revoked token now RESOLVES, so the function carried on past the first
+   gate — a second hash and a second index probe — where an unknown token had
+   already returned. Since `anon` holds EXECUTE, that was one direct RPC away from
+   being an oracle for exactly the bit this rule protects, in exactly the
+   forwarded-link scenario it exists for. Both hashes and both lookups therefore
+   now run for every caller who clears the length checks, and only then do the
+   gates decide; the `care_slots` probe uses `coalesce(v_period.id, <zero uuid>)`
+   so it runs even when no period matched. Be precise about the claim: this
+   removes the asymmetry the widening introduced. It does **not** make the
+   function constant-time — a digest matching an existing period still reads a
+   heap tuple that a non-existent one does not, which was equally true before
+   S-06.
+
    The other two anon doors keep their filter. `get_period_by_token` still
    resolves a revoked period to nothing and `claim_slots` still refuses it, so
    the widening is confined to the one door that can check a claim.
 
    **What revocation costs, stated once here because `revoke_period` is the
    trigger and the cost is invisible from the call site:** one column write closes
-   all three doors at once, so every caretaker on the trip loses it
-   simultaneously, with no notification and no grace period — including mid-trip.
+   the read and write doors and reduces the third to a one-bit status, so every
+   caretaker on the trip loses their access simultaneously, with no **push**
+   notification and no grace period — including mid-trip. A caretaker who returns
+   to the link learns it there and nowhere else, which is the whole reason the
+   widening above exists.
    That is the all-at-once version of the sentence S-04's F3 recorded for freeing
    a single capability's last term. "No notification" is the same scope decision
    (`release_slot.sql:20-25`): the product has no contact column in any migration

@@ -429,22 +429,24 @@ describe("the two-tier reveal", () => {
       // off — which is the whole point of the slice.
       expect(after).toEqual({ revoked: true });
 
-      // And learns NOTHING else. Asserted over the WHOLE serialized answer rather than
-      // key-by-key, the same anti-pattern guard the public-tier test uses (test-plan.md:64):
-      // a future edit that "helpfully" attached the title or the note to this branch would
-      // have to defeat this line.
-      const serialized = JSON.stringify(after);
-      expect(serialized).not.toContain("notatka odwołanego");
-      expect(serialized).not.toContain("A-odwolany");
-      expect(serialized).not.toContain("Ania");
-      expect(serialized).not.toContain(SECRET_BODY);
-      // Access really is gone, not merely relabelled.
-      expect(await revealDetails(revoked.token, secret)).toBeNull();
+      // And learns NOTHING else. The KEY SET, not a substring search: impl-review F3 caught
+      // that four `not.toContain` lines after the exact-equality assertion above were
+      // unfailable by construction, and that routing "access is really gone" through
+      // revealDetails was worse than unfailable — that helper returns null for ANY answer
+      // carrying a `revoked` key, so it is the definition of relabelling, not a test of it.
+      //
+      // This is the assertion that bites: a future edit attaching the title, the note or the
+      // caretaker's name to this branch adds a key, and the key set is the one thing such an
+      // edit cannot leave alone.
+      expect(Object.keys(after ?? {})).toEqual(["revoked"]);
+      expect(Object.keys(after ?? {})).not.toContain("caretaker_note");
     });
 
     it("keeps a revoked period byte-identical to a stranger for anyone who cannot prove a claim", async () => {
       const revoked = await seedPeriod(a, "A-odwolany-obcy", "notatka obcego");
-      await claimOne(a, revoked.id, revoked.token, "Ania");
+      // Kept, not discarded (impl-review F5): this is the capability that genuinely holds a
+      // slot on the REVOKED period, and the last assertion below needs exactly it.
+      const revokedSecret = await claimOne(a, revoked.id, revoked.token, "Ania");
       const { error } = await a.client
         .from("care_periods")
         .update({ revoked_at: new Date().toISOString() })
@@ -465,9 +467,11 @@ describe("the two-tier reveal", () => {
       const otherSecret = await claimOne(a, other.id, other.token, "Basia");
       await expect(reveal(revoked.token, otherSecret)).resolves.toEqual(stranger);
 
-      // An unknown token while holding a genuine capability for the revoked trip: the widening
-      // is scoped to the period the token resolves to, not to the secret.
-      await expect(reveal(generateInviteToken(), otherSecret)).resolves.toEqual(stranger);
+      // An unknown token while holding the revoked trip's OWN capability — the case the plan
+      // named, and the one that pins the widening to the period the TOKEN resolves to rather
+      // than to the secret. Previously this passed `otherSecret`, which made the comment false
+      // and duplicated the case above (impl-review F5).
+      await expect(reveal(generateInviteToken(), revokedSecret)).resolves.toEqual(stranger);
     });
   });
 

@@ -30,6 +30,40 @@ export type InviteView =
 // and it is reachable only by a broken backend, never by varying the token.
 export const INACTIVE_TITLE = "Link nieaktywny";
 
+/** The shape the reveal door returns for a proven claim-holder on a revoked period. Content
+ *  answers never carry this key, which is what makes the split below decidable. */
+export interface RevokedClaim {
+  revoked: true;
+}
+
+/** Split the reveal door's answer into the two things the page needs from it.
+ *
+ *  This exists as a function rather than two ternaries in the .astro frontmatter for the same
+ *  reason resolveInviteView does: it carries a security property, and in frontmatter a
+ *  property is enforced by nothing. The property is that `details` — the value every renderer
+ *  of trip content reads — is null for the revoked answer, so the called-off card cannot grow
+ *  a name, a note or a day list, and a `{revoked: true}` payload can never be mistaken for a
+ *  post-claim view with empty fields. S-06 Phase 2's impl-review F4 found that claim resting
+ *  on an untested line.
+ *
+ *  Generic in the content shape: ClaimedDetails is page-shaped (it carries TokenPet), and this
+ *  function does not need to know anything about it beyond "not the revoked marker".
+ *
+ *  Anything carrying the `revoked` key is treated as the revoked answer even if it also
+ *  carries content. That is deliberate: a door that sent both would be a door with a bug, and
+ *  suppressing the content is the safe reading of an answer we do not understand. */
+export function splitRevealAnswer<T extends object>(
+  answer: T | RevokedClaim | null,
+): { details: T | null; claimRevoked: boolean } {
+  if (answer === null) {
+    return { details: null, claimRevoked: false };
+  }
+  if ("revoked" in answer) {
+    return { details: null, claimRevoked: true };
+  }
+  return { details: answer, claimRevoked: false };
+}
+
 export function resolveInviteView(input: {
   failed: boolean;
   periodTitle: string | null;
