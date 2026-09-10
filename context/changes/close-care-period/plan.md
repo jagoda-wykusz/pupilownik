@@ -704,18 +704,18 @@ bodies. Nothing depends on `revoke_period` outside this slice's own route.
 
 #### Automated
 
-- [x] 1.1 Migration applies cleanly: `npm run db:reset`
-- [x] 1.2 Types regenerate with no diff beyond the new RPC: `npm run db:gen-types`
-- [x] 1.3 New RLS tests pass: `npm run test -- tests/rls/revoke-period.test.ts`
-- [x] 1.4 Amended token tests pass: `npm run test -- tests/rls/invite-token.test.ts`
-- [x] 1.5 Full suite green: `npm run test`
-- [x] 1.6 Lint passes: `npm run lint`
+- [x] 1.1 Migration applies cleanly: `npm run db:reset` — a3454a6
+- [x] 1.2 Types regenerate with no diff beyond the new RPC: `npm run db:gen-types` — a3454a6
+- [x] 1.3 New RLS tests pass: `npm run test -- tests/rls/revoke-period.test.ts` — a3454a6
+- [x] 1.4 Amended token tests pass: `npm run test -- tests/rls/invite-token.test.ts` — a3454a6
+- [x] 1.5 Full suite green: `npm run test` — a3454a6
+- [x] 1.6 Lint passes: `npm run lint` — a3454a6
 
 #### Manual
 
-- [x] 1.7 Grant test genuinely fails when the grant is widened
-- [x] 1.8 Nothing in the UI changed
-- [x] 1.9 Regeneration of a revoked period answers 404 at the API
+- [x] 1.7 Grant test genuinely fails when the grant is widened — a3454a6
+- [x] 1.8 Nothing in the UI changed — a3454a6
+- [x] 1.9 Regeneration of a revoked period answers 404 at the API — a3454a6
 
 ### Phase 2: The caretaker's answer
 

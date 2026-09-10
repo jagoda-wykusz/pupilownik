@@ -39,8 +39,11 @@ export const POST: APIRoute = async (context) => {
     return jsonResponse({ error: "Nie udało się wygenerować nowego linku" }, 500);
   }
 
-  // NULL means the update matched nothing — the period does not exist, or it is not
-  // this owner's. Indistinguishable on purpose.
+  // NULL means the update matched nothing — the period does not exist, it is not this
+  // owner's, or it is REVOKED (S-06 Phase 1 added `and revoked_at is null` to the
+  // function's WHERE, because revocation is irreversible and a token minted for a revoked
+  // period would be dead on arrival). Indistinguishable on purpose: all three are one 404
+  // and this route does not re-separate them.
   if (!data) {
     return jsonResponse({ error: "Nie znaleziono wyjazdu" }, 404);
   }
