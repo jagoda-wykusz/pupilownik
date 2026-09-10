@@ -305,6 +305,7 @@ export type Database = {
         Args: { p_period_id: string; p_slot_id: string }
         Returns: string
       }
+      revoke_period: { Args: { p_period_id: string }; Returns: string }
     }
     Enums: {
       pet_species: "dog" | "cat" | "other"

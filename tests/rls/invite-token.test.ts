@@ -43,6 +43,7 @@ describe("invite token access model", () => {
   let bToken: string;
   let bPeriodId: string;
   let revokedToken: string;
+  let revokedPeriodId: string;
 
   async function seedPeriod(
     owner: OwnerWithPetContext,
@@ -82,6 +83,7 @@ describe("invite token access model", () => {
 
     const revoked = await seedPeriod(a, "A-odwolany", "2026-09-01", "2026-09-02");
     revokedToken = revoked.token;
+    revokedPeriodId = revoked.id;
     const { error } = await a.client
       .from("care_periods")
       .update({ revoked_at: new Date().toISOString() })
@@ -262,5 +264,40 @@ describe("invite token access model", () => {
     // B's link still works.
     const payload = await resolve(bToken);
     expect(payload?.period.id).toBe(bPeriodId);
+  });
+
+  it("regeneration refuses a REVOKED period and leaves its digest alone", async () => {
+    // S-06 Phase 1. Revocation is irreversible by decision, so a token minted for a revoked
+    // period would be dead on arrival: get_period_by_token filters on `revoked_at is null` and
+    // regenerate_period_token deliberately never touches that column. Until S-06 the refusal
+    // lived only in RegenerateLinkButton's `revoked` prop — the API answered 200 and handed
+    // back a permanently dead link the panel calls "gotowy do wysłania". The predicate now
+    // sits in the function, where calling the route directly cannot get past it.
+    //
+    // This is also the assertion that would notice Fix B being reintroduced (clearing
+    // revoked_at on regenerate), which the phase-3 impl-review of
+    // 2026-09-06-care-period-and-invite-link rejected outright.
+    const before = await a.client.from("care_periods").select("token_digest").eq("id", revokedPeriodId).single();
+    expect(before.error).toBeNull();
+
+    const replacement = generateInviteToken();
+    const { data, error } = await a.client.rpc("regenerate_period_token", {
+      p_period_id: revokedPeriodId,
+      p_token_digest: await digestInviteToken(replacement),
+    });
+
+    // The third reason for NULL, indistinguishable from "not yours" and "does not exist" —
+    // token.ts answers one 404 for all three and must not re-separate them.
+    expect(error).toBeNull();
+    expect(data).toBeNull();
+
+    // Nothing was written: the old digest stands, so the owner did not silently lose the
+    // record of which link was revoked.
+    const after = await a.client.from("care_periods").select("token_digest").eq("id", revokedPeriodId).single();
+    expect(after.error).toBeNull();
+    expect(after.data?.token_digest).toBe(before.data?.token_digest);
+
+    // And the would-be replacement resolves to nothing, which is the whole reason to refuse.
+    await expect(resolve(replacement)).resolves.toBeNull();
   });
 });
