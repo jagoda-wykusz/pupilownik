@@ -149,7 +149,12 @@ export default function ClaimSlots({ byDay, token, hasCapability }: Props) {
         return;
       }
       if (res.status === 404) {
-        setError("Ten link przestał działać. Poproś właściciela o nowy.");
+        // Brought in line with the inactive card S-06 Phase 2 rewrote (Phase 3, from Phase 2's
+        // impl-review F10; research.md:136 had flagged both together). "Poproś właściciela o
+        // nowy" was the promise the card dropped: the owner cannot mint a link for a revoked
+        // trip, and since Phase 1 the database refuses it — and a revoked trip is exactly how a
+        // caretaker reaches this branch. One voice across the two surfaces they can hit.
+        setError("Ten link przestał działać. Jeśli wyjazd nadal się odbywa, właściciel musi udostępnić Ci nowy link.");
         return;
       }
       setError("Nie udało się zapisać. Spróbuj ponownie za chwilę.");

@@ -2,7 +2,7 @@ import type { APIRoute } from "astro";
 import { createClient } from "@/lib/supabase";
 import { claimSchema } from "@/lib/schemas/claim";
 import { generateClaimSecret } from "@/lib/invite-token";
-import { CLAIM_COOKIE, claimCookieOptions } from "@/lib/claim-cookie";
+import { CAPABILITY_SHAPE, CLAIM_COOKIE, claimCookieOptions } from "@/lib/claim-cookie";
 import { formatDay, TIME_OF_DAY_LABEL, type TimeOfDay } from "@/lib/period-format";
 
 // POST /invite/claim — a caretaker takes one or more slots.
@@ -25,11 +25,6 @@ import { formatDay, TIME_OF_DAY_LABEL, type TimeOfDay } from "@/lib/period-forma
 // Never log the raw token or the raw capability secret. The error branches below log
 // `error.code` and `error.message` only, for the reason S-01 impl-review F2 recorded:
 // PostgREST's `details` echoes offending values.
-
-// The shape a minted capability has: 32 bytes base64url, unpadded. Identical to the invite
-// token's, because `generateClaimSecret` is a literal alias of `generateInviteToken` — and
-// identical to the bound both database functions apply before hashing.
-const CAPABILITY_SHAPE = /^[A-Za-z0-9_-]{43}$/;
 
 export const POST: APIRoute = async (context) => {
   // Inversion 2. Astro will not do this for us on a JSON body, and without it any page on the

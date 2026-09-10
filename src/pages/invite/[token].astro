@@ -7,7 +7,7 @@ import { resolveTheme, THEME_COOKIE } from "@/lib/theme";
 import { formatDay, formatRange, TIMES_OF_DAY } from "@/lib/period-format";
 import { resolveInviteView, splitRevealAnswer, type RevokedClaim } from "@/lib/invite-view";
 import { SPECIES_LABEL, type Species } from "@/lib/pet-format";
-import { CLAIM_COOKIE } from "@/lib/claim-cookie";
+import { CAPABILITY_SHAPE, CLAIM_COOKIE } from "@/lib/claim-cookie";
 import ClaimSlots from "@/components/invite/ClaimSlots";
 import type { TimeOfDay } from "@/lib/period-format";
 
@@ -117,7 +117,19 @@ if (supabase) {
 // earned on another trip; all three degrade silently, which is what resolveInviteView's branch
 // order enforces. `{revoked: true}` is the one non-null answer that does NOT carry content.
 let claimed: ClaimedDetails | RevokedClaim | null = null;
-const claimSecret = Astro.cookies.get(CLAIM_COOKIE)?.value;
+// Shape-gated before it is spent (S-06 Phase 3, from Phase 2's impl-review F9). Ungating the
+// reveal means ANY request to /invite/<anything> carrying this cookie issues an RPC, and
+// HttpOnly binds browsers, not curl — so without this, a garbage cookie buys a serialize,
+// transport and parse round trip before the function's own 43-char bound rejects it. The claim
+// route has always gated on the same regex; the page and the route now agree on what a
+// well-formed capability looks like.
+//
+// Behaviour must NOT change for anyone: a malformed secret was already a guaranteed miss, so a
+// rejected cookie has to degrade exactly as that NULL did — `claimed` stays null and the page
+// renders the uniform inactive card. That is why the gate lives in this condition and not in a
+// separate branch that could grow its own answer.
+const rawClaimSecret = Astro.cookies.get(CLAIM_COOKIE)?.value;
+const claimSecret = rawClaimSecret !== undefined && CAPABILITY_SHAPE.test(rawClaimSecret) ? rawClaimSecret : undefined;
 
 if (supabase && claimSecret) {
   const { data, error } = await supabase.rpc("get_claimed_details", {

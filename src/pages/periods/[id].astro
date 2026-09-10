@@ -2,6 +2,7 @@
 import Layout from "@/layouts/Layout.astro";
 import ThemeToggle from "@/components/ThemeToggle";
 import RegenerateLinkButton from "@/components/periods/RegenerateLinkButton";
+import RevokePeriodButton from "@/components/periods/RevokePeriodButton";
 import ReleaseSlotButton from "@/components/periods/ReleaseSlotButton";
 import { Chip } from "@/components/ui/Chip";
 import { createClient } from "@/lib/supabase";
@@ -318,6 +319,14 @@ const claimedByDay = new Map(
               revoked={period.revoked_at !== null}
               client:load
             />
+
+            {/* The two halves of one story: replace the link, or end it. Mounted together so an
+                owner deciding between them sees both, and so the revoked state reads coherently
+                — after revocation the panel above explains why no new link can be minted and
+                the control below explains that it cannot be undone. */}
+            <div class="mt-4">
+              <RevokePeriodButton periodId={period.id} revoked={period.revoked_at !== null} client:load />
+            </div>
           </>
         )
       }

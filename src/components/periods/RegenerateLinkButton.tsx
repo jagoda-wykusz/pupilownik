@@ -42,7 +42,18 @@ export default function RegenerateLinkButton({ periodId, origin, revoked = false
         setToken(body.inviteToken);
         return;
       }
-      setError("Nie udało się wygenerować nowego linku. Spróbuj ponownie.");
+      // 404 gets its own terminal sentence (S-06 Phase 3, from Phase 1's impl-review F1).
+      // Since Phase 1 the RPC refuses a revoked period in SQL, so this route answers 404 for a
+      // trip whose link was ended — a request that can NEVER now succeed. "Spróbuj ponownie"
+      // would send the owner into a loop against it. The `revoked` prop below normally hides
+      // this path, but it is a snapshot from render time: revoke in one tab, regenerate in
+      // another, and this branch is reached by an ordinary sequence of clicks. Same reasoning
+      // ReleaseSlotButton gives for treating its own 404 as actionable rather than retryable.
+      setError(
+        res.status === 404
+          ? "Nie ma już takiego aktywnego wyjazdu — jego link mógł zostać unieważniony. Odśwież stronę, żeby zobaczyć aktualny stan."
+          : "Nie udało się wygenerować nowego linku. Spróbuj ponownie.",
+      );
     } catch {
       setError("Błąd połączenia. Sprawdź sieć i spróbuj ponownie.");
     } finally {

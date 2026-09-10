@@ -146,7 +146,12 @@ if (supabase) {
                       )}
                       <p class="text-muted-foreground mt-2 text-[13px]">
                         {takenCount} z {totalCount} terminów zajętych
-                        {period.revoked_at !== null && " · link nieaktywny"}
+                        {/* Same phrase as the detail page (S-06 Phase 3). The two used to differ
+                            — "link nieaktywny" here, "link został unieważniony" there — and
+                            "nieaktywny" is now the CARETAKER page's title (INACTIVE_TITLE), a
+                            different fact about a different reader, so the detail page's
+                            wording is the one that survives. */}
+                        {period.revoked_at !== null && " · link został unieważniony"}
                       </p>
                     </a>
                   </li>
