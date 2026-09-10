@@ -512,11 +512,64 @@ period → 404. Own live period → 200 with the id echo. Second call → 404. A
 **no Content-Type and no body**, so the CSRF posture is pinned by a test rather than by a comment —
 the shape is the protection, and a later refactor adding a header would otherwise pass silently.
 
+---
+
+### Addendum (2026-09-10): three items pulled in from earlier reviews
+
+Added after Phase 2 with the owner's approval. All three are reachable **because** this phase ships
+the revoke control, which is why they belong here rather than as standing debt.
+
+#### 5. The regenerate island's 404 tells the owner to retry something that can never succeed
+
+**File**: `src/components/periods/RegenerateLinkButton.tsx`
+
+**Intent**: Phase 1's impl-review F1 carried this forward. `POST /api/periods/[id]/token` now
+answers 404 for a revoked period (Phase 1 put the refusal in SQL), and this island maps every
+non-401 failure to _"Nie udało się wygenerować nowego linku. Spróbuj ponownie."_ — a retry prompt
+for a request that is permanently refused. Today the `revoked` prop hides the path; once this phase
+ships the revoke control, a stale-prop page (revoke in one tab, regenerate in another) reaches it
+by an ordinary sequence of clicks.
+
+**Contract**: Give the 404 branch its own terminal sentence — the trip's link was revoked, so no new
+one can be issued, refresh to see the current state — mirroring the reasoning
+`ReleaseSlotButton.tsx:73-77` gives for treating its own 404 as actionable rather than retryable.
+Keep every other status on the existing generic message.
+
+#### 6. Validate the claim cookie's shape before the reveal RPC
+
+**File**: `src/pages/invite/[token].astro`
+
+**Intent**: Phase 2's impl-review F9. Ungating the reveal means any request to `/invite/<anything>`
+carrying a claim cookie now issues a second RPC. The page reads that cookie with **no shape check**,
+unlike `src/pages/invite/claim.ts:96`, which gates on `CAPABILITY_SHAPE`. `HttpOnly` binds browsers,
+not `curl`, so a garbage cookie currently buys a parse-then-reject round trip, and there is no rate
+limiting anywhere in this repo.
+
+**Contract**: Apply the same shape gate the claim route uses before calling `get_claimed_details`, so
+the page and the route agree on what a well-formed capability looks like. This is a defence-in-depth
+and cost change only — the function's own 43-char bounds already make a malformed secret a
+guaranteed miss, so no observable behaviour changes for any well-formed caller. Do **not** let it
+alter the uniform-failure answer: a rejected cookie must degrade exactly as a NULL reveal does.
+
+#### 7. The last surviving "ask the owner for a new link"
+
+**File**: `src/components/invite/ClaimSlots.tsx`
+
+**Intent**: Phase 2's impl-review F10. `:152` still says _"Ten link przestał działać. Poproś
+właściciela o nowy."_ — the promise Phase 2 removed from the inactive card, on the claim-POST 404
+path, which is reachable on a revoked trip. `research.md:136` flagged it alongside the card copy;
+Phase 2's contract scoped the fix to `[token].astro`, so it survived.
+
+**Contract**: Bring it in line with the card Phase 2 rewrote: the link stopped working, and a new one
+would have to come from the owner if the trip is still on. One voice across the two surfaces a
+caretaker can hit.
+
 ### Success Criteria:
 
 #### Automated Verification:
 
 - Route tests pass: `npm run test -- tests/api/revoke-period.test.ts`
+- Reveal tests still pass with the cookie shape gate in place: `npm run test -- tests/rls/reveal-instructions.test.ts`
 - Full suite green: `npm run test`
 - Types check: `npx astro check`
 - Lint passes: `npm run lint`
@@ -534,6 +587,12 @@ the shape is the protection, and a later refactor adding a header would otherwis
 - At 320px width the control and any error message stay inside the card.
 - The caretaker link now behaves as Phase 2 specified — holder sees the called-off card, stranger
   sees the generic one.
+- Regenerating a revoked trip's link from a stale tab shows the terminal sentence, not "Spróbuj
+  ponownie" (addendum item 5).
+- A malformed claim cookie on a dead link still renders exactly the generic inactive card —
+  byte-identical to no cookie at all (addendum item 6).
+- The claim island's 404 no longer sends the caretaker after a link nobody can mint (addendum
+  item 7).
 
 **Implementation Note**: After completing this phase and all automated verification passes, pause
 here for manual confirmation before proceeding to Phase 4.
@@ -741,21 +800,25 @@ bodies. Nothing depends on `revoke_period` outside this slice's own route.
 #### Automated
 
 - [ ] 3.1 Route tests pass: `npm run test -- tests/api/revoke-period.test.ts`
-- [ ] 3.2 Full suite green: `npm run test`
-- [ ] 3.3 Types check: `npx astro check`
-- [ ] 3.4 Lint passes: `npm run lint`
-- [ ] 3.5 Build succeeds: `npm run build`
+- [ ] 3.2 Reveal tests still pass with the cookie shape gate in place: `npm run test -- tests/rls/reveal-instructions.test.ts`
+- [ ] 3.3 Full suite green: `npm run test`
+- [ ] 3.4 Types check: `npx astro check`
+- [ ] 3.5 Lint passes: `npm run lint`
+- [ ] 3.6 Build succeeds: `npm run build`
 
 #### Manual
 
-- [ ] 3.6 Two taps to revoke; a double-tap cannot revoke by itself
-- [ ] 3.7 "Nie" returns to idle and clears the error
-- [ ] 3.8 After confirming: reload, marker, regenerate refusal, terminal state
-- [ ] 3.9 List and detail pages show the same phrase
-- [ ] 3.10 Keyboard-only focus moves correctly on every state swap
-- [ ] 3.11 Screen reader announces the confirm's full name, starting with the visible text
-- [ ] 3.12 Control and errors stay inside the card at 320px
-- [ ] 3.13 Caretaker link behaves as Phase 2 specified
+- [ ] 3.7 Two taps to revoke; a double-tap cannot revoke by itself
+- [ ] 3.8 "Nie" returns to idle and clears the error
+- [ ] 3.9 After confirming: reload, marker, regenerate refusal, terminal state
+- [ ] 3.10 List and detail pages show the same phrase
+- [ ] 3.11 Keyboard-only focus moves correctly on every state swap
+- [ ] 3.12 Screen reader announces the confirm's full name, starting with the visible text
+- [ ] 3.13 Control and errors stay inside the card at 320px
+- [ ] 3.14 Caretaker link behaves as Phase 2 specified
+- [ ] 3.15 Regenerating a revoked trip from a stale tab shows the terminal sentence, not "Spróbuj ponownie"
+- [ ] 3.16 A malformed claim cookie on a dead link renders exactly the generic inactive card
+- [ ] 3.17 The claim island's 404 no longer sends the caretaker after a link nobody can mint
 
 ### Phase 4: Close-out — the documents this slice made stale
 

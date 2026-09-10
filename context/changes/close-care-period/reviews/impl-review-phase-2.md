@@ -171,7 +171,7 @@
   anywhere. The length bound is the first cost _inside_ the function, not the first cost of the
   request. A one-line `length === 43` in the frontmatter would remove the parse-then-reject trip
   and make the page agree with the route about what a well-formed capability looks like.
-- **Decision**: PENDING
+- **Decision**: SCHEDULED — pulled into Phase 3 with the owner's approval (plan addendum item 6).
 
 ### F10 — `ClaimSlots` still carries the promise the card just dropped
 
@@ -180,7 +180,7 @@
   **Poproś właściciela o nowy.**" — reachable via the claim-POST 404 on a revoked trip.
   `research.md:136` already flagged this alongside the card copy; Phase 2's contract scoped the
   fix to `[token].astro` only, so it is not drift — but it is a known surviving instance.
-- **Decision**: PENDING — candidate for Phase 3, which already owns a related 404-copy fix.
+- **Decision**: SCHEDULED — pulled into Phase 3 with the owner's approval (plan addendum item 7).
 
 ### F11 — `release_slot` + revoked interaction untested
 

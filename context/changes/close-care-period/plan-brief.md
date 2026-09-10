@@ -71,12 +71,12 @@ correctness argument, and both the digest gate and its plain-NULL miss stay unto
 
 ## Phases at a Glance
 
-| Phase                     | What it delivers                                                     | Key risk                                                                                          |
-| ------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| 1. The write              | `revoke_period` + SQL refusal of regeneration, with no caller yet    | A grant test that passes with the grant widened — assert the message names the function           |
-| 2. The caretaker's answer | The rule-4 widening, ungated reveal, new view kind, both copy fixes  | Wrong ordering inside the function discloses the period's existence to a non-holder               |
-| 3. The owner's control    | Route + two-tap island + wiring, indicators reconciled               | Adding a Content-Type or body to the fetch silently forfeits CSRF protection                      |
-| 4. Close-out              | Roadmap `Unknowns`, PRD rationale, `data-access.md`, own doc re-read | The fourth recurrence of a known staleness class — the sweep is why it is a phase, not a footnote |
+| Phase                     | What it delivers                                                                                    | Key risk                                                                                          |
+| ------------------------- | --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| 1. The write              | `revoke_period` + SQL refusal of regeneration, with no caller yet                                   | A grant test that passes with the grant widened — assert the message names the function           |
+| 2. The caretaker's answer | The rule-4 widening, ungated reveal, new view kind, both copy fixes                                 | Wrong ordering inside the function discloses the period's existence to a non-holder               |
+| 3. The owner's control    | Route + two-tap island + wiring, indicators reconciled, plus three carry-ins from the p1/p2 reviews | Adding a Content-Type or body to the fetch silently forfeits CSRF protection                      |
+| 4. Close-out              | Roadmap `Unknowns`, PRD rationale, `data-access.md`, own doc re-read                                | The fourth recurrence of a known staleness class — the sweep is why it is a phase, not a footnote |
 
 **Prerequisites:** S-02 (done since 2026-09-06) and S-04's `release_slot` as the template. Local
 Supabase running for `npm run db:reset` and the RLS suite.
