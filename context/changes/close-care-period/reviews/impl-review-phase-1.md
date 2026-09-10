@@ -106,10 +106,10 @@
   `tests/rls/revoke-period.test.ts:138`
 - **Detail**: The row claimed the grant is "pinned from both directions … (42501 **and** the
   message naming the function)", but the message assertion covers `anon` only; `service_role`
-  asserts the code alone. The plan's text said "anon and service*role **each**". The registry is a
+  asserts the code alone. The plan's text said "anon and service_role **each**". The registry is a
   document later work treats as ground truth. The test-side gap is cosmetic — with EXECUTE
   restored, `service_role` (which holds UPDATE and `rolbypassrls`, both read from the catalog)
-  would \_succeed* rather than return a different error, so the code-only assertion still fails —
+  would **succeed** rather than return a different error, so the code-only assertion still fails —
   but the doc-vs-code divergence is not.
 - **Fix A ⭐ Recommended**: Narrow the registry to the truth — "42501 for both, plus, for `anon`
   only, the message naming the function", with the measured reason and the `service_role`

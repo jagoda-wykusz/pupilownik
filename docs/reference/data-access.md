@@ -144,11 +144,14 @@ p_claim_secret, p_name)`, `VOLATILE` — a separate function because Postgres
    and writes them. That is the point worth carrying: **RLS does not apply inside
    any of the three**, so their bodies — not any policy — are what keeps an
    owner's data and the sensitive instruction tier apart.
-4. **Uniform failure — with one deliberate widening for writes.** Unknown,
-   malformed and revoked tokens all return NULL, and the page renders one 404
-   with one message. A distinct "this link was revoked" answer would confirm the
-   period exists. The copy carries the "ask the
-   owner for a new link" guidance the response deliberately withholds. A WRITE
+4. **Uniform failure for every UNPROVEN caller — with two deliberate,
+   bounded widenings.** Unknown, malformed and revoked tokens all return NULL,
+   and the page renders one 404 with one message. A distinct "this link was
+   revoked" answer would confirm the period exists to someone who had no way of
+   knowing. The card says only that the link is dead and that a new one has to
+   come from the owner — it no longer promises a replacement, because S-06 made
+   `regenerate_period_token` refuse a revoked period, so that promise was one the
+   owner could not keep. A WRITE
    cannot keep this whole: a claim must distinguish "won" from "refused", which
    is a signal a read never emitted. `claim_slots` therefore returns NULL for an
    unresolvable token — the half that is the security property, since it is what
@@ -156,6 +159,47 @@ p_claim_secret, p_name)`, `VOLATILE` — a separate function because Postgres
    is no longer free, carrying the conflicting `{slot_date, time_of_day}` rows so
    the page can name the term. That leaks nothing beyond the period the caller
    already holds a valid token for.
+
+   **The second widening (S-06 Phase 2), and it is for a READ.** A caretaker who
+   already claimed a slot on a trip the owner then revoked used to see the exact
+   same "Link nieaktywny" 404 as a stranger with a typo — losing the trip, their
+   own record of which days they took, the note and every sensitive row, with the
+   card telling them to ask for a link nobody can now mint. `get_claimed_details`
+   therefore resolves the period **without** the `revoked_at is null` filter and,
+   for a caller whose `claim_digest` matches a slot row **in that period**,
+   answers `{"revoked": true}` — one bit, no payload: no title, no dates, no
+   pets, no note, no slots. Revocation stays total; this is a status, not a
+   restoration.
+
+   Why it is bounded, in the same terms as the first widening: a matching
+   `claim_digest` is the sha256 of a 43-char secret the database only ever stores
+   hashed and no function ever returns, so it is unforgeable, and holding one is
+   provable only by having claimed while the link was live. The bit therefore
+   reaches only someone who already knew the period existed — because claiming is
+   how they learned it. This is **strictly weaker** than the write widening
+   above, which hands back conflicting rows.
+
+   **The ordering inside the function is the whole correctness argument**:
+   resolve by digest → `not found` NULL → hash the secret and look for a matching
+   row → `not found` NULL (the F6 ROW gate, untouched) → _only then_ branch on
+   `revoked_at`. Move that branch ahead of the gate and any caller presenting any
+   secret learns the period exists. `tests/rls/reveal-instructions.test.ts`
+   asserts both directions, so a reordering fails rather than shipping: measured
+   — with the branch hoisted above the gate, the non-holder case fails with
+   `expected { revoked: true } to deeply equal null`.
+
+   The other two anon doors keep their filter. `get_period_by_token` still
+   resolves a revoked period to nothing and `claim_slots` still refuses it, so
+   the widening is confined to the one door that can check a claim.
+
+   **What revocation costs, stated once here because `revoke_period` is the
+   trigger and the cost is invisible from the call site:** one column write closes
+   all three doors at once, so every caretaker on the trip loses it
+   simultaneously, with no notification and no grace period — including mid-trip.
+   That is the all-at-once version of the sentence S-04's F3 recorded for freeing
+   a single capability's last term. "No notification" is the same scope decision
+   (`release_slot.sql:20-25`): the product has no contact column in any migration
+   and no stable caretaker identity to address.
 
    **The other half of the write widening, which is not about signalling: the
    write is IRREVERSIBLE and nothing in the product can undo it.** No function

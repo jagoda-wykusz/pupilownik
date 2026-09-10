@@ -7,6 +7,11 @@ import { INACTIVE_TITLE, resolveInviteView } from "@/lib/invite-view";
 describe("caretaker page view resolution", () => {
   // The four ways a token fails to resolve. get_period_by_token collapses them all to NULL,
   // so at this layer they arrive identically — which is exactly the point being pinned.
+  //
+  // "revoked" still belongs on this list after S-06 Phase 2: the exception carved out there is
+  // not about the token, it is about the CALLER. A revoked link stays byte-identical to an
+  // unknown one for everyone who cannot prove a claim on that period, and that is every
+  // visitor reaching this function without `claimRevoked` — see the last describe block.
   const UNRESOLVED = ["unknown", "tampered", "malformed", "revoked"];
 
   it("renders one identical inactive page for every unresolved token", () => {
@@ -93,11 +98,72 @@ describe("caretaker page view resolution — post-claim", () => {
     expect(post.kind).not.toBe(pre.kind);
   });
 
+  it("does NOT treat a claim-holder on another trip as a revoked answer", () => {
+    // The cookie rides along on every /invite URL (Path=/invite), so a capability earned on
+    // trip A arrives on trip B's dead link too. That case has `hasClaims` shaped like the
+    // revoked one but must stay uniform — which is why the revoked branch hangs on its own
+    // flag rather than on `hasClaims`.
+    const carriedOver = resolveInviteView({ failed: false, periodTitle: null, hasClaims: true, claimRevoked: false });
+
+    expect(carriedOver.kind).toBe("inactive");
+  });
+
   it("treats an absent capability exactly as a false one", () => {
     // The page passes `hasClaims` only when it resolved something; `undefined` must not be a
     // third behaviour.
     expect(resolveInviteView({ failed: false, periodTitle: "Wyjazd" })).toEqual(
       resolveInviteView({ failed: false, periodTitle: "Wyjazd", hasClaims: false }),
+    );
+  });
+});
+
+// The fifth state, added in S-06 Phase 2. This is the one bounded exception to uniform
+// failure, so the cases that matter are the ones proving the exception cannot be reached
+// without the flag the database alone sets — and that even WITH it, nothing observable
+// outside the body changes.
+describe("caretaker page view resolution — revoked with a proven claim", () => {
+  const REVOKED = { failed: false, periodTitle: null, claimRevoked: true } as const;
+
+  it("gives a proven claim-holder a distinct body for a revoked trip", () => {
+    expect(resolveInviteView(REVOKED)).toEqual({ kind: "revoked", status: 404, title: INACTIVE_TITLE });
+  });
+
+  it("differs from the inactive page in NOTHING but the kind", () => {
+    // Status and title are the two things observable without rendering the body: the status
+    // shows in devtools and in any crawler, and the title is the browser tab and lands in
+    // history — on a shared phone it would say more than the page does. Only `kind`, which
+    // selects the body, may differ.
+    const revoked = resolveInviteView(REVOKED);
+    const inactive = resolveInviteView({ failed: false, periodTitle: null });
+
+    expect(revoked.status).toBe(inactive.status);
+    expect(revoked.title).toBe(inactive.title);
+    expect(revoked.kind).not.toBe(inactive.kind);
+  });
+
+  it("never names the period, because the payload behind it carries no name", () => {
+    expect(resolveInviteView(REVOKED).title).not.toContain("Opieka");
+  });
+
+  it("keeps a load failure ahead of it", () => {
+    // Branch order: a broken backend cannot resolve a capability either, so a transport error
+    // must not be reported to the caretaker as "the trip was called off".
+    expect(resolveInviteView({ failed: true, periodTitle: null, claimRevoked: true }).kind).toBe("error");
+  });
+
+  it("never fires for a resolved period, whatever the flag says", () => {
+    // A live trip cannot be revoked, so this combination is unreachable through the page. If a
+    // future edit made it reachable, showing the called-off card over a working trip would be
+    // the worse failure — so the resolved period wins.
+    expect(resolveInviteView({ failed: false, periodTitle: "Wyjazd", claimRevoked: true }).kind).toBe("period");
+    expect(resolveInviteView({ failed: false, periodTitle: "Wyjazd", hasClaims: true, claimRevoked: true }).kind).toBe(
+      "claimed",
+    );
+  });
+
+  it("treats an absent flag exactly as a false one", () => {
+    expect(resolveInviteView({ failed: false, periodTitle: null })).toEqual(
+      resolveInviteView({ failed: false, periodTitle: null, claimRevoked: false }),
     );
   });
 });

@@ -75,6 +75,14 @@ interface ClaimedDetails {
   pets: TokenPet[];
 }
 
+/** What the reveal door answers for a proven claim-holder on a REVOKED period (S-06 Phase 2).
+ *  Deliberately carries no trip content — not the title, not the dates, not the pets. The
+ *  called-off card is therefore unable to name the trip, which is the point: it is reachable
+ *  with only a cookie. */
+interface RevokedClaim {
+  revoked: true;
+}
+
 let payload: TokenPayload | null = null;
 let loadError = false;
 
@@ -94,36 +102,62 @@ if (supabase) {
   loadError = true;
 }
 
-// The capability read. Only attempted when the token itself resolved — there is nothing to
-// reveal on a dead link, and asking would be a second query for no answer. A NULL comes back
-// for a wrong secret, a capability holding nothing here, or a cookie earned on another trip;
-// all three degrade silently to the pre-claim view, which is what resolveInviteView's branch
-// order enforces.
-let claimed: ClaimedDetails | null = null;
+// The capability read. Attempted whenever a claim cookie is present — INCLUDING when the token
+// itself did not resolve, which is the change S-06 Phase 2 needed.
+//
+// It used to be gated on `payload`, on the reasoning that there is nothing to reveal on a dead
+// link. That reasoning had a hole: a revoked period is exactly a dead link that still has
+// something to say, and only this door can say it, because only it can check the claim_digest.
+// With the old gate the new SQL branch was unreachable — `payload` is null precisely when the
+// period is revoked.
+//
+// The cost is one extra RPC per dead-link view that carries a claim cookie. It is bounded
+// before anything is hashed (both arguments must be exactly 43 chars) and the lookup is by
+// unique digest, so a miss is a primary-key-shaped no-op.
+//
+// A NULL still comes back for a wrong secret, a capability holding nothing here, or a cookie
+// earned on another trip; all three degrade silently, which is what resolveInviteView's branch
+// order enforces. `{revoked: true}` is the one non-null answer that does NOT carry content.
+let claimed: ClaimedDetails | RevokedClaim | null = null;
 const claimSecret = Astro.cookies.get(CLAIM_COOKIE)?.value;
 
-if (supabase && payload && claimSecret) {
+if (supabase && claimSecret) {
   const { data, error } = await supabase.rpc("get_claimed_details", {
     p_token: token,
     p_claim_secret: claimSecret,
   });
   // A failure here is NOT a page failure: the public half already loaded, and showing the
   // error page would hide a trip the visitor can legitimately see. Degrade to pre-claim.
-  claimed = error ? null : (data as ClaimedDetails | null);
+  claimed = error ? null : (data as ClaimedDetails | RevokedClaim | null);
 }
 
-// Unknown, tampered, malformed and revoked tokens all land on one page with one status and
-// one title. That uniformity is a security property, not a UX choice: a distinct "this link
-// was revoked" answer would confirm the period exists. The decision lives in
+// The reveal answer, split into the two things the page does with it. Everything that renders
+// trip content reads `details`, which is null for the revoked answer — so the called-off card
+// cannot accidentally grow a name, a note or a day list, and a `revoked` payload can never be
+// mistaken for a post-claim view with empty fields.
+const details: ClaimedDetails | null = claimed !== null && !("revoked" in claimed) ? claimed : null;
+const claimRevoked = claimed !== null && "revoked" in claimed;
+
+// Unknown, tampered and malformed tokens all land on one page with one status and one title,
+// and so does a revoked one for everybody who cannot prove a claim on it. That uniformity is a
+// security property, not a UX choice: a distinct "this link was revoked" answer would confirm
+// the period exists to a caller who had no way of knowing. The decision lives in
 // resolveInviteView so it is pinned by tests/unit/invite-view.test.ts rather than by an `if`
 // nobody checks — this exact shape (a status set inside a branch) is what the phase-3 review
 // had to catch by reading, because no test could.
+//
+// S-06 Phase 2's exception rides on `claimRevoked`, which is true only for the door's
+// `{revoked: true}` — i.e. behind the claim_digest gate. Same status, same title, different
+// body. Note `hasClaims` reads `details`, not `claimed`: the revoked answer must not be
+// counted as holding slots, or a future edit could route it to the post-claim view.
 const view = resolveInviteView({
   failed: loadError,
   periodTitle: payload?.period.title ?? null,
-  hasClaims: claimed !== null,
+  hasClaims: details !== null,
+  claimRevoked,
 });
 const inactive = view.kind === "inactive";
+const revoked = view.kind === "revoked";
 Astro.response.status = view.status;
 
 const slots = payload?.slots ?? [];
@@ -146,8 +180,8 @@ const pets = payload?.pets ?? [];
 // list alone. Keyed by pet id rather than by index: the two payloads order pets identically
 // today (both `order by pet.name, pet.id`), but relying on that would make a future ordering
 // change a silent mismatch of instructions to animals.
-const sensitiveByPet = new Map((claimed?.pets ?? []).map((pet) => [pet.id, pet.instructions]));
-const myDays = [...new Set((claimed?.slots ?? []).map((slot) => slot.slot_date))].sort();
+const sensitiveByPet = new Map((details?.pets ?? []).map((pet) => [pet.id, pet.instructions]));
+const myDays = [...new Set((details?.slots ?? []).map((slot) => slot.slot_date))].sort();
 ---
 
 <Layout title={view.title}>
@@ -170,10 +204,39 @@ const myDays = [...new Set((claimed?.slots ?? []).map((slot) => slot.slot_date))
 
       {
         inactive && (
+          /* The generic dead link: unknown, tampered, malformed, or revoked-and-unproven.
+             The earlier copy said "Poproś właściciela o nowy — poprzedni mógł zostać
+             zastąpiony", which sends the visitor after something the owner may be unable to
+             issue: RegenerateLinkButton refuses a revoked period, and S-06 Phase 1 made that
+             refusal a property of the database. So the promise is dropped and only what is
+             true in every case that reaches this card is left — the link is dead, and any
+             replacement has to come from the owner if the trip is still on. */
           <div class="border-border bg-card rounded-lg border-[1.5px] p-8 text-center">
             <p class="font-heading text-foreground text-[20px] font-bold">{view.title}</p>
             <p class="text-muted-foreground mt-3 text-[15px]">
-              Ten link nie działa. Poproś właściciela zwierzęcia o nowy — poprzedni mógł zostać zastąpiony.
+              Ten link nie działa. Jeśli wyjazd nadal się odbywa, właściciel zwierzęcia musi udostępnić Ci nowy link.
+            </p>
+          </div>
+        )
+      }
+
+      {
+        revoked && (
+          /* S-06 Phase 2. Reached ONLY by a visitor whose claim_digest matched a slot row in
+             this very period — see get_claimed_details. Same status and title as the card
+             above; only this body differs.
+
+             It deliberately does NOT name the trip or its dates: the payload behind this card
+             carries no content at all, and the card is reachable with just a cookie on a
+             shared phone. It also does not promise that the owner will be in touch — this
+             product has no channel to the caretaker and no non-goal permits inventing one
+             (prd.md:146 governs what the system pushes outward, not what a page says when
+             opened). Telling them they need not come is the actionable half. */
+          <div class="border-border bg-card rounded-lg border-[1.5px] p-8 text-center">
+            <p class="font-heading text-foreground text-[20px] font-bold">{view.title}</p>
+            <p class="text-muted-foreground mt-3 text-[15px]">
+              Wyjazd został odwołany, więc Twoja pomoc nie jest już potrzebna — nie musisz przychodzić. Terminy, które
+              zajęłaś lub zająłeś, przestały obowiązywać.
             </p>
           </div>
         )
@@ -201,7 +264,7 @@ const myDays = [...new Set((claimed?.slots ?? []).map((slot) => slot.slot_date))
                 phase added — same anatomy (tick, "Zapisano!", the day count), same tokens as
                 the rest of the page. Body text stays on --foreground: --success is an accent,
                 and only the heading is set in it. */}
-            {claimed && (
+            {details && (
               <div class="border-success bg-success/10 mt-6 flex items-center gap-3 rounded-lg border-[1.5px] p-4">
                 <span class="bg-success/15 text-success flex size-11 shrink-0 items-center justify-center rounded-full">
                   <svg
@@ -224,7 +287,7 @@ const myDays = [...new Set((claimed?.slots ?? []).map((slot) => slot.slot_date))
                       the bg-success/10 tint measures 4.13:1, not the 4.9:1 the token's comment
                       cites against --background (impl-review phase 5, F2). --success stays on
                       the tick disc, where the 3:1 non-text bar applies and it clears at 3.86:1. */}
-                  <p class="font-heading text-foreground text-[18px] font-bold">Zapisano, {claimed.name}!</p>
+                  <p class="font-heading text-foreground text-[18px] font-bold">Zapisano, {details.name}!</p>
                   <p class="text-foreground mt-0.5 text-[13px] font-semibold">
                     {myDays.length === 1
                       ? `Masz 1 dzień: ${formatDay(myDays[0])}.`
@@ -345,7 +408,7 @@ const myDays = [...new Set((claimed?.slots ?? []).map((slot) => slot.slot_date))
               </>
             )}
 
-            {claimed?.caretaker_note && (
+            {details?.caretaker_note && (
               <>
                 {/* The design's NOTATKA, and the same amber as the sensitive rows on purpose:
                     the artboard fills this field with "Klucze u sąsiadki, mieszkanie 4…", so
@@ -353,7 +416,7 @@ const myDays = [...new Set((claimed?.slots ?? []).map((slot) => slot.slot_date))
                     same treatment. */}
                 <h2 class="font-heading text-foreground mt-8 mb-3 text-[17px] font-bold">Notatka od właściciela</h2>
                 <p class="border-notice bg-notice/10 text-foreground rounded-[18px] border-[1.5px] p-4 text-[14px] leading-[1.6] whitespace-pre-line">
-                  {claimed.caretaker_note}
+                  {details.caretaker_note}
                 </p>
               </>
             )}
@@ -370,18 +433,19 @@ const myDays = [...new Set((claimed?.slots ?? []).map((slot) => slot.slot_date))
                 this page's URL, and the response carries no-referrer and no-store — but the
                 earlier wording here implied nothing credential-shaped crossed at all, which
                 was true of the capability and false of the token (Phase 4 impl-review F9). */}
-            <ClaimSlots byDay={byDay} token={token} hasCapability={claimed !== null} client:load />
+            <ClaimSlots byDay={byDay} token={token} hasCapability={details !== null} client:load />
 
             {/* The tier hint, now that claiming exists. Shown only BEFORE claiming: once the
                 sensitive rows are on the page, saying they are withheld would be false. Kept
                 outside the pets guard for the reason Phase 3's review gave - a trip with no
                 linked pets is representable and still needs the explanation. */}
-            {/* Reads view.kind, not `claimed`, because this is a pure VIEW decision with no
+            {/* Reads view.kind, not `details`, because this is a pure VIEW decision with no
                 payload behind it — which makes the fourth kind load-bearing rather than
-                computed-and-ignored (impl-review). The blocks above keep `claimed &&` because
+                computed-and-ignored (impl-review). The blocks above keep `details &&` because
                 they dereference it and need TypeScript's narrowing; inside this `payload`
                 branch the two are equivalent by construction, since hasClaims is exactly
-                `claimed !== null`. */}
+                `details !== null`. Note the revoked answer cannot reach here at all: it only
+                arrives when `payload` is null, so this whole branch is skipped. */}
             {view.kind === "period" && (
               <p class="text-muted-foreground mt-6 text-[13px] leading-[1.5]">
                 Część wskazówek — na przykład dostęp do mieszkania — właściciel udostępnia dopiero po zapisaniu się na

@@ -46,6 +46,11 @@ interface ClaimedDetails {
   slots: { id: string; slot_date: string; time_of_day: string }[];
   pets: Pet[];
 }
+/** S-06 Phase 2: what a PROVEN claim-holder gets once the period is revoked. One bit, no
+ *  content — deliberately not assignable to ClaimedDetails. */
+interface RevokedAnswer {
+  revoked: true;
+}
 
 describe("the two-tier reveal", () => {
   let anon: SupabaseClient<Database>;
@@ -93,10 +98,20 @@ describe("the two-tier reveal", () => {
     return data as TokenPayload | null;
   }
 
-  async function reveal(token: string, secret: string): Promise<ClaimedDetails | null> {
+  async function reveal(token: string, secret: string): Promise<ClaimedDetails | RevokedAnswer | null> {
     const { data, error } = await anon.rpc("get_claimed_details", { p_token: token, p_claim_secret: secret });
     expect(error).toBeNull();
-    return data as ClaimedDetails | null;
+    return data as ClaimedDetails | RevokedAnswer | null;
+  }
+
+  /** Narrow to the content answer, so a test that means "the payload came back" cannot be
+   *  satisfied by S-06's contentless `{revoked: true}`. */
+  async function revealDetails(token: string, secret: string): Promise<ClaimedDetails | null> {
+    const answer = await reveal(token, secret);
+    if (answer === null || "revoked" in answer) {
+      return null;
+    }
+    return answer;
   }
 
   // Claim the first free slot of a period with a SPECIFIC secret, so one capability can be made
@@ -228,7 +243,7 @@ describe("the two-tier reveal", () => {
   // ── The sensitive tier ──────────────────────────────────────────────────────────────────
   describe("with the invite link AND a capability that claimed a slot", () => {
     it("reveals the sensitive rows, the note and the caretaker's own slots", async () => {
-      const details = await reveal(aToken, aSecret);
+      const details = await revealDetails(aToken, aSecret);
 
       expect(details?.name).toBe("Ania");
       expect(details?.caretaker_note).toBe(NOTE);
@@ -240,7 +255,7 @@ describe("the two-tier reveal", () => {
     });
 
     it("returns ONLY the sensitive rows — the public ones stay with the read door", async () => {
-      const details = await reveal(aToken, aSecret);
+      const details = await revealDetails(aToken, aSecret);
 
       // The two payloads partition the instruction set rather than overlapping. The page
       // composes them, and the design draws the sensitive block as a separated callout.
@@ -249,7 +264,7 @@ describe("the two-tier reveal", () => {
     });
 
     it("keeps the exact key set", async () => {
-      const details = await reveal(aToken, aSecret);
+      const details = await revealDetails(aToken, aSecret);
 
       expect(Object.keys(details ?? {}).sort()).toEqual(["caretaker_note", "name", "pets", "slots"]);
       expect(Object.keys(details?.slots[0] ?? {}).sort()).toEqual(["id", "slot_date", "time_of_day"]);
@@ -298,7 +313,7 @@ describe("the two-tier reveal", () => {
       }
 
       const secret = await claimOne(a, period.id, token, "Ania");
-      const details = await reveal(token, secret);
+      const details = await revealDetails(token, secret);
 
       // BOTH pets appear, ordered by name — "A-Burek" before "A-Cichy".
       expect(details?.pets.map((pet) => pet.name)).toEqual(["A-Burek", "A-Cichy"]);
@@ -368,8 +383,8 @@ describe("the two-tier reveal", () => {
       await claimWith(a, tripOne.id, tripOne.token, shared, "Ania");
       await claimWith(b, tripTwo.id, tripTwo.token, shared, "Ania");
 
-      const one = await reveal(tripOne.token, shared);
-      const two = await reveal(tripTwo.token, shared);
+      const one = await revealDetails(tripOne.token, shared);
+      const two = await revealDetails(tripTwo.token, shared);
 
       // Both resolve — the capability is genuine on both trips.
       expect(one).not.toBeNull();
@@ -387,12 +402,20 @@ describe("the two-tier reveal", () => {
       expect(two?.pets.map((pet) => pet.name)).toEqual(["B-Mru"]);
     });
 
-    it("refuses through a revoked link even for a capability that holds slots", async () => {
+    // ── S-06 Phase 2: the revoked answer, asserted in BOTH directions ────────────────────
+    //
+    // This is the codebase's second deliberate widening of rule 4, and the pair below is what
+    // makes it a test of the widening rather than a description of it: the holder MUST get the
+    // distinct answer, and a caller who cannot prove a claim on this period MUST stay
+    // byte-identical to a stranger. Break the ordering inside get_claimed_details either way
+    // and exactly one of these fails (context/foundation/lessons.md).
+    it("tells a capability that holds slots that the trip was called off — and nothing more", async () => {
       const revoked = await seedPeriod(a, "A-odwolany", "notatka odwołanego");
       const secret = await claimOne(a, revoked.id, revoked.token, "Ania");
 
-      // It works right up until the owner revokes.
-      expect(await reveal(revoked.token, secret)).not.toBeNull();
+      // It reveals normally right up until the owner revokes.
+      const before = await revealDetails(revoked.token, secret);
+      expect(before?.caretaker_note).toBe("notatka odwołanego");
 
       const { error } = await a.client
         .from("care_periods")
@@ -400,7 +423,51 @@ describe("the two-tier reveal", () => {
         .eq("id", revoked.id);
       expect(error).toBeNull();
 
-      await expect(reveal(revoked.token, secret)).resolves.toBeNull();
+      const after = await reveal(revoked.token, secret);
+
+      // CHANGED by S-06 Phase 2: this used to assert NULL. The holder now learns the trip is
+      // off — which is the whole point of the slice.
+      expect(after).toEqual({ revoked: true });
+
+      // And learns NOTHING else. Asserted over the WHOLE serialized answer rather than
+      // key-by-key, the same anti-pattern guard the public-tier test uses (test-plan.md:64):
+      // a future edit that "helpfully" attached the title or the note to this branch would
+      // have to defeat this line.
+      const serialized = JSON.stringify(after);
+      expect(serialized).not.toContain("notatka odwołanego");
+      expect(serialized).not.toContain("A-odwolany");
+      expect(serialized).not.toContain("Ania");
+      expect(serialized).not.toContain(SECRET_BODY);
+      // Access really is gone, not merely relabelled.
+      expect(await revealDetails(revoked.token, secret)).toBeNull();
+    });
+
+    it("keeps a revoked period byte-identical to a stranger for anyone who cannot prove a claim", async () => {
+      const revoked = await seedPeriod(a, "A-odwolany-obcy", "notatka obcego");
+      await claimOne(a, revoked.id, revoked.token, "Ania");
+      const { error } = await a.client
+        .from("care_periods")
+        .update({ revoked_at: new Date().toISOString() })
+        .eq("id", revoked.id);
+      expect(error).toBeNull();
+
+      // The reference answer: a token that never existed.
+      const stranger = await reveal(generateInviteToken(), generateClaimSecret());
+      expect(stranger).toBeNull();
+
+      // A wrong secret on the revoked period — the case that would leak if the revoked branch
+      // were moved ahead of the claim_digest gate.
+      await expect(reveal(revoked.token, generateClaimSecret())).resolves.toEqual(stranger);
+
+      // A capability earned on ANOTHER trip, presented against the revoked one. The cookie
+      // rides along on every /invite URL, so this is the common real-world case.
+      const other = await seedPeriod(a, "A-inny-wyjazd");
+      const otherSecret = await claimOne(a, other.id, other.token, "Basia");
+      await expect(reveal(revoked.token, otherSecret)).resolves.toEqual(stranger);
+
+      // An unknown token while holding a genuine capability for the revoked trip: the widening
+      // is scoped to the period the token resolves to, not to the secret.
+      await expect(reveal(generateInviteToken(), otherSecret)).resolves.toEqual(stranger);
     });
   });
 
