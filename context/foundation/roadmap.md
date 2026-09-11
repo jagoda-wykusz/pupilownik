@@ -3,7 +3,7 @@ project: "Pupilownik"
 version: 2
 status: active
 created: 2026-06-27
-updated: 2026-09-09
+updated: 2026-09-11
 prd_version: 1
 design_ref: "context/design/Pupilownik Hi-fi.html"
 main_goal: speed
@@ -247,3 +247,4 @@ Otwarty dług z designu: pole **`NOTATKA`** (wolny tekst na poziomie okresu) wyp
 - **S-08: właściciel może wskazać, które ze swoich zwierząt obejmuje okres opieki, i widzi je na liście wyjazdów oraz w szczegółach okresu.** — Archived 2026-09-06 → `context/archive/2026-09-06-period-pets-relation/`. Lesson: „Ubij serwer dev, zanim uruchomisz `npm run build`" (`context/foundation/lessons.md`).
 - **S-03: opiekun może wejść przez link bez logowania, zobaczyć publiczną część instrukcji i kalendarz okresu, a następnie podać imię i zająć wolny slot; przydział jest atomowy (nigdy podwójna obsada), a po zajęciu odsłaniają się wrażliwe instrukcje. (Gwiazda przewodnia.)** — Archived 2026-09-08 → `context/archive/2026-09-06-caretaker-claims-slot/`. Lesson: —.
 - **S-04: właściciel widzi w jednym miejscu obsadę całego okresu — które pory są wolne, które zajęte i przez kogo — oraz może zwolnić zajęty termin.** — Archived 2026-09-09 → `context/archive/2026-09-08-owner-occupancy-view/`. Lesson: —. **Outcome przepisany przy zamknięciu, zgodnie z `lessons.md`:** pole `Outcome` slice'u mówi „aktualizowaną w miarę zapisów opiekunów", co czyta się jak odświeżanie na żywo — a plan wykluczył realtime **wprost** (§What We're NOT Doing): strona odświeża się po WŁASNEJ akcji właściciela, a zapis z innej przeglądarki wymaga ręcznego odświeżenia. Doszła za to rzecz, której `Outcome` nie zapowiadał: zwalnianie terminu przez właściciela (`release_slot` + trasa + wyspa), wciągnięte do tego slice'u decyzją z 2026-09-08 jako domknięcie FR-006.
+- **S-06: właściciel może **odwołać** okres opieki — jednym działaniem, które unieważnia link zapraszający (odwołany wyjazd, wrażliwy link) i jest nieodwracalne na każdej ścieżce produktowej: nie ma un-revoke, a `regenerate_period_token` odmawia odwołanemu okresowi. Jest to **decyzja produktowa, nie ograniczenie schematu** — `care_periods_update_own` nie ma granularności kolumnowej, więc bezpośredni UPDATE właściciela wciąż tę kolumnę czyści. Opiekun, który zajął termin **i wciąż ma swoją capability**, dowiaduje się przy wejściu na link, że wyjazd został odwołany, zamiast widzieć tę samą martwą stronę co obcy; po zwolnieniu jego terminu albo utracie ciasteczka wraca do strony generycznej.** — Archived 2026-09-11 → `context/archive/2026-09-09-close-care-period/`. Lesson: —.
