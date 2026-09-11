@@ -199,6 +199,17 @@ comment documents from 2026-09-07, where 13 files failed while the probe reporte
 `reachable` a bounded retry with backoff instead of a single attempt.
 
 **Contract**: `reachable` gains a retry budget (attempts and delay), applied to both call sites.
+
+**Amended during the phase-2 review (2026-09-12)**: the probes moved OUT of `tests/setup.ts`
+entirely, into a new `tests/global-setup.ts` wired as the `integration` project's `globalSetup`.
+Reason, measured: `setupFiles` executes per test file, so a `beforeAll` probe was paying its whole
+budget 22 times — ~11s per file against an unreachable stack. Env loading and the localhost guard
+moved to `tests/env.ts` so the global setup can reuse them without importing a module that
+registers `beforeAll`. Two consequences: the budget rose to 30s because it is now spent once, and
+`hookTimeout` went back to 20s because nothing in a hook needs the extra room any more. The same
+review also replaced the auth probe's `/auth/v1/health` — static version metadata that says
+nothing about Postgres — with a password-grant call that reaches the database and has no side
+effects (400 = ready, 500 = listening but DB down).
 Two properties must survive:
 
 - The failure message stays the actionable one (`Run \`npm run db:start\``) — a retry that ends in
@@ -229,6 +240,10 @@ that rots.
 
 - Integration suite passes unchanged locally: `npx vitest run --project integration`
 - The CI branch is exercised rather than assumed: `CI=1 npx vitest run --project integration`
+- The WHOLE suite runs under CI, not one project: `CI=1 npx vitest run`. Added during the phase-2
+  review, which found that a per-project invocation cannot exhibit a cross-project config
+  conflict — and one was live: vitest refuses projects with differing `maxWorkers` in one
+  `sequence.groupOrder` group.
 - The retry is proven to bite, not just to exist: with the stack stopped, the run fails with the
   `db:start` guidance and not with an unhandled timeout
 
@@ -423,7 +438,10 @@ document that describes a state the system no longer has is the recurring failur
 keeps recording. Four say `Node v22.14.0`; three say `npx astro check`. `AGENTS.md:34` additionally
 says "there is no GitHub Actions workflow", which Phase 3 falsifies.
 
-**Contract**: each line updated to `22.23.2` or `npm run check` respectively.
+**Contract**: each line updated to `22.23.2` or `npm run check` respectively. Add
+`context/foundation/test-plan.md:259,313`, which describe `tests/setup.ts` as the file that loads
+`.env.test` and probes the stack — after the phase-2 review that work is split across
+`tests/env.ts`, `tests/setup.ts` and `tests/global-setup.ts`.
 `context/deployment/deploy-plan.md:14` needs more than a version bump — it also asserts that
 22.14.0 matched the Workers Builds default image, which research measured as false (neither
 preinstalled version is 22.14.0). Correct the claim, do not just change the number.
@@ -525,13 +543,14 @@ everyone afterwards.
 
 #### Automated
 
-- [x] 2.1 Integration suite passes unchanged locally: `npx vitest run --project integration`
-- [x] 2.2 The CI branch is exercised: `CI=1 npx vitest run --project integration`
-- [x] 2.3 With the stack stopped, the run fails with the `db:start` guidance, not a timeout
+- [x] 2.1 Integration suite passes unchanged locally: `npx vitest run --project integration` — fdf407a
+- [x] 2.2 The CI branch is exercised: `CI=1 npx vitest run --project integration` — fdf407a
+- [x] 2.3 With the stack stopped, the run fails with the `db:start` guidance, not a timeout — fdf407a
+- [x] 2.5 The whole suite runs under CI, not one project: `CI=1 npx vitest run`
 
 #### Manual
 
-- [x] 2.4 Wall-clock difference between capped and uncapped runs recorded in the commit message
+- [x] 2.4 Wall-clock difference between capped and uncapped runs recorded in the commit message — fdf407a
 
 ### Phase 3: The GitHub Actions workflow
 

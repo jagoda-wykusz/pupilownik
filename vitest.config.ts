@@ -51,26 +51,44 @@ export default defineConfig({
           // not a boundary anyone should have to notice when adding a test.
           exclude: [...configDefaults.exclude, "tests/unit/**", "tests/component/**"],
           setupFiles: ["./tests/setup.ts"],
+          // Runs ONCE per run, in the main process, before any file is loaded — see
+          // tests/global-setup.ts for why the readiness probes had to leave setupFiles.
+          globalSetup: ["./tests/global-setup.ts"],
           // Integration tests sign users up against the local Supabase stack; keep them
           // serial-friendly and give the network round-trips room.
           testTimeout: 20000,
-          // 30s, not 20s, and the arithmetic is the reason: tests/setup.ts probes two backends
-          // with an 8s readiness budget each, and a probe whose final attempt hangs costs its
-          // 3s timeout on top — so a worst-case beforeAll is 2 x (8 + 3) = 22s. At 20s the hook
-          // would be killed by vitest mid-probe and report a generic timeout instead of the
-          // "run npm run db:start" guidance the setup file exists to give.
-          hookTimeout: 30000,
-          // CI ONLY. 22 integration files run against ONE Postgres; unconstrained, vitest uses
-          // every core. The GitHub Actions runner has 2 vCPUs, and several files here create
-          // deliberate contention with Promise.all whose round trips must finish inside
-          // testTimeout — so oversubscribing a small runner turns a contention test into a
-          // flake. Local runs are untouched: `undefined` restores vitest's own default.
+          // Back to 20s. It was briefly 30s to fit the readiness probes, which no longer run in a
+          // hook at all — they moved to globalSetup, which vitest does not govern with this
+          // timeout. Nothing else in the integration suite ever needed the extra room: every
+          // beforeAll here is a handful of round trips against the local stack.
+          hookTimeout: 20000,
+          // CI ONLY: run these 22 files STRICTLY SERIALLY. They share one Postgres, and several
+          // create deliberate contention with Promise.all whose round trips must finish inside
+          // testTimeout. Local runs are untouched — `undefined` restores vitest's own default.
           //
-          // Both Workers Builds and GitHub Actions set CI=true themselves, so nothing in the
-          // workflow has to remember this. Exercise the branch locally with
-          // `CI=1 npx vitest run --project integration` before trusting it — a conditional that
-          // only ever executes on a runner is a conditional nobody has read.
-          maxWorkers: process.env.CI ? 2 : undefined,
+          // WHY 1 AND NOT 2, corrected during the phase-2 review after the first version had it
+          // backwards: vitest's default is NOT "every core", it is `max(numCpus - 1, 1)`
+          // (resolveMaxWorkers, vitest/dist/chunks/cli-api.*.js). On the 2-vCPU runner this was
+          // written for, that default is already 1 — so `maxWorkers: 2` would have DOUBLED
+          // parallelism against that single Postgres while claiming to cap it. At 1 the setting
+          // is a genuine ceiling on any runner size. Measured locally: 6s unconstrained (11
+          // workers), 12s at 2, 37s at 1. The whole CI job is ~10 minutes, so 25 extra seconds
+          // buys determinism cheaply.
+          maxWorkers: process.env.CI ? 1 : undefined,
+
+          // NOT COSMETIC, and the reason is non-obvious enough that deleting this line breaks CI
+          // silently-looking-loudly: vitest REFUSES to run projects that resolve to different
+          // `maxWorkers` inside the same group, with
+          // `Projects "component" and "integration" have different 'maxWorkers' but same
+          // 'sequence.groupOrder'` (groupSpecs, same file). Since only this project is capped, it
+          // needs its own group. A side benefit: group 0 (unit + component, ~6s) now finishes
+          // before the slow project starts.
+          //
+          // VERIFY WITH THE WHOLE SUITE, never one project: `CI=1 npx vitest run`. The phase-2
+          // criterion originally used `CI=1 npx vitest run --project integration`, and a single
+          // project cannot exhibit a cross-project grouping conflict — which is exactly how this
+          // reached a commit.
+          sequence: { groupOrder: 1 },
         },
       },
     ],
