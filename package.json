@@ -14,6 +14,7 @@
     "db:migration": "supabase migration new",
     "db:push": "supabase db push",
     "db:gen-types": "supabase gen types typescript --local > src/db/database.types.ts",
+    "check:secrets": "node scripts/check-client-bundle.mjs",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",

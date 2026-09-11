@@ -59,6 +59,21 @@ const reactConfig = tseslint.config({
   },
 });
 
+// Standalone Node scripts. They are plain .mjs run by `node`, not part of any tsconfig, so the
+// type-aware rules see every value as `any` and the browser-ish default globals hide `process`
+// and `console`. Scoped narrowly and additively: this block changes nothing for src/ or tests/.
+const scriptsConfig = tseslint.config({
+  files: ["scripts/**/*.mjs"],
+  extends: [tseslint.configs.disableTypeChecked],
+  languageOptions: {
+    globals: { process: "readonly", console: "readonly", URL: "readonly" },
+  },
+  rules: {
+    // A CLI script's output IS its interface.
+    "no-console": "off",
+  },
+});
+
 const astroConfig = tseslint.config({
   files: ["**/*.astro"],
   rules: {
@@ -79,5 +94,6 @@ export default tseslint.config(
   eslintPluginAstro.configs["flat/recommended"],
   ...eslintPluginAstro.configs["flat/jsx-a11y-recommended"],
   astroConfig,
+  scriptsConfig,
   eslintPluginPrettier,
 );
