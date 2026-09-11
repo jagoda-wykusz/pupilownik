@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase";
 import { resolveTheme, THEME_COOKIE } from "@/lib/theme";
 // formatWeekday and TIME_OF_DAY_LABEL moved to ClaimSlots with the slot grid it now owns.
 import { formatDay, formatRange, TIMES_OF_DAY } from "@/lib/period-format";
-import { resolveInviteView, splitRevealAnswer, type RevokedClaim } from "@/lib/invite-view";
+import { composeCaretakerView, resolveInviteView, splitRevealAnswer, type RevokedClaim } from "@/lib/invite-view";
 import { SPECIES_LABEL, type Species } from "@/lib/pet-format";
 import { CAPABILITY_SHAPE, CLAIM_COOKIE } from "@/lib/claim-cookie";
 import ClaimSlots from "@/components/invite/ClaimSlots";
@@ -186,14 +186,15 @@ const freeCount = slots.filter((slot) => !slot.is_claimed).length;
 // "at least one pet" and nothing else does, so a raw insert or a deleted last pet both
 // produce one. The function answers `pets: []` rather than null for exactly this reason, and
 // the block below is skipped rather than rendering an empty heading.
-const pets = payload?.pets ?? [];
-
-// Compose the two payloads per pet. The reveal returns only sensitive rows and only for a
-// caretaker who claimed, so before that this map is empty and every pet renders its public
-// list alone. Keyed by pet id rather than by index: the two payloads order pets identically
-// today (both `order by pet.name, pet.id`), but relying on that would make a future ordering
-// change a silent mismatch of instructions to animals.
-const sensitiveByPet = new Map((details?.pets ?? []).map((pet) => [pet.id, pet.instructions]));
+//
+// Composing the two payloads per pet — and deciding whether the note may be shown at all — is
+// NOT done here. It moved to composeCaretakerView in invite-view.ts, next to the two other
+// decisions of this page that carry a security property, because inline it was a Map and a
+// ternary enforced by nothing: rebuilding either from `payload` instead of `details` would have
+// handed the sensitive tier to every holder of the link with the whole suite still green
+// (test-plan.md §3 Phase 4, Risk #4). What comes back is already safe to render, which is why
+// nothing below the fence reads `details` for instructions or for the note.
+const { pets, caretakerNote } = composeCaretakerView({ pets: payload?.pets ?? [], details });
 const myDays = [...new Set((details?.slots ?? []).map((slot) => slot.slot_date))].sort();
 ---
 
@@ -322,7 +323,7 @@ const myDays = [...new Set((details?.slots ?? []).map((slot) => slot.slot_date))
                           {SPECIES_LABEL[pet.species]}
                         </span>
                       </p>
-                      {pet.instructions.length === 0 && (sensitiveByPet.get(pet.id) ?? []).length === 0 ? (
+                      {pet.publicInstructions.length === 0 && pet.sensitiveInstructions.length === 0 ? (
                         <p class="text-muted-foreground mt-2 text-[13px]">
                           Właściciel nie dodał jeszcze wskazówek dla tego zwierzaka.
                         </p>
@@ -334,9 +335,9 @@ const myDays = [...new Set((details?.slots ?? []).map((slot) => slot.slot_date))
                               (title, body, is_sensitive, sort_order) and no time at all, so a
                               time there would be invented data on the one screen where a wrong
                               dosing hour is dangerous. Decided at the phase gate, 2026-09-08. */}
-                          {pet.instructions.length > 0 && (
+                          {pet.publicInstructions.length > 0 && (
                             <ul class="mt-3 flex flex-col gap-2.5">
-                              {pet.instructions.map((instruction) => (
+                              {pet.publicInstructions.map((instruction) => (
                                 <li class="border-border bg-card flex gap-3 rounded-[18px] border-[1.5px] p-3.5">
                                   <span class="bg-secondary text-secondary-foreground flex size-[50px] shrink-0 items-center justify-center rounded-[15px]">
                                     <svg
@@ -377,7 +378,7 @@ const myDays = [...new Set((details?.slots ?? []).map((slot) => slot.slot_date))
                               went wrong", amber as "handle with care", and nothing here is
                               wrong. Its own heading, because a caretaker who never claimed
                               never sees this and one who did should know why it appeared. */}
-                          {(sensitiveByPet.get(pet.id) ?? []).length > 0 && (
+                          {pet.sensitiveInstructions.length > 0 && (
                             <div class="border-notice bg-notice/10 mt-3 rounded-[18px] border-[1.5px] p-3.5">
                               <p class="text-foreground flex items-center gap-2 text-[13px] font-bold">
                                 <svg
@@ -398,7 +399,7 @@ const myDays = [...new Set((details?.slots ?? []).map((slot) => slot.slot_date))
                                 Tylko dla opiekuna
                               </p>
                               <ul class="mt-2.5 flex flex-col gap-2">
-                                {(sensitiveByPet.get(pet.id) ?? []).map((instruction) => (
+                                {pet.sensitiveInstructions.map((instruction) => (
                                   <li>
                                     <p class="font-heading text-foreground text-[14px] font-bold">
                                       {instruction.title}
@@ -421,15 +422,17 @@ const myDays = [...new Set((details?.slots ?? []).map((slot) => slot.slot_date))
               </>
             )}
 
-            {details?.caretaker_note && (
+            {caretakerNote && (
               <>
                 {/* The design's NOTATKA, and the same amber as the sensitive rows on purpose:
                     the artboard fills this field with "Klucze u sąsiadki, mieszkanie 4…", so
                     it carries the same kind of content and earns the same reveal rule and the
-                    same treatment. */}
+                    same treatment. It arrives already gated — composeCaretakerView returns null
+                    for every visitor who has not proven a claim — so this condition is a
+                    presence check, not the reveal rule itself. */}
                 <h2 class="font-heading text-foreground mt-8 mb-3 text-[17px] font-bold">Notatka od właściciela</h2>
                 <p class="border-notice bg-notice/10 text-foreground rounded-[18px] border-[1.5px] p-4 text-[14px] leading-[1.6] whitespace-pre-line">
-                  {details.caretaker_note}
+                  {caretakerNote}
                 </p>
               </>
             )}

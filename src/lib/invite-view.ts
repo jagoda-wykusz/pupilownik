@@ -64,6 +64,69 @@ export function splitRevealAnswer<T extends object>(
   return { details: answer, claimRevoked: false };
 }
 
+/** One pet as the caretaker page renders it: the two instruction tiers kept apart, never
+ *  merged, because the design draws them as separate blocks and the whole slice is about the
+ *  distinction. `instructions` is deliberately absent from this shape — a renderer that can
+ *  still reach the raw public list has two ways to say the same thing, and the day the tiers
+ *  are composed differently one of them goes stale silently. */
+export type ComposedPet<P extends { instructions: unknown[] }> = Omit<P, "instructions"> & {
+  publicInstructions: P["instructions"];
+  sensitiveInstructions: P["instructions"];
+};
+
+/** Compose the two payloads into what the page may render, in one pure function.
+ *
+ *  This is the third decision of this page to leave the .astro frontmatter, and it leaves for
+ *  the same reason as the other two: it carries a security property, and in frontmatter a
+ *  property is enforced by nothing. The property here is the one FR-008 is made of — a visitor
+ *  who has not claimed must not be handed a sensitive instruction row or the trip note. Left
+ *  inline it was a Map and a `details?.caretaker_note`, and rebuilding either from the PUBLIC
+ *  payload would have leaked the sensitive tier to every holder of the link while every test in
+ *  the suite stayed green (test-plan.md §2 Risk #4 anti-pattern: "the column split is right but
+ *  the API serializes it anyway", one layer above the API).
+ *
+ *  The shape of the guarantee is structural rather than conditional: when `details` is null
+ *  there is nothing to read a sensitive row OUT of, so no branch can be forgotten. That is what
+ *  makes the pre-claim case assertable by serializing the whole result and searching it, which
+ *  is how tests/rls/reveal-instructions.test.ts asserts the same property one layer down.
+ *
+ *  Generic in the pet shape, like splitRevealAnswer is in its content shape: this module must
+ *  keep knowing nothing about Astro or Supabase. ONE type parameter, with the instruction type
+ *  derived from it as `P["instructions"]` rather than taken as a second parameter — a second
+ *  one is not inferable from this argument shape, and TypeScript silently widens it to
+ *  `unknown`, which surfaces as an error in the .astro template rather than here.
+ *
+ *  Keyed by pet id, never by index. The two payloads order pets identically today — both
+ *  `order by pet.name, pet.id` — but relying on that would turn a future ordering change into a
+ *  silent mismatch of care instructions to animals, which on this screen is the failure that
+ *  matters.
+ *
+ *  The public payload is the spine: a pet the reveal names but the read door does not is
+ *  dropped rather than conjured. The reveal is scoped to the same period by the database, so
+ *  such a pet would mean a door disagreeing with itself — and inventing an animal from the
+ *  sensitive tier is the wrong way to answer that. */
+export function composeCaretakerView<P extends { id: string; instructions: unknown[] }>(input: {
+  /** Pets from the read door — PUBLIC instruction rows only. */
+  pets: P[];
+  /** The reveal door's content answer, or null for every visitor who has not proven a claim.
+   *  Its `pets` carry ONLY the sensitive rows. */
+  details: { pets: P[]; caretaker_note: string | null } | null;
+}): { pets: ComposedPet<P>[]; caretakerNote: string | null } {
+  const sensitiveByPet = new Map((input.details?.pets ?? []).map((pet) => [pet.id, pet.instructions]));
+
+  return {
+    pets: input.pets.map((pet) => {
+      const { instructions, ...rest } = pet;
+      return {
+        ...rest,
+        publicInstructions: instructions,
+        sensitiveInstructions: sensitiveByPet.get(pet.id) ?? [],
+      };
+    }),
+    caretakerNote: input.details?.caretaker_note ?? null,
+  };
+}
+
 export function resolveInviteView(input: {
   failed: boolean;
   periodTitle: string | null;
