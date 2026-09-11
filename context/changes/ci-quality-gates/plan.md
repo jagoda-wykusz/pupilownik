@@ -480,13 +480,13 @@ everyone afterwards.
 
 #### Automated
 
-- [ ] 1.1 The whole chain passes locally: `npm run ci:gate`
-- [ ] 1.2 `astro check` is reachable by name: `npm run check`
-- [ ] 1.3 The hook still fires on commit (the Phase 1 commit itself is the proof)
+- [x] 1.1 The whole chain passes locally: `npm run ci:gate`
+- [x] 1.2 `astro check` is reachable by name: `npm run check`
+- [x] 1.3 The hook still fires on commit (the Phase 1 commit itself is the proof)
 
 #### Manual
 
-- [ ] 1.4 `npm run ci:gate` confirmed safe to paste into a dashboard field
+- [x] 1.4 `npm run ci:gate` confirmed safe to paste into a dashboard field
 
 ### Phase 2: Harden the known flake before the first CI run
 

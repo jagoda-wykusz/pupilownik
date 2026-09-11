@@ -16,4 +16,10 @@ npx lint-staged
 # hook had never run. Three type errors reached main that way. If it stops
 # firing again, check `git config core.hooksPath` first — an unset value means
 # `npm install` (or `npx husky`) has not wired it in this clone.
-npx astro check
+#
+# Invoked through the npm script rather than `npx astro check` directly, so this
+# hook and the publish gate (`npm run ci:gate`, the Cloudflare build command)
+# share ONE definition of what typechecking means. Two literal invocations would
+# drift apart silently — the hook would keep passing while the gate checked
+# something else.
+npm run check
