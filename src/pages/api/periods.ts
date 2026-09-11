@@ -59,10 +59,19 @@ export const POST: APIRoute = async (context) => {
   });
 
   if (error) {
-    // Log the code and message, NOT the whole error: PostgREST's `details` echoes the
-    // offending value on a unique violation ("Key (token_digest)=(<hex>) already
-    // exists"), which would put a digest in the logs. The client still gets only a
-    // generic message, so RLS/constraint internals never leak either way.
+    // Log the code and message, NOT the whole error.
+    //
+    // The reason recorded here until 2026-09-11 was false, and it is corrected rather than
+    // deleted because the practice it defends is right. It claimed PostgREST's `details`
+    // echoes the offending value ("Key (token_digest)=(<hex>) already exists"). Measured:
+    // Postgres SUPPRESSES the `Failing row contains` / `Key (...)` description whenever RLS
+    // applies to the caller, and every violation tested through PostgREST as `authenticated`
+    // returned `details: null` — unique, CHECK and with-check alike.
+    //
+    // What keeps the practice correct is the exception: a SECURITY DEFINER function owned by
+    // `postgres` DOES receive the full row in DETAIL, and this project has four of them. The
+    // day one of those can violate a constraint, `error.details` carries user data — so the
+    // discipline holds the line before it is needed rather than after.
     // Never log inviteToken.
     console.error("create_period_with_slots failed:", error.code, error.message);
 

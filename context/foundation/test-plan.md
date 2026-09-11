@@ -73,13 +73,13 @@ Each row is a discrete rollout phase that will open its own change folder
 via `/10x-new`. Status moves left-to-right through the values below; the
 orchestrator updates Status as artifacts appear on disk.
 
-| #   | Phase name                             | Goal (one line)                                                                                                     | Risks covered | Test types                                        | Status      | Change folder                                           |
-| --- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ------------- | ------------------------------------------------- | ----------- | ------------------------------------------------------- |
-| 1   | Bootstrap runner + RLS owner-isolation | Prove an owner cannot read/modify another's rows; establish the reusable RLS-test harness every future table copies | #1            | vitest setup + integration vs local Supabase      | complete    | context/archive/2026-06-28-testing-rls-owner-isolation/ |
-| 2a  | Auth gating                            | Protected routes gate unauthenticated access; auth/session flows behave; an invalid session cannot reach owner data | #2            | integration (routes + middleware)                 | complete    | context/archive/2026-07-12-testing-auth-gating/         |
-| 2b  | Input validation                       | API handlers reject malformed/forbidden input server-side (zod), not just the client                                | #7            | unit / integration on API handlers                | not started | —                                                       |
-| 3   | Secret-leak & quality-gate wiring      | Secrets never ship to the client; lock the cheap floor (lint/build/secret-grep)                                     | #6            | deterministic build-artifact checks + gate wiring | not started | —                                                       |
-| 4   | Domain guardrails (gated)              | Instruction visibility scoping, link-only access enforcement, atomic slot claim                                     | #3, #4, #5    | unit + integration + component, no new runner     | complete    | context/changes/testing-domain-guardrails/              |
+| #   | Phase name                             | Goal (one line)                                                                                                     | Risks covered | Test types                                    | Status      | Change folder                                           |
+| --- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ------------- | --------------------------------------------- | ----------- | ------------------------------------------------------- |
+| 1   | Bootstrap runner + RLS owner-isolation | Prove an owner cannot read/modify another's rows; establish the reusable RLS-test harness every future table copies | #1            | vitest setup + integration vs local Supabase  | complete    | context/archive/2026-06-28-testing-rls-owner-isolation/ |
+| 2a  | Auth gating                            | Protected routes gate unauthenticated access; auth/session flows behave; an invalid session cannot reach owner data | #2            | integration (routes + middleware)             | complete    | context/archive/2026-07-12-testing-auth-gating/         |
+| 2b  | Input validation                       | API handlers reject malformed/forbidden input server-side (zod), not just the client                                | #7            | unit / integration on API handlers            | not started | —                                                       |
+| 3   | Secret-leak assertions                 | No secret reaches `dist/client`, no upstream error or config state reaches a caller                                 | #6            | build-artifact scan + unit + integration      | complete    | context/changes/testing-secret-leak/                    |
+| 4   | Domain guardrails (gated)              | Instruction visibility scoping, link-only access enforcement, atomic slot claim                                     | #3, #4, #5    | unit + integration + component, no new runner | complete    | context/archive/2026-09-11-testing-domain-guardrails/   |
 
 Phase 2 was split into **2a (auth gating, #2)** and **2b (input validation, #7)**
 when the gating work shipped in `context/changes/testing-auth-gating/` — Risk #2
@@ -90,7 +90,8 @@ ground code that has not been written. **Unblocked 2026-09-11**: S-01..S-06 have
 all shipped and archived.
 
 Phase 4 opened out of order on 2026-09-11 at the user's explicit direction —
-Phases 2b and 3 remain `not started` and were neither skipped nor completed.
+Phases 2b and 3 were neither skipped nor completed at that point. Phase 3 has since
+closed (see its row above); **2b remains `not started`.**
 The split-per-slice refresh this note originally prescribed was **not** run;
 instead Phase 4 opens as a single change and `/10x-research` establishes what
 the shipping slices already covered. Live signal at open: 28 test files exist,
@@ -108,6 +109,15 @@ pass. Five test files added, one production move (the per-pet instruction compos
 out of `[token].astro` into `src/lib/invite-view.ts`), no migration. Every phase was
 mutation-tested; §7 below records what those mutations revealed about what is actually
 defended, including two places where this plan's own prose was wrong.
+
+**Phase 3 closed 2026-09-11, and the "quality-gate wiring" half was dropped rather than done.**
+The gate had nowhere to live: there is no CI (see §5). What shipped is the assertion layer —
+`npm run check:secrets` plus three test files — built so that wiring is one line the day CI
+returns. Measured along the way and worth carrying: the client bundle was already clean and
+structurally so (Astro fails the build on a client-side `astro:env/server` import), so the
+headline assertion cannot fail through the framework path; the real disclosure was an upstream
+auth error in a URL, which Phase 3 fixed; and `dist/server/.dev.vars` holds the env values in
+plaintext on every build, which is why the scan targets `dist/client` alone.
 
 ## 4. Stack
 
@@ -131,38 +141,54 @@ test files). Phase 1 bootstraps it.
 
 ## 5. Quality Gates
 
-The full set of gates that must pass before a change reaches production.
-"Required for §3 Phase N" means the gate is enforced once that rollout phase
-lands; before that, it is `planned`.
+What actually runs, where, and what stops a bad change.
 
-| Gate                                          | Where                                                                                  | Required?                           | Catches                                             |
-| --------------------------------------------- | -------------------------------------------------------------------------------------- | ----------------------------------- | --------------------------------------------------- |
-| format (prettier, edited file)                | per-edit agent hook (`.claude/hooks/format-edited-file.mjs`)                           | required (wired)                    | formatting drift; a file the formatter cannot parse |
-| lint                                          | local (husky/lint-staged on staged files + `npm run lint`) + Cloudflare Workers Builds | required (wired)                    | syntactic drift                                     |
-| typecheck                                     | local (husky pre-commit, `tsc --noEmit`) + Cloudflare Workers Builds                   | required (wired)                    | type drift                                          |
-| build                                         | local (`npm run build`) + Cloudflare Workers Builds                                    | required (wired)                    | broken SSR build                                    |
-| unit + integration                            | local + CI                                                                             | required after §3 Phase 1           | logic + RLS regressions                             |
-| unit + integration, scoped to the edited file | per-edit agent hook for risk-area files (`.claude/hooks/related-tests.mjs`)            | required (wired)                    | logic + RLS regressions on the path just edited     |
-| secret-leak grep on build output              | CI                                                                                     | required after §3 Phase 3           | Secret/PII shipped to client                        |
-| Supabase advisors (security)                  | local (`npx supabase db advisors`)                                                     | recommended on every migration      | RLS / definer-function issues                       |
-| e2e on critical flows                         | CI on PR                                                                               | optional (deferred to post-Phase 4) | broken critical user paths                          |
+**Read the "Where" column literally.** Until 2026-09-11 this table credited four gates to
+"Cloudflare Workers Builds" and described a CI that does not exist: `.github/workflows/ci.yml`
+ran lint + build on push and PR until `b1fd059` deleted it in favour of a Workers Builds
+connection that was never made (confirmed in the Cloudflare dashboard, 2026-09-11). **Nothing
+has run on push or on a pull request since 2026-06-27.** Every gate below is local, every one
+of them is bypassable with `--no-verify`, and none of them runs for a clone that has not
+configured the agent hooks. Restoring CI is an open infrastructure decision, not a rollout
+phase.
 
-CI runs via Cloudflare Workers Builds connected to the GitHub repo; there is
-no GitHub Actions workflow. New gates wire into that flow.
+| Gate                                          | Where it runs                                                  | Enforced?                                         | Catches                                                             |
+| --------------------------------------------- | -------------------------------------------------------------- | ------------------------------------------------- | ------------------------------------------------------------------- |
+| format (prettier, edited file)                | per-edit agent hook (`.claude/hooks/format-edited-file.mjs`)   | agent sessions only                               | formatting drift; a file the formatter cannot parse                 |
+| format (prettier, staged json/css/md)         | pre-commit, lint-staged                                        | every commit                                      | formatting drift in non-code files                                  |
+| lint (staged files)                           | pre-commit, lint-staged → `eslint --fix` on `*.{ts,tsx,astro}` | every commit                                      | syntactic drift                                                     |
+| lint (whole project)                          | `npm run lint`, by hand                                        | **nothing enforces it**                           | drift in files no commit touched                                    |
+| typecheck                                     | pre-commit → `npx astro check`                                 | every commit                                      | type drift, including inside `.astro` templates                     |
+| build                                         | `npm run build`, by hand                                       | **nothing enforces it**                           | broken SSR build                                                    |
+| unit + integration                            | `npm test`, by hand                                            | **nothing enforces it**                           | logic + RLS regressions                                             |
+| unit + integration, scoped to the edited file | per-edit agent hook (`.claude/hooks/related-tests.mjs`)        | agent sessions only; skips when the stack is down | regressions on the path just edited                                 |
+| secret-leak scan of `dist/client`             | `npm run check:secrets`, and a test inside `npm test`          | with the suite                                    | a secret literal pasted into a client island                        |
+| env schema shape                              | a test inside `npm test`                                       | with the suite                                    | a `PUBLIC_`/client-context redeclaration that would inline a secret |
+| Supabase advisors (security)                  | `npx supabase db advisors`, by hand                            | recommended on every migration                    | RLS / definer-function issues                                       |
+| e2e on critical flows                         | —                                                              | not present                                       | broken critical user paths                                          |
+
+The `astro check` in pre-commit replaced `tsc --noEmit` on 2026-09-07 (S-03 phase 3 review:
+`tsc` does not see type errors inside `.astro` templates). This table said `tsc --noEmit`
+until 2026-09-11, and the cost table below listed `astro check` as "not wired" — a claim the
+shipped hook already contradicted. Both are corrected here.
+
+**The day CI returns**, `npm run lint`, `npm test` and `npm run check:secrets` are the three
+commands to wire; each one runs standalone today precisely so that wiring is one line and not
+a project.
 
 ### Which layer each gate lives in
 
 Gates are placed by measured cost, not by preference. Measured on this project
 (Windows, 2026-09-07):
 
-| Check                         | Scope                     | Cost                                        | Layer                                                      |
-| ----------------------------- | ------------------------- | ------------------------------------------- | ---------------------------------------------------------- |
-| `prettier --write <file>`     | one file                  | ~0.3s                                       | per-edit agent hook                                        |
-| `vitest related <file> --run` | one file's import graph   | ~2s                                         | per-edit agent hook, risk areas only                       |
-| `eslint --fix <file>`         | one file                  | 12-22s (type-aware, `projectService: true`) | pre-commit (lint-staged)                                   |
-| `eslint .`                    | whole project             | ~110s                                       | CI                                                         |
-| `tsc --noEmit`                | whole project             | ~26s                                        | pre-commit                                                 |
-| `astro check`                 | whole project + templates | ~38s                                        | not wired — promote if a template type error slips through |
+| Check                         | Scope                     | Cost                                        | Layer                                                          |
+| ----------------------------- | ------------------------- | ------------------------------------------- | -------------------------------------------------------------- |
+| `prettier --write <file>`     | one file                  | ~0.3s                                       | per-edit agent hook                                            |
+| `vitest related <file> --run` | one file's import graph   | ~2s                                         | per-edit agent hook, risk areas only                           |
+| `eslint --fix <file>`         | one file                  | 12-22s (type-aware, `projectService: true`) | pre-commit (lint-staged)                                       |
+| `eslint .`                    | whole project             | ~110s                                       | CI                                                             |
+| `tsc --noEmit`                | whole project             | ~26s                                        | pre-commit                                                     |
+| `astro check`                 | whole project + templates | ~38s                                        | **pre-commit** (promoted 2026-09-07, replacing `tsc --noEmit`) |
 
 Two consequences worth knowing before changing the wiring:
 
@@ -317,6 +343,21 @@ period AND the pet`), and a single-parent version passes every one of those four
   in-place mutation once, producing a no-op that read as "the test does not guard this");
   and verify the mutation actually applied before believing the result.
 
+- **Phase 3 (secret-leak assertions, `testing-secret-leak`)**: the phase's own headline could not
+  fail, and finding that out early is what made it useful. Astro guards the client bundle by
+  FAILING THE BUILD on a client-side `astro:env/server` import, and env is a runtime binding with
+  no build-time substitution, so a bundle scan can only catch a literal a person pasted into an
+  island. Three mechanics worth copying. (1) **Scope the scan to what ships**: `dist/server/.dev.vars`
+  holds the env values in plaintext on every build, so a `grep dist/` fails on a CORRECT build and
+  the reflex fix is to weaken the check. (2) **Choose tokens that stay true**: `service_role` reads
+  like the obvious pattern and is JSDoc prose inside bundled supabase-js — it is absent today only
+  because supabase-js is not client-bundled. (3) **A scan needs a positive control and must fail,
+  not skip, on an empty input** — a green run against no artifact is the same defect as an
+  assertion that passes when the layer it guards is gone. Also a mutation lesson with a new shape:
+  the first planted literal was a dead `const`, the bundler tree-shook it, and the artifact came
+  back BYTE-IDENTICAL — which reads as "the check does not bite" unless you compare sizes. Plant
+  live code.
+
 ### 6.7 Adding a protected-route (middleware gating) test
 
 The recipe for proving a route is gated (Risk #2). Shipped in Phase 2
@@ -460,9 +501,41 @@ re-inherit them.
   `tests/api/revoke-period.test.ts` and `tests/api/pets.post.test.ts`. Quoting either half
   alone misleads.
 
+- **A secret that is present in source but tree-shaken out (Phase 3).** `npm run check:secrets`
+  scans the ARTIFACT, so a dead literal in `src/` passes it. That is correct — an eliminated
+  constant does not ship — but it means the scan is not a source audit and must not be quoted as
+  one. Re-evaluate if a secret-scanning pre-commit hook is ever wanted; that is a different tool.
+
+- **Configuration state disclosed to a SIGNED-IN owner (Phase 3).** `pets.ts`, `periods.ts`,
+  `token.ts` and `revoke.ts` answer `{"error": "Supabase is not configured"}` — an English
+  sentence among Polish ones, stating a server fact. Phase 3 fixed only the PRE-AUTH pair
+  (`signin`, `signup`), where an anonymous caller learned it. These four require `locals.user`,
+  so the disclosure is bounded to an authenticated owner. Cosmetically inconsistent, low signal;
+  `src/pages/invite/claim.ts` shows the intended shape if it is ever worth normalising.
+
+- **`dist/server/.dev.vars` (Phase 3).** `@cloudflare/vite-plugin` writes the real
+  `SUPABASE_URL` and `SUPABASE_KEY` there in plaintext on every build. Not acted on: `dist/` is
+  gitignored and the file is named in `dist/client/.assetsignore`, so it reaches neither git nor
+  the asset bucket — a local-disk exposure only. Recorded because a developer would not expect a
+  build to write a secret, and because it is the reason the scan targets `dist/client` alone.
+
+- **`pets.ts`'s zod `issues` in the 400 body (Phase 3).** Measured safe under zod v4: an issue
+  carries `{code, maximum, path, message}` and no `input`/`received`, so a rejected instruction
+  body is not echoed. It is the only route still shipping raw issues — `periods.ts` and
+  `claim.ts` dropped them. The safety is a zod-version property, not a design one: re-evaluate on
+  any zod major upgrade.
+
+- **How wide the auth oracle actually was (Phase 3).** The research framing said sign-in
+  disclosed "invalid credentials vs unconfirmed email vs already registered". Measured: GoTrue
+  returns the SAME message for a wrong password and an unknown address, so sign-in was never an
+  enumeration oracle on its own; sign-up's "User already registered" was the live one, and
+  "Email not confirmed" is unreachable locally (`enable_confirmations = false`) and unknown in
+  the hosted project. The fix swallows all of them regardless, which is why it did not depend on
+  getting this right — but the record should.
+
 ## 8. Freshness Ledger
 
-- Strategy (§1–§5) last reviewed: 2026-09-11 (§3 Phase 4 closed; §2's Risk #4 and #5 wording corrected against measurement — see §7)
+- Strategy (§1–§5) last reviewed: 2026-09-11 (§3 Phases 3 and 4 closed; §5 rewritten against the repo after the CI it described was found not to exist; §2's Risk #4 and #5 wording corrected against measurement — see §7)
 - Stack versions last verified: 2026-06-28
 - AI-native tool references last verified: 2026-06-28
 

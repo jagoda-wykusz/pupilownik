@@ -53,10 +53,14 @@ export const POST: APIRoute = async (context) => {
   });
 
   if (error) {
-    // Code and message, NOT the whole error. PostgREST echoes the offending value into
-    // `details`, and on this table that value could be a claim_digest — the one thing
-    // 20260907171514_claim_secret_not_digest.sql exists to keep out of reach. Same reasoning
-    // as the token route, different column.
+    // Code and message, NOT the whole error.
+    //
+    // Corrected 2026-09-11: the old reason ("PostgREST echoes the offending value into
+    // `details`") is false under RLS — measured `details: null` for every violation an
+    // `authenticated` caller can cause. The practice stays because a SECURITY DEFINER function
+    // owned by `postgres` does get the full row in DETAIL, and this project has four. The column at risk
+    // on this table is claim_digest, which 20260907171514_claim_secret_not_digest.sql exists
+    // to keep out of reach.
     console.error("release_slot failed:", error.code, error.message);
     return jsonResponse({ error: "Nie udało się zwolnić terminu" }, 500);
   }

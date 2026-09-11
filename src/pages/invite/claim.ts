@@ -23,8 +23,15 @@ import { formatDay, TIME_OF_DAY_LABEL, type TimeOfDay } from "@/lib/period-forma
 // next outbound link. The token travels in the BODY.
 //
 // Never log the raw token or the raw capability secret. The error branches below log
-// `error.code` and `error.message` only, for the reason S-01 impl-review F2 recorded:
-// PostgREST's `details` echoes offending values.
+// `error.code` and `error.message` only.
+//
+// S-01 impl-review F2 recorded the reason as "PostgREST's `details` echoes offending values".
+// Corrected 2026-09-11: that is false under RLS — Postgres suppresses the failing-row
+// description for every role this app uses, measured `details: null` on unique, CHECK and
+// with-check violations alike. The practice stays for the case that is NOT suppressed: a
+// SECURITY DEFINER function owned by `postgres` receives the full row in DETAIL, and
+// claim_slots is one of four such functions here. Note this route is also the only one that
+// reads `error.details` at all — it parses the PT409 payload rather than concatenating it.
 
 export const POST: APIRoute = async (context) => {
   // Inversion 2. Astro will not do this for us on a JSON body, and without it any page on the

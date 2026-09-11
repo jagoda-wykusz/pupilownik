@@ -251,26 +251,26 @@ Four comments justify a correct practice with a false reason; §5 describes a CI
 
 #### Automated
 
-- [x] 2.1 New file passes: `npx vitest run --project integration tests/api/auth-error-disclosure.test.ts`
-- [x] 2.2 Full suite passes: `npm test`
-- [x] 2.3 Lint passes: `npm run lint`
-- [x] 2.4 Type check passes: `npx astro check`
+- [x] 2.1 New file passes: `npx vitest run --project integration tests/api/auth-error-disclosure.test.ts` — fd39569
+- [x] 2.2 Full suite passes: `npm test` — fd39569
+- [x] 2.3 Lint passes: `npm run lint` — fd39569
+- [x] 2.4 Type check passes: `npx astro check` — fd39569
 
 #### Manual
 
-- [x] 2.5 Mutation check: restoring `error.message` into a redirect fails the whole-string comparison
-- [x] 2.6 Wrong password and unknown address show the same sentence and a clean URL
-- [x] 2.7 The upstream message is visible in the server log
+- [x] 2.5 Mutation check: restoring `error.message` into a redirect fails the whole-string comparison — fd39569
+- [x] 2.6 Wrong password and unknown address show the same sentence and a clean URL — fd39569
+- [x] 2.7 The upstream message is visible in the server log — fd39569
 
 ### Phase 3: Correct the prose this change measured
 
 #### Automated
 
-- [ ] 3.1 Full suite passes: `npm test`
-- [ ] 3.2 Lint passes: `npm run lint`
-- [ ] 3.3 Build passes: `npm run build`
+- [x] 3.1 Full suite passes: `npm test`
+- [x] 3.2 Lint passes: `npm run lint`
+- [x] 3.3 Build passes: `npm run build`
 
 #### Manual
 
-- [ ] 3.4 §5 read back against the repo — every gate named is found, none named is absent
-- [ ] 3.5 The four comments state the RLS suppression and the definer exception
+- [x] 3.4 §5 read back against the repo — every gate named is found, none named is absent
+- [x] 3.5 The four comments state the RLS suppression and the definer exception
