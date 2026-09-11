@@ -391,10 +391,29 @@ contributors should respect these unless the underlying assumption changes.
   test. Re-evaluate if the product grows co-owners or realtime — the fix (`p_claimed_at` in the
   WHERE) would make it testable in the same breath.
 
-- **The claim × revoke race (Phase 4).** Both endings are permitted — the claim lands or it
-  does not — so a test could only assert internal consistency, not protection. Cost without
-  signal under §1's first principle. Re-evaluate if revocation ever grows a side effect on
-  claimed rows.
+- **The claim × revoke race — MEASURED 2026-09-11, and it is not a defect.** The window is real
+  and wide: `claim_slots` resolves the period with `revoked_at is null` in one statement and
+  updates `care_slots` in a later one, with no re-check and no lock on `care_periods`. Under READ
+  COMMITTED each statement takes its own snapshot, so the migration's comment "carries
+  revocation, since v_period was derived with revoked_at is null" describes a guarantee the
+  function does not have across statements.
+
+  Probed with 40 concurrent claim/revoke pairs: the claim landed **40/40** — not a narrow window
+  but the normal outcome, because the claim's period lookup sits at the very start of its
+  transaction and beats the revoke's commit. What the caretaker then sees was the open question,
+  and the answer is the benign one: `get_claimed_details` returned `{revoked: true}` in **all 40**
+  cases. Zero content reveals, zero sensitive rows, zero notes.
+
+  So the end state — a claimed term on a revoked trip, and a caretaker holding the called-off
+  card — is **indistinguishable from a sequence the product supports**: claim first, revoke
+  after. Revocation deliberately does not release taken terms (`prd.md` §Open Questions #5), so
+  that state is expected rather than anomalous; the race only compresses it into one instant.
+
+  NOT pinned, and now for a measured reason rather than a guessed one. An earlier review
+  described this as a caretaker "getting a reveal on a trip the owner has called off" — that
+  description was wrong, and correcting it is the point of this entry. Re-evaluate if revocation
+  ever grows a side effect on claimed rows, or if `get_claimed_details` ever serves content to a
+  holder on a revoked period.
 
 - **The deadlock branch, through the database (Phase 4).** `src/pages/invite/claim.ts` maps
   SQLSTATE `40P01` to a retryable 409. That branch cannot be reached by racing real claims:
