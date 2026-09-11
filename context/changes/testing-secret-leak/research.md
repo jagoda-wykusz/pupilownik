@@ -35,7 +35,7 @@ Three findings reshape this phase, and each of them contradicts something the pl
 
 **3. The live disclosure in this codebase is not in the bundle — it is `error.message` in a URL.** `src/pages/api/auth/signin.ts:16` and `signup.ts:16` put the raw GoTrue error into a query string. That discloses auth state ("Invalid login credentials" vs "Email not confirmed" vs "User already registered" — a user-enumeration oracle on signup), it persists in browser history, and `/auth` gets **no** `Referrer-Policy: no-referrer` — that header is scoped to `/invite` only (`src/middleware.ts:24`). This is squarely inside Risk #6's wording ("escapes into … error bodies") and nothing in the plan anticipated it.
 
-And one scope-defining unknown: **CI may not exist.** `.github/workflows/ci.yml` ran lint + build on push/PR and was **deleted** in `b1fd059`; nothing in the repo describes or verifies a Cloudflare Workers Builds connection. §5's "required (wired)" claims for CI are unverifiable from the repo, and two of them are stale besides.
+And the finding that turned out to be bigger than Risk #6: **there is no CI at all.** `.github/workflows/ci.yml` ran lint + build on push/PR and was **deleted** in `b1fd059` in favour of a Cloudflare Workers Builds connection that — confirmed in the dashboard on 2026-09-11 — was never made. Nothing has run on push or PR since 2026-06-27. Every §5 row claiming a CI half describes a system that does not exist. See **Answered during research** below.
 
 ## Detailed Findings
 
@@ -141,10 +141,17 @@ The honest reading: **the practice is right, the stated reason is measurably fal
 - `context/archive/2026-06-28-testing-rls-owner-isolation/research.md` — the original CI survey; reached the same "no `.github/`, Workers Builds" conclusion and deferred the same question
 - `context/foundation/infrastructure.md` — the deployment-platform decision this phase inherits
 
+## Answered during research
+
+**Is a Cloudflare Workers Builds project connected? — NO.** Checked in the Cloudflare dashboard by the user, 2026-09-11. Nothing is connected to this repository.
+
+This is the largest finding of the research and it is bigger than Risk #6. **This project has had no CI of any kind since 2026-06-27**, when `b1fd059` deleted a working `.github/workflows/ci.yml` in favour of a Workers Builds connection that was never made. Every gate that exists today is local: two per-edit agent hooks and a pre-commit hook. All of them are bypassable (`--no-verify`), none of them run for a clone that does not have the agent hooks configured, and nothing at all runs on push or on a pull request. The `lint`, `typecheck`, `build` and `unit + integration` rows in `test-plan.md` §5 that claim a CI half are not merely stale — **the CI column describes a system that does not exist**, and the "secret-leak grep on build output → CI, required after §3 Phase 3" row cannot be satisfied as written.
+
+**Consequence for this phase, decided with the user:** scope narrows to the **assertion layer only**. The gate is built so that it runs locally and is ready to be wired the day CI exists, and §5 is corrected to say what is true rather than what was intended. Restoring CI is its own change — it is an infrastructure decision, not a test-rollout phase, and folding it in here would repeat the mistake `b1fd059` made in the other direction.
+
 ## Open Questions
 
-1. **Is a Cloudflare Workers Builds project connected to this repo at all, and what command does it run?** This is dashboard state (Workers → `pupilownik` → Settings → Builds: build command, deploy command, root directory, build variables, preview builds). **Everything about gate placement depends on the answer**, and the only in-repo evidence says nothing was connected as of 2026-06-27. If nothing is connected, this phase cannot "wire a CI gate" and the honest options are to restore a GitHub Actions workflow or to scope the phase to the assertion layer only.
-2. **Are `SUPABASE_URL` / `SUPABASE_KEY` set as build variables there?** Both are `optional: true`, so a build succeeds without them — meaning a misconfigured deploy fails at runtime, not at build time.
-3. **Is the auth-error-in-URL disclosure in scope for this change?** It is the one live finding, it is inside Risk #6's wording, and fixing it is a product change (swallow the upstream message, show a fixed sentence) rather than a test. It also removes a user-enumeration oracle on signup.
-4. **Should the four false comments be corrected?** They justify correct practice with a hazard that does not exist for these tables. The risk is a future reader measuring the claim, finding it false, and removing the practice — at which point the latent definer-writer exposure has no guard.
-5. **Does `dist/server/.dev.vars` warrant any action?** It is gitignored and not uploaded, so probably not — but it is a real plaintext secret on disk that a developer would not expect a build to write, and it is the reason the assertion must be scoped.
+1. **Are `SUPABASE_URL` / `SUPABASE_KEY` set anywhere for deployment?** Both are `optional: true`, so a build succeeds without them and a misconfigured deploy fails at runtime rather than at build time. Moot while nothing auto-deploys, live again the moment CI is restored.
+2. **Is the auth-error-in-URL disclosure in scope for this change?** It is the one live finding, it is inside Risk #6's wording, and fixing it is a product change (swallow the upstream message, show a fixed sentence) rather than a test. It also removes a user-enumeration oracle on signup.
+3. **Should the four false comments be corrected?** They justify correct practice with a hazard that does not exist for these tables. The risk is a future reader measuring the claim, finding it false, and removing the practice — at which point the latent definer-writer exposure has no guard.
+4. **Does `dist/server/.dev.vars` warrant any action?** It is gitignored and not uploaded, so probably not — but it is a real plaintext secret on disk that a developer would not expect a build to write, and it is the reason the assertion must be scoped.
