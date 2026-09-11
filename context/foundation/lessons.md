@@ -116,3 +116,37 @@ than one copy of React`, co czyta się jak zdublowana zależność, a nie jak ca
   raportuj „przeszło" na podstawie `cmd | tail`, `cmd | grep` ani powiadomienia o zadaniu w tle,
   które opakowuje potok. Jeśli musisz filtrować na żywo, użyj `set -o pipefail`.
 - **Applies to**: implement, impl-review
+
+## Zdanie o tym, co się stanie po usunięciu bramki, jest prognozą — zmierz je, zanim je zapiszesz
+
+- **Context**: Każde zdanie w planie, researchu, nagłówku testu albo komentarzu migracji, które
+  mówi, co system ZROBI w sytuacji, której nikt nie wywołał: „bez tej bramki żądanie przejdzie",
+  „ten predykat jest jedyną obroną", „ta gałąź jest osiągalna tylko tak", „tego nie pilnuje żaden
+  test". Dotyczy też pola `Current State Analysis` w planie, bo stamtąd te zdania wędrują do
+  treści commitów i do nagłówków plików, gdzie czyta się je jak ustalony fakt.
+- **Problem**: W `testing-domain-guardrails` zdarzyło się to cztery razy na pięć faz i ANI RAZU
+  nie wyłapało tego planowanie ani review planu — za każdym razem dopiero pomiar. (1) Plan
+  twierdził, że strona opiekuna wycieka wrażliwe instrukcje; `get_period_by_token` zwraca tylko
+  wiersze publiczne, więc nie było czego wyciekać. (2) Plan twierdził, że błąd w handlerze omija
+  warstwę grantów; bez ciasteczka sesji granty łapią (42501), ale z ciasteczkiem i bez
+  `locals.user` przepuszczają i bramka handlera jest jedynym płotem — 201 i realny wiersz.
+  (3) Dwa testy twierdziły, że nakładające się selekcje sięgają gałęzi deadlocka; guarded UPDATE
+  nie ma `ORDER BY`, więc obie sesje blokują wiersze w tym samym porządku i deadlock jest
+  niemożliwy, nie „rzadki". (4) Najgorszy: research zgłosił „triple CHECK nie ma negatywnego
+  testu", plan to przepisał bez weryfikacji, powstał cały plik duplikujący ścisły podzbiór
+  `care-slots.isolation.test.ts:123`. **Mutacja tego nie złapała** — usunięcie constraintu wywala
+  także test istniejący, więc „pięć przypadków padło" było prawdą, która nie dowodziła niczego
+  o nowości.
+- **Rule**: Zanim wpiszesz do planu lub do nagłówka testu zdanie o zachowaniu przy usuniętej
+  ochronie — URUCHOM mutację i przeczytaj, co naprawdę się stało, łącznie z kodem statusu
+  i treścią błędu. Nie wystarczy, że test padł: sprawdź, **dlaczego** padł i **czy nie padłby
+  również bez Twojej zmiany**. Zanim napiszesz „nic tego nie pilnuje", zgrepuj `tests/` za nazwą
+  constraintu, funkcji albo kolumny; twierdzenie o braku pokrycia jest twierdzeniem o całym
+  katalogu i nie wolno go przyjąć z raportu researchu na słowo.
+- **Rule (granica metody)**: Mutacja obala tylko te hipotezy, które już masz — więc potwierdzi
+  błędną analizę luki, jeśli Twoja mutacja wywala zarówno Twój test, jak i ten, o którym nie
+  wiesz. Projektuj mutację tak, żeby odróżniała Twoją prognozę od sąsiednich (np. mutacja
+  „kasuje całą zdolność" obok „nie kasuje wcale"), i sprawdzaj, że mutacja w ogóle się
+  zaaplikowała — raz był to no-op przez nieosiągalny warunek, raz przez przeformatowanie
+  prettierem.
+- **Applies to**: plan, plan-review, research, implement, impl-review
