@@ -41,5 +41,17 @@ describe("the browser-served bundle carries no secret", () => {
     // The control line is part of the contract, not decoration: it is what distinguishes
     // "scanned the bundle and found nothing" from "scanned nothing".
     expect(output).toMatch(/control matched in [1-9]\d* file\(s\)/);
+
+    // FLOORS, added after a review found the sharpest mutation: adding `.js` to the script's
+    // binary-skip list leaves the suite GREEN, because the lone `.css` file still satisfies the
+    // control. A clean run that scanned one file, or ran zero patterns, is not a clean run.
+    const files = /clean — (\d+) file\(s\)/.exec(output);
+    const patterns = /(\d+) pattern\(s\)/.exec(output);
+    expect(Number(files?.[1] ?? 0)).toBeGreaterThan(5);
+    expect(Number(patterns?.[1] ?? 0)).toBeGreaterThan(2);
+
+    // A degraded run must not read as a clean one. The script exits non-zero for this now, so
+    // reaching here with the marker would mean the guard was removed.
+    expect(output).not.toContain("WEAKENED");
   });
 });

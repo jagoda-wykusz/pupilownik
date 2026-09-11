@@ -168,9 +168,15 @@ phase.
 | e2e on critical flows                         | —                                                              | not present                                       | broken critical user paths                                          |
 
 The `astro check` in pre-commit replaced `tsc --noEmit` on 2026-09-07 (S-03 phase 3 review:
-`tsc` does not see type errors inside `.astro` templates). This table said `tsc --noEmit`
-until 2026-09-11, and the cost table below listed `astro check` as "not wired" — a claim the
-shipped hook already contradicted. Both are corrected here.
+`tsc` does not see type errors inside `.astro` templates). Both tables said otherwise until
+2026-09-11.
+
+**And the correction had to be made twice, which is the part worth keeping.** The first pass
+rewrote the gate table above and updated one row of the cost table below — leaving that table
+still assigning `eslint .` to CI and `tsc --noEmit` to pre-commit, eleven lines under a
+paragraph stating that no CI exists. A review caught it. Correcting a document in one place and
+believing it corrected is the same failure as writing it wrong: the unit of verification is the
+CLAIM, not the section.
 
 **The day CI returns**, `npm run lint`, `npm test` and `npm run check:secrets` are the three
 commands to wire; each one runs standalone today precisely so that wiring is one line and not
@@ -186,8 +192,8 @@ Gates are placed by measured cost, not by preference. Measured on this project
 | `prettier --write <file>`     | one file                  | ~0.3s                                       | per-edit agent hook                                            |
 | `vitest related <file> --run` | one file's import graph   | ~2s                                         | per-edit agent hook, risk areas only                           |
 | `eslint --fix <file>`         | one file                  | 12-22s (type-aware, `projectService: true`) | pre-commit (lint-staged)                                       |
-| `eslint .`                    | whole project             | ~110s                                       | CI                                                             |
-| `tsc --noEmit`                | whole project             | ~26s                                        | pre-commit                                                     |
+| `eslint .`                    | whole project             | ~110s                                       | `npm run lint`, by hand — **nothing enforces it** (see §5)     |
+| `tsc --noEmit`                | whole project             | ~26s                                        | not wired — superseded by `astro check` on 2026-09-07          |
 | `astro check`                 | whole project + templates | ~38s                                        | **pre-commit** (promoted 2026-09-07, replacing `tsc --noEmit`) |
 
 Two consequences worth knowing before changing the wiring:
@@ -473,6 +479,14 @@ claimed_by_name is null`. Every concurrency test in this repo — `tests/rls/cla
   deliberately does not carry. Both files say so about themselves. Re-evaluate if a `pg`
   dependency ever arrives for another reason.
 
+- **`npm test` now needs a build (Phase 3).** `tests/unit/client-bundle.test.ts` scans
+  `dist/client`, and it FAILS rather than skips when there is none — deliberately, because a
+  green run against no artifact is the defect this whole change is about. The consequence is
+  real and belongs here: on a fresh clone `npm test` fails until `npm run build` has run once,
+  and the `unit` project's "runs with Docker down" property now also means "runs with a build
+  present". **When CI is restored, `npm run build` must be ordered before `npm test`**, or the
+  suite fails for a reason unrelated to secrets.
+
 ### What Phase 4 measured, and where this plan had been wrong
 
 Two claims in the §2 Risk Response table read stronger than the code supports. Both were
@@ -507,9 +521,11 @@ re-inherit them.
   one. Re-evaluate if a secret-scanning pre-commit hook is ever wanted; that is a different tool.
 
 - **Configuration state disclosed to a SIGNED-IN owner (Phase 3).** `pets.ts`, `periods.ts`,
-  `token.ts` and `revoke.ts` answer `{"error": "Supabase is not configured"}` — an English
-  sentence among Polish ones, stating a server fact. Phase 3 fixed only the PRE-AUTH pair
-  (`signin`, `signup`), where an anonymous caller learned it. These four require `locals.user`,
+  `token.ts`, `revoke.ts` and `release.ts` answer `{"error": "Supabase is not configured"}` — an
+  English sentence among Polish ones, stating a server fact. (Counted as four until a review
+  found the fifth — `release.ts`, one of the files that phase edited.) Phase 3 fixed only the
+  PRE-AUTH pair (`signin`, `signup`), where an anonymous caller learned it. All five require
+  `locals.user`,
   so the disclosure is bounded to an authenticated owner. Cosmetically inconsistent, low signal;
   `src/pages/invite/claim.ts` shows the intended shape if it is ever worth normalising.
 

@@ -69,9 +69,12 @@ export const POST: APIRoute = async (context) => {
     // returned `details: null` — unique, CHECK and with-check alike.
     //
     // What keeps the practice correct is the exception: a SECURITY DEFINER function owned by
-    // `postgres` DOES receive the full row in DETAIL, and this project has four of them. The
-    // day one of those can violate a constraint, `error.details` carries user data — so the
-    // discipline holds the line before it is needed rather than after.
+    // `postgres` DOES receive the full row in DETAIL, and this project has four of them.
+    //
+    // The exception does NOT apply at THIS call site — the function below is SECURITY INVOKER, so
+    // its errors are RLS-suppressed like any other. The discipline is uniform across every route
+    // because one of them, `claim_slots` in src/pages/invite/claim.ts, IS definer-owned, and a
+    // future definer writer here would behave the same way.
     // Never log inviteToken.
     console.error("create_period_with_slots failed:", error.code, error.message);
 

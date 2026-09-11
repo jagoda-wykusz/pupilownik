@@ -6,12 +6,17 @@
 // upstream error has to change this file, and the test compares whole redirect targets.
 //
 // WHY THE UPSTREAM MESSAGE IS SWALLOWED. `signInWithPassword` and `signUp` return GoTrue's own
-// wording — "Invalid login credentials", "Email not confirmed", "User already registered" — and
+// wording — "Invalid login credentials", "User already registered", and (where confirmations are
+// enabled, which they are NOT in supabase/config.toml locally) "Email not confirmed" — and
 // the routes used to forward it verbatim into `?error=`. That is an auth-state oracle, and on
 // sign-up specifically it is a USER-ENUMERATION oracle: an attacker learns which addresses have
-// accounts by submitting them. The query string also persists in browser history and travels in
-// `Referer`, because `Referrer-Policy: no-referrer` is scoped to `/invite` (src/middleware.ts)
-// and does not cover `/auth`.
+// accounts by submitting them. The query string also persists in browser history, where it
+// outlives the session and is visible to anyone with the machine.
+//
+// A `Referer` claim was made here first and withdrawn on review: the browser default
+// (`strict-origin-when-cross-origin`) sends origin only on cross-origin requests, and `/auth`
+// makes no third-party requests at all — astro.config.mjs self-hosts the fonts precisely so
+// that none are made. Browser history is the whole of it, and it is enough.
 //
 // THE COST, stated because it is real and was accepted deliberately: a user whose account exists
 // but is unconfirmed now gets the same sentence as someone with a typo in their password, and no

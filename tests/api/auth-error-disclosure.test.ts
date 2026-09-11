@@ -22,14 +22,21 @@ import { createOwnerClient, type OwnerContext } from "../helpers/auth";
 // and unknown in the hosted project. The fix covers all of them regardless of which are
 // currently reachable, which is the point of swallowing rather than enumerating.
 
+/** Everything a caller can observe. `Location` alone was the first version, and a review named
+ *  the gap: a regression that differentiates causes by setting a cookie, adding a header or
+ *  returning a body would have been invisible to every assertion in this file. */
 interface Redirect {
   status: number;
   location: string | null;
+  headers: string[];
+  cookies: string[];
+  body: string;
 }
 
 function createFakeCookies() {
   const store = new Map<string, string>();
   return {
+    store,
     get(name: string) {
       const value = store.get(name);
       return value === undefined ? undefined : { value };
@@ -64,7 +71,17 @@ async function call(handler: typeof signIn, path: string, email: string, passwor
 
   type Args = Parameters<typeof handler>;
   const response = await handler(context as unknown as Args[0]);
-  return { status: response.status, location: response.headers.get("Location") };
+  return {
+    status: response.status,
+    location: response.headers.get("Location"),
+    // Sorted so the comparison is order-independent, and names only — a header VALUE could
+    // legitimately differ (a timestamp) without differentiating the cause.
+    headers: [...response.headers.keys()].sort(),
+    // The Supabase client writes session cookies through this store; a cause-dependent cookie
+    // would be a disclosure the Location cannot show.
+    cookies: [...context.cookies.store.keys()].sort(),
+    body: await response.text(),
+  };
 }
 
 /** Wording GoTrue emits that must never reach a caller. Asserted as absence from the redirect. */
@@ -93,6 +110,8 @@ describe("the auth routes disclose nothing about why they failed", () => {
       // Whole-target comparison: a substring check would pass if a future edit appended the
       // upstream reason to the same sentence.
       expect(wrongPassword.location).toBe(`/auth/signin?error=${encodeURIComponent(SIGNIN_FAILED)}`);
+      expect(wrongPassword.body).toBe("");
+      // Whole-OBJECT comparison: status, Location, header names, cookie names and body together.
       expect(unknownAddress).toEqual(wrongPassword);
       expect(malformedEmail).toEqual(wrongPassword);
     });
@@ -125,6 +144,7 @@ describe("the auth routes disclose nothing about why they failed", () => {
       const malformedEmail = await call(signUp, "/api/auth/signup", "not-an-email", "password123");
 
       expect(alreadyRegistered.location).toBe(`/auth/signup?error=${encodeURIComponent(SIGNUP_FAILED)}`);
+      expect(alreadyRegistered.body).toBe("");
       expect(shortPassword).toEqual(alreadyRegistered);
       expect(malformedEmail).toEqual(alreadyRegistered);
     });

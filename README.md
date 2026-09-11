@@ -55,6 +55,7 @@ npm run dev
 - `npm run lint` - Run ESLint with type-checked rules
 - `npm run lint:fix` - Auto-fix ESLint issues
 - `npm run format` - Run Prettier
+- `npm run check:secrets` - Scan `dist/client` for a secret that should never reach a browser (needs a build first)
 
 ## Project Structure
 
@@ -168,7 +169,22 @@ Set `SUPABASE_URL` and `SUPABASE_KEY` as secrets in your Cloudflare dashboard or
 
 ## CI
 
-Build and deploy run via [Cloudflare Workers Builds](https://developers.cloudflare.com/workers/ci-cd/builds/) connected to the GitHub repo — there is no GitHub Actions workflow. Merges to the production branch auto-deploy and pull requests get preview URLs. Configure `SUPABASE_URL` and `SUPABASE_KEY` as build-environment variables in the Workers Builds config (in addition to the runtime secrets set via `npx wrangler secret put`). Run `npm run lint` and `npm run build` locally before pushing.
+**There is none.** A GitHub Actions workflow ran lint and build on every push and pull request until it was deleted in `b1fd059` (2026-06-27), in favour of [Cloudflare Workers Builds](https://developers.cloudflare.com/workers/ci-cd/builds/) — a connection that was never made. Verified in the Cloudflare dashboard on 2026-09-11: no Workers Builds project is connected to this repository.
+
+This section previously described that intended setup as if it existed ("merges auto-deploy, pull requests get preview URLs"). Nothing runs on push or on a pull request, and deploys are manual.
+
+Until CI is restored, **the checks are yours to run**:
+
+```bash
+npm run lint          # whole project; the pre-commit hook only lints STAGED files
+npm run build         # must run before `npm test` — the secret scan inspects dist/client
+npm test              # unit + component + integration (integration needs `npm run db:start`)
+npm run check:secrets # also runs inside `npm test`
+```
+
+A pre-commit hook runs `lint-staged` (eslint on staged code, prettier on staged json/css/md) and `npx astro check`. It is bypassable with `--no-verify`, and it does not run for anyone who has not installed hooks. See `context/foundation/test-plan.md` §5 for the full, verified gate inventory.
+
+When CI is restored, order matters: `npm run build` before `npm test`.
 
 ## License
 

@@ -12,8 +12,15 @@
 // never talks to Supabase at all (supabase-js is worker-only; islands call same-origin /api/*).
 //
 // What it CAN catch is the mistake a person makes: a key literal pasted into a client island,
-// typically to "just call Supabase directly from the browser". That is the whole of its value,
-// and it is worth having.
+// typically to "just call Supabase directly from the browser". That is the whole of its value.
+//
+// AND BE PRECISE ABOUT *WHICH* SECRETS, because a review found the first version of this header
+// overstating it. Two of the patterns are derived from whatever `.env` the run has — which in
+// every local checkout is the throwaway stack from `npm run db:start`. So the literal and host
+// checks guard `127.0.0.1:54321`, not production. What is project-independent is the pair of
+// key-prefix patterns (`sb_secret_`, `sb_publishable_`) and the JWT shape. To guard a real
+// project's host, pass it in: `SECRET_SCAN_HOSTS=abcd.supabase.co npm run check:secrets` — a
+// project ref is not a secret and can live in CI config or a committed script.
 //
 // TWO SCOPING DECISIONS, both load-bearing:
 //
@@ -42,12 +49,21 @@ function readEnv() {
   const fromFile = {};
   if (existsSync(".env")) {
     for (const line of readFileSync(".env", "utf8").split(/\r?\n/)) {
-      const match = /^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/.exec(line);
-      if (match) {
-        fromFile[match[1]] = match[2].replace(/^["']|["']$/g, "");
+      // `export ` accepted, and an UNQUOTED trailing `# comment` stripped. Both cost a real leak
+      // if missed: a greedy value that swallows "# prod" can never match the bundle, and the run
+      // still prints "clean" because the variable is present. Found in review.
+      const match = /^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/.exec(line);
+      if (!match) {
+        continue;
       }
+      const raw = match[2].trim();
+      const quoted = /^(["'])([\s\S]*)\1$/.exec(raw);
+      fromFile[match[1]] = quoted ? quoted[2] : raw.replace(/\s+#.*$/, "").trim();
     }
   }
+  // Real env wins so a CI runner needs no file — but a stale exported var then SHADOWS the file
+  // and the scan validates the wrong value. The summary line names the host it guarded so that
+  // is visible rather than silent.
   return { ...fromFile, ...process.env };
 }
 
@@ -70,10 +86,16 @@ function buildPatterns(env) {
   // The literal values, which is the only check that is specific to THIS project's secrets.
   // Skipped rather than faked when a var is absent, and reported, so a run with no env cannot
   // look like a clean run.
+  const skipped = [];
   for (const name of ["SUPABASE_URL", "SUPABASE_KEY"]) {
     const value = env[name];
     if (value && value.length >= 8) {
       patterns.push({ name: `${name} literal value`, test: (text) => text.includes(value) });
+    } else {
+      // Absent, empty, or too short to be a real value. Collected rather than ignored: a run
+      // without these is down to two generic shape patterns, which is a much weaker check than
+      // the summary line used to imply.
+      skipped.push(name);
     }
   }
 
@@ -88,11 +110,25 @@ function buildPatterns(env) {
     }
   }
 
-  // Shape-based, independent of this project's env: a service-role key and any JWT.
-  patterns.push({ name: "sb_secret_ key prefix", test: (text) => /sb_secret_[A-Za-z0-9_-]+/.test(text) });
-  patterns.push({ name: "JWT-shaped string", test: (text) => /eyJ[A-Za-z0-9_-]{10,}/.test(text) });
+  // Hosts no .env points at. A production project ref is not a secret, and without this the host
+  // pattern only ever guards whichever stack the developer happens to be running.
+  for (const host of (env.SECRET_SCAN_HOSTS ?? "")
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean)) {
+    patterns.push({ name: `configured host ${host}`, test: (text) => text.includes(host) });
+  }
 
-  return patterns;
+  // Shape-based, independent of this project's env. BOTH key prefixes: a publishable key is not
+  // a credential on its own, but it has no business in a bundle whose browser never calls
+  // Supabase — and review found that omitting it left a pasted production key uncaught.
+  patterns.push({ name: "sb_secret_ key prefix", test: (text) => /sb_secret_[A-Za-z0-9_-]{8,}/.test(text) });
+  patterns.push({ name: "sb_publishable_ key prefix", test: (text) => /sb_publishable_[A-Za-z0-9_-]{8,}/.test(text) });
+  // Anchored and dot-terminated, so an ordinary base64 blob (a data: URI, a hash) that happens to
+  // contain the run "eyJ" does not fire. A real JWT has a dot-separated payload.
+  patterns.push({ name: "JWT-shaped string", test: (text) => /(?<![A-Za-z0-9_-])eyJ[A-Za-z0-9_-]{20,}\./.test(text) });
+
+  return { patterns, skipped };
 }
 
 function main() {
@@ -108,8 +144,20 @@ function main() {
   }
 
   const env = readEnv();
-  const patterns = buildPatterns(env);
-  const missingEnv = ["SUPABASE_URL", "SUPABASE_KEY"].filter((name) => !env[name]);
+  const { patterns, skipped } = buildPatterns(env);
+
+  // A DEGRADED run is not a clean run. Without the literal checks this scan is two shape
+  // patterns, and saying "clean" for that was a stdout suffix nothing asserted — the exact shape
+  // of a check that describes rather than guards. Opt out explicitly if a context genuinely has
+  // no env (then the weakened coverage is a choice, not an accident).
+  if (skipped.length > 0 && !env.SECRET_SCAN_ALLOW_MISSING_ENV) {
+    console.error(
+      `check-client-bundle: no usable value for ${skipped.join(", ")}, so the literal checks were ` +
+        `skipped and only ${patterns.length} generic pattern(s) would run. Export the vars, or set ` +
+        `SECRET_SCAN_ALLOW_MISSING_ENV=1 to accept the weaker scan.`,
+    );
+    process.exit(2);
+  }
 
   const findings = [];
   let controlHits = 0;
@@ -150,10 +198,18 @@ function main() {
     process.exit(1);
   }
 
-  const skipped = missingEnv.length > 0 ? ` (skipped literal checks for: ${missingEnv.join(", ")})` : "";
+  // Name the host the literal checks actually guarded. Without it a run against a local stack
+  // reads identically to one guarding production, which is how a check ends up protecting a
+  // throwaway database while everyone believes otherwise.
+  const guarded = patterns
+    .filter((pattern) => pattern.name.includes("host"))
+    .map((pattern) => pattern.name)
+    .join(", ");
+  const weakened = skipped.length > 0 ? ` — WEAKENED, no literal check for ${skipped.join(", ")}` : "";
   console.log(
     `check-client-bundle: clean — ${files.length} file(s), ${scannedBytes} bytes, ` +
-      `${patterns.length} pattern(s), control matched in ${controlHits} file(s)${skipped}`,
+      `${patterns.length} pattern(s) [${guarded || "no host pattern"}], ` +
+      `control matched in ${controlHits} file(s)${weakened}`,
   );
 }
 

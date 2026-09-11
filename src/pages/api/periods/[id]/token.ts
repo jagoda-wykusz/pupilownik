@@ -37,6 +37,11 @@ export const POST: APIRoute = async (context) => {
     // `details`") is false under RLS — measured `details: null` for every violation an
     // `authenticated` caller can cause. The practice stays because a SECURITY DEFINER function
     // owned by `postgres` does get the full row in DETAIL, and this project has four.
+    //
+    // The exception does NOT apply at THIS call site — the function below is SECURITY INVOKER, so
+    // its errors are RLS-suppressed like any other. The discipline is uniform across every route
+    // because one of them, `claim_slots` in src/pages/invite/claim.ts, IS definer-owned, and a
+    // future definer writer here would behave the same way.
     console.error("regenerate_period_token failed:", error.code, error.message);
     return jsonResponse({ error: "Nie udało się wygenerować nowego linku" }, 500);
   }
