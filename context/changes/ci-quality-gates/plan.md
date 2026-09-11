@@ -570,20 +570,20 @@ everyone afterwards.
 
 #### Automated
 
-- [x] 4.1 New test passes: `npx vitest run --project unit ci-gate-source`
-- [x] 4.2 Two mutations (drop `check:secrets`, drop `pull_request`) each fail the test; both reverted
-- [x] 4.3 Whole unit project still green: `npx vitest run --project unit`
+- [x] 4.1 New test passes: `npx vitest run --project unit ci-gate-source` — 3ac13e9
+- [x] 4.2 Two mutations (drop `check:secrets`, drop `pull_request`) each fail the test; both reverted — 3ac13e9
+- [x] 4.3 Whole unit project still green: `npx vitest run --project unit` — 3ac13e9
 
 #### Manual
 
-- [x] 4.4 Mutation failure messages name the missing property, not just "expected true to be false"
+- [x] 4.4 Mutation failure messages name the missing property, not just "expected true to be false" — 3ac13e9
 
 ### Phase 5: Connect the dashboard, correct the documents
 
 #### Automated
 
-- [ ] 5.1 Full chain green before the dashboard is touched: `npm run ci:gate`
-- [ ] 5.2 Docs prettier-clean: `npx prettier --check README.md AGENTS.md docs/reference/data-access.md context/foundation/test-plan.md context/foundation/infrastructure.md context/deployment/deploy-plan.md`
+- [x] 5.1 Full chain green before the dashboard is touched: `npm run ci:gate`
+- [x] 5.2 Docs prettier-clean: `npx prettier --check README.md AGENTS.md docs/reference/data-access.md context/foundation/test-plan.md context/foundation/infrastructure.md context/deployment/deploy-plan.md`
 
 #### Manual
 

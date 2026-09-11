@@ -78,7 +78,7 @@ orchestrator updates Status as artifacts appear on disk.
 | 1   | Bootstrap runner + RLS owner-isolation | Prove an owner cannot read/modify another's rows; establish the reusable RLS-test harness every future table copies | #1            | vitest setup + integration vs local Supabase  | complete    | context/archive/2026-06-28-testing-rls-owner-isolation/ |
 | 2a  | Auth gating                            | Protected routes gate unauthenticated access; auth/session flows behave; an invalid session cannot reach owner data | #2            | integration (routes + middleware)             | complete    | context/archive/2026-07-12-testing-auth-gating/         |
 | 2b  | Input validation                       | API handlers reject malformed/forbidden input server-side (zod), not just the client                                | #7            | unit / integration on API handlers            | not started | —                                                       |
-| 3   | Secret-leak assertions                 | No secret reaches `dist/client`, no upstream error or config state reaches a caller                                 | #6            | build-artifact scan + unit + integration      | complete    | context/changes/testing-secret-leak/                    |
+| 3   | Secret-leak assertions                 | No secret reaches `dist/client`, no upstream error or config state reaches a caller                                 | #6            | build-artifact scan + unit + integration      | complete    | context/archive/2026-09-11-testing-secret-leak/         |
 | 4   | Domain guardrails (gated)              | Instruction visibility scoping, link-only access enforcement, atomic slot claim                                     | #3, #4, #5    | unit + integration + component, no new runner | complete    | context/archive/2026-09-11-testing-domain-guardrails/   |
 
 Phase 2 was split into **2a (auth gating, #2)** and **2b (input validation, #7)**
@@ -111,9 +111,10 @@ mutation-tested; §7 below records what those mutations revealed about what is a
 defended, including two places where this plan's own prose was wrong.
 
 **Phase 3 closed 2026-09-11, and the "quality-gate wiring" half was dropped rather than done.**
-The gate had nowhere to live: there is no CI (see §5). What shipped is the assertion layer —
-`npm run check:secrets` plus three test files — built so that wiring is one line the day CI
-returns. Measured along the way and worth carrying: the client bundle was already clean and
+The gate had nowhere to live that anyone had found yet — a belief that turned out to be wrong in
+both directions, see §5. What shipped is the assertion layer — `npm run check:secrets` plus three
+test files — built so that wiring would be one line. **It was**: `ci-quality-gates` wired it on
+2026-09-12, and the scan is now the last link of the publish gate. Measured along the way and worth carrying: the client bundle was already clean and
 structurally so (Astro fails the build on a client-side `astro:env/server` import), so the
 headline assertion cannot fail through the framework path; the real disclosure was an upstream
 auth error in a URL, which Phase 3 fixed; and `dist/server/.dev.vars` holds the env values in
@@ -173,14 +174,16 @@ system.**
 | format (prettier, edited file)                | per-edit agent hook (`.claude/hooks/format-edited-file.mjs`)   | agent sessions only                               | formatting drift; a file the formatter cannot parse                 |
 | format (prettier, staged json/css/md)         | pre-commit, lint-staged                                        | every commit                                      | formatting drift in non-code files                                  |
 | lint (staged files)                           | pre-commit, lint-staged → `eslint --fix` on `*.{ts,tsx,astro}` | every commit                                      | syntactic drift                                                     |
-| lint (whole project)                          | `npm run lint`, by hand                                        | **nothing enforces it**                           | drift in files no commit touched                                    |
-| typecheck                                     | pre-commit → `npx astro check`                                 | every commit                                      | type drift, including inside `.astro` templates                     |
-| build                                         | `npm run build`, by hand                                       | **nothing enforces it**                           | broken SSR build                                                    |
-| unit + integration                            | `npm test`, by hand                                            | **nothing enforces it**                           | logic + RLS regressions                                             |
+| lint (whole project)                          | **publish gate** + GitHub Actions                              | **every deploy; blocks publication**              | drift in files no commit touched                                    |
+| typecheck                                     | pre-commit → `npm run check`; **publish gate**; Actions        | every commit **and every deploy**                 | type drift, including inside `.astro` templates                     |
+| build                                         | **publish gate** + GitHub Actions                              | **every deploy; blocks publication**              | broken SSR build                                                    |
+| unit + component                              | **publish gate** + GitHub Actions                              | **every deploy; blocks publication**              | logic regressions                                                   |
 | unit + integration, scoped to the edited file | per-edit agent hook (`.claude/hooks/related-tests.mjs`)        | agent sessions only; skips when the stack is down | regressions on the path just edited                                 |
 | secret-leak scan of `dist/client`             | `npm run check:secrets`, and a test inside `npm test`          | with the suite                                    | a secret literal pasted into a client island                        |
 | env schema shape                              | a test inside `npm test`                                       | with the suite                                    | a `PUBLIC_`/client-context redeclaration that would inline a secret |
 | Supabase advisors (security)                  | `npx supabase db advisors`, by hand                            | recommended on every migration                    | RLS / definer-function issues                                       |
+| integration (RLS + routes)                    | **GitHub Actions only** — the build container has no Docker    | every push and PR, but **cannot block a merge**   | RLS + route regressions                                             |
+| gate contents themselves                      | `tests/unit/ci-gate-source.test.ts`                            | with the suite                                    | a step quietly removed from either gate                             |
 | e2e on critical flows                         | —                                                              | not present                                       | broken critical user paths                                          |
 
 The `astro check` in pre-commit replaced `tsc --noEmit` on 2026-09-07 (S-03 phase 3 review:
@@ -194,13 +197,22 @@ paragraph stating that no CI exists. A review caught it. Correcting a document i
 believing it corrected is the same failure as writing it wrong: the unit of verification is the
 CLAIM, not the section.
 
-**The three commands to wire into the Workers Builds build step** are `npm run lint`,
-`npm test` and `npm run check:secrets`. Each runs standalone today precisely so that wiring is
-one line and not a project. Order matters: `npm run build` must precede `npm test`, because the
-secret scan inspects `dist/client`. `npm test` additionally needs a Supabase stack for its
-integration project, which a build runner does not have — so either split the suite by project
-(`--project unit --project component`) or accept that only the non-integration half can gate a
-deploy until that is solved.
+**Wired on 2026-09-12 (`ci-quality-gates`), and the shape it took is worth recording**, because
+the paragraph that stood here predicted it almost correctly and got one thing wrong.
+
+The build command is now `npm run ci:gate`, defined in `package.json` — not typed into the
+dashboard, so its contents are in git history where review can see them. The chain is
+`check → lint → build → --project unit --project component → check:secrets`, and the order is
+load-bearing twice over: `astro check` regenerates `.astro/` that type-aware ESLint needs, and
+the build must precede the TESTS, not merely the scan — `tests/unit/client-bundle.test.ts` fails
+rather than skips without `dist/client`. That is the correction: the paragraph that stood here
+tied the ordering to `check:secrets` alone.
+
+The integration half was split off exactly as predicted, and runs in `.github/workflows/ci.yml`
+against a real `supabase start`. It cannot block a merge — this repository is private on GitHub
+Free, where branch protection is unavailable — so the two gates divide cleanly: Actions is the
+only place the integration suite runs, and the build command is the only thing that can stop a
+publication.
 
 ### Which layer each gate lives in
 
@@ -256,8 +268,10 @@ See `tests/unit/theme.test.ts` for the canonical example.
 Harness shipped in Phase 1 (`testing-rls-owner-isolation`). Recipe:
 
 1. Start the local stack (`npm run db:start`) and put the printed `SUPABASE_URL` +
-   **anon** key into `.env.test` (copy `.env.test.example`). `tests/setup.ts` loads it,
-   guards the host is local, and fails fast if the stack is down.
+   **anon** key into `.env.test` (copy `.env.test.example`). `tests/env.ts` loads it and guards
+   that the host is local (both per worker, on import); `tests/global-setup.ts` waits for the
+   stack once per run and fails fast with an actionable message if it never becomes ready.
+   `tests/setup.ts` is now just the re-export that ties them together.
 2. In your test, get an authenticated, anon-keyed client per owner from
    `createOwnerClient()` (`tests/helpers/auth.ts`). Each call signs up a fresh, distinct
    owner and returns `{ client, userId, email, password }`.
@@ -310,9 +324,10 @@ capturing anything surprising the phase taught.)
   reassignment) raise a hard RLS error. `.env.test` carries a service-role key solely for
   the cascade test's `auth.admin.deleteUser`; it is fenced to that one file.
 - **S-07 (`ui-design-system`)**: splitting `vitest.config.ts` into `unit` + `integration`
-  projects was the only way to test pure logic without Docker — `tests/setup.ts` is a global
-  setup file whose `beforeAll` demands a live stack, so before the split every test file paid
-  that cost. Note what is deliberately NOT tested here: no assertions on Tailwind classes or
+  projects was the only way to test pure logic without Docker — `tests/setup.ts` was then a
+  setup file whose `beforeAll` demanded a live stack, so before the split every test file paid
+  that cost. (It paid it per FILE, which `ci-quality-gates` measured in 2026-09 and fixed by
+  moving the readiness probes into a real `globalSetup`.) Note what is deliberately NOT tested here: no assertions on Tailwind classes or
   rendered colour (§7), only `resolveTheme`'s cookie → class rule, which is the slice's sole
   piece of branching logic. The visual work was verified by eye against the design.
 - **Phase 2 (auth gating, `testing-auth-gating`)**: the Phase-1 harness yields an in-memory

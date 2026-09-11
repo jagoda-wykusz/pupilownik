@@ -15,7 +15,7 @@ A modern, opinionated starter template for building fast, accessible web applica
 
 ## Prerequisites
 
-- Node.js v22.14.0 (as specified in `.nvmrc`)
+- Node.js v22.23.2 (as specified in `.nvmrc`)
 - npm (comes with Node.js)
 
 ## Getting Started
@@ -169,24 +169,30 @@ Set `SUPABASE_URL` and `SUPABASE_KEY` as secrets in your Cloudflare dashboard or
 
 ## CI / CD
 
-**Pushes deploy. Nothing tests them.**
+**Two gates, in two places, for two different failures.**
 
-Cloudflare Workers Builds is connected to this repository: a push builds and publishes the project. The build step runs the build command — `astro build` — and that is all. It does **not** run `npm run lint`, `npm test`, `npm run check:secrets`, or `astro check`. A broken test, a failing lint and a secret pasted into a client island all deploy exactly as cleanly as working code.
+|               | GitHub Actions                                                                                                                  | Workers Builds build command                                                                                          |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| What runs     | typecheck, lint, build, **all three vitest projects**, secret scan                                                              | typecheck, lint, build, **unit + component**, secret scan                                                             |
+| Needs         | a real Supabase stack (Docker)                                                                                                  | nothing but the repo                                                                                                  |
+| Can it block? | **No.** Private repo on GitHub Free — branch protection is unavailable, so a red run is a red X next to an enabled merge button | **Yes.** A non-zero exit produces no version, and no version means no deploy — including on a direct push to `master` |
 
-There is no GitHub Actions workflow; one existed and ran lint + build on every push and pull request until `b1fd059` deleted it (2026-06-27) in favour of the Workers Builds connection.
+The split is forced by the platforms, not chosen. The Cloudflare build container has no Docker, so `supabase start` cannot run there and the 22 integration files are permanently unrunnable in the publish gate. GitHub Actions is the only place they execute at all — and on this plan it can only report.
 
-Until the checks are wired into the build step, **run them yourself before pushing**:
+The publish gate is `npm run ci:gate`, defined in `package.json` rather than typed into the Cloudflare dashboard, so its contents live in git history where review can see them. The dashboard holds one line: `npm run ci:gate`. Order inside the chain is load-bearing — `astro check` regenerates `.astro/` that type-aware ESLint needs, and the build must precede the tests because `tests/unit/client-bundle.test.ts` scans `dist/client` and fails rather than skips without it.
+
+Run the same gate locally before pushing:
 
 ```bash
-npm run lint          # whole project; the pre-commit hook only lints STAGED files
-npm run build         # must run before `npm test` — the secret scan inspects dist/client
-npm test              # unit + component + integration (integration needs `npm run db:start`)
-npm run check:secrets # also runs inside `npm test`
+npm run ci:gate       # exactly what Cloudflare runs; ~1-2 min
+npm test              # adds the integration project (needs `npm run db:start`)
 ```
 
-A pre-commit hook runs `lint-staged` (eslint on staged code, prettier on staged json/css/md) and `npx astro check`. It is bypassable with `--no-verify` and does not run for anyone who has not installed hooks.
+`tests/unit/ci-gate-source.test.ts` pins both gates, so removing a step from either breaks a test. It cannot see the Cloudflare dashboard field: if the build command is ever set back to `npm run build`, that test still passes and nothing blocks publication any more.
 
-`SUPABASE_URL` and `SUPABASE_KEY` must be set in **two places**: as build-environment variables in the Workers Builds config, and as runtime secrets (`npx wrangler secret put`). Both are `optional: true` in `astro.config.mjs`, so a build succeeds without them and the failure surfaces at runtime instead.
+A pre-commit hook runs `lint-staged` (eslint on staged code, prettier on staged json/css/md) and `npm run check` — the same script the gate uses, so the two cannot drift apart. It is bypassable with `--no-verify` and does not run for anyone who has not installed hooks; the publish gate is not bypassable.
+
+`SUPABASE_URL` and `SUPABASE_KEY` must be set in **two places**: as build-environment variables in the Workers Builds config, and as runtime secrets (`npx wrangler secret put`). Both are `optional: true` in `astro.config.mjs`, so a build succeeds without them — but `npm run check:secrets` exits 2 when they are missing, so since the gate was wired their absence blocks publication rather than surfacing at runtime.
 
 See `context/foundation/test-plan.md` §5 for the full, verified gate inventory.
 

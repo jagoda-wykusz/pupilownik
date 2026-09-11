@@ -321,8 +321,11 @@ npm run db:push              # promote to the hosted project (separate from app 
 - `src/db/database.types.ts` is **generated, never hand-edited** — it is ignored by
   eslint and prettier. Regenerate it after _every_ migration; a stale file silently
   lies to the type checker.
-- Verify before committing: `npm run db:reset` (exit 0), `npx astro check`,
-  `npm run lint`, and `npx supabase db advisors --type security`.
+- Verify before committing: `npm run db:reset` (exit 0), `npm run check`,
+  `npm run lint`, and `npx supabase db advisors --type security`. `npm run ci:gate`
+  runs the first three of those plus the build and the fast test projects — it is what
+  Cloudflare runs as its build command, so a green gate locally is the same check that
+  decides whether a push publishes.
 
 ## Verifying RLS without the app
 
