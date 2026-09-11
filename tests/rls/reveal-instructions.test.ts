@@ -2,6 +2,16 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { beforeAll, describe, expect, it } from "vitest";
 import { digestInviteToken, generateClaimSecret, generateInviteToken } from "@/lib/invite-token";
 import { createAnonClient, createOwnerWithPet, type OwnerWithPetContext } from "../helpers/auth";
+import {
+  NOTE,
+  PUBLIC_BODY,
+  PUBLIC_TITLE,
+  SECRET_BODY,
+  SECRET_TITLE,
+  type ClaimedDetails,
+  type RevokedAnswer,
+  type TokenPayload,
+} from "../helpers/reveal";
 import { getTestEnv } from "../setup";
 import type { Database } from "@/db/database.types";
 
@@ -16,41 +26,6 @@ import type { Database } from "@/db/database.types";
 // test-plan.md:64 names the anti-pattern this file has to avoid: "asserting the DB column
 // split while the API leaks the field anyway". So the public-tier test does not check that a
 // column exists — it searches the WHOLE serialized payload for the sensitive body text.
-
-const SECRET_BODY = "Klucze u sąsiadki, mieszkanie 4. Kod do klatki 1234#";
-const SECRET_TITLE = "Dostęp do mieszkania";
-const PUBLIC_TITLE = "Karmienie";
-const PUBLIC_BODY = "Rano i wieczorem, pół szklanki suchej karmy.";
-const NOTE = "Burek boi się burzy — wtedy najlepiej zostać z nim w pokoju.";
-
-interface Instruction {
-  id: string;
-  title: string;
-  body: string | null;
-  sort_order: number;
-}
-interface Pet {
-  id: string;
-  name: string;
-  species: string;
-  instructions: Instruction[];
-}
-interface TokenPayload {
-  period: { id: string; title: string; start_date: string; end_date: string };
-  slots: { id: string; slot_date: string; time_of_day: string; is_claimed: boolean }[];
-  pets: Pet[];
-}
-interface ClaimedDetails {
-  name: string;
-  caretaker_note: string | null;
-  slots: { id: string; slot_date: string; time_of_day: string }[];
-  pets: Pet[];
-}
-/** S-06 Phase 2: what a PROVEN claim-holder gets once the period is revoked. One bit, no
- *  content — deliberately not assignable to ClaimedDetails. */
-interface RevokedAnswer {
-  revoked: true;
-}
 
 describe("the two-tier reveal", () => {
   let anon: SupabaseClient<Database>;

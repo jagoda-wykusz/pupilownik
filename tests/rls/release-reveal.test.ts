@@ -1,7 +1,15 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { digestInviteToken, generateClaimSecret, generateInviteToken } from "@/lib/invite-token";
+import { digestClaimSecret, digestInviteToken, generateClaimSecret, generateInviteToken } from "@/lib/invite-token";
 import { createAnonClient, createOwnerWithPet, type OwnerWithPetContext } from "../helpers/auth";
+import {
+  NOTE,
+  PUBLIC_TITLE,
+  SECRET_BODY,
+  SECRET_TITLE,
+  type ClaimedDetails,
+  type RevokedAnswer,
+} from "../helpers/reveal";
 import type { Database } from "@/db/database.types";
 
 // What releasing a term costs the caretaker who held it — Risk #5, the leg no test covered.
@@ -18,44 +26,26 @@ import type { Database } from "@/db/database.types";
 // backwards and shipped that way for months (corrected 2026-09-11); a claim nothing can falsify
 // is exactly how that happens. Both directions are pinned here so the next inversion fails.
 //
-// BOTH halves are load-bearing and neither is sufficient alone:
-//   A. releasing the last term collapses the reveal to NULL
-//   B. releasing one of two leaves the reveal alive, minus that term
-// An implementation that clears the reveal on ANY release passes A and fails B. One that never
-// clears it passes B and fails A.
+// THREE wrong implementations, and each case below is here to reject exactly one of them. The
+// first two were mutation-tested when the file landed; the third was found by review, which is
+// the honest note to keep — mutation testing only refutes the hypotheses you already hold.
 //
-// Note which NULL half A asserts: a plain null, NOT S-06's `{revoked: true}`. The trip is still
-// live; the caretaker simply no longer holds anything in it, so they fall back to the stranger's
-// answer rather than the called-off card.
+//   1. never clear claim_digest        → rejected by "collapses their reveal"
+//   2. clear the WHOLE capability      → rejected by "keeps the reveal alive"
+//   3. clear it across OTHER periods   → rejected by "leaves their other trip alone"
+//
+// A fourth statement has no mutation behind it and is here as composition rather than as a
+// guard: releasing a revoked trip's last term takes even the one-bit "called off" card away,
+// because the claim gate runs BEFORE the revoked branch. That ordering is asserted from the
+// other side in tests/unit/claimed-details-ordering.test.ts; here it is observed end to end.
 
-const SECRET_BODY = "Klucze u sąsiadki, mieszkanie 4. Kod do klatki 1234#";
-const SECRET_TITLE = "Dostęp do mieszkania";
-const PUBLIC_TITLE = "Karmienie";
-const NOTE = "Burek boi się burzy — wtedy najlepiej zostać z nim w pokoju.";
+interface ClaimColumns {
+  claimed_by_name: string | null;
+  claimed_at: string | null;
+  claim_digest: string | null;
+}
 
-interface Instruction {
-  id: string;
-  title: string;
-  body: string | null;
-  sort_order: number;
-}
-interface Pet {
-  id: string;
-  name: string;
-  species: string;
-  instructions: Instruction[];
-}
-interface ClaimedDetails {
-  name: string;
-  caretaker_note: string | null;
-  slots: { id: string; slot_date: string; time_of_day: string }[];
-  pets: Pet[];
-}
-/** S-06 Phase 2's one-bit answer. Kept as its own type so a test meaning "content came back"
- *  cannot be satisfied by it. */
-interface RevokedAnswer {
-  revoked: true;
-}
+const FREED: ClaimColumns = { claimed_by_name: null, claimed_at: null, claim_digest: null };
 
 describe("releasing a term and the caretaker's reveal", () => {
   let anon: SupabaseClient<Database>;
@@ -69,12 +59,16 @@ describe("releasing a term and the caretaker's reveal", () => {
     expect(error).toBeNull();
   }
 
+  // Dates vary per period on purpose: with every trip on the same two days, a defect that
+  // scoped by (slot_date, time_of_day) instead of period_id would be invisible here.
+  let nextDay = 1;
   async function seedPeriod(title: string): Promise<{ id: string; token: string }> {
+    const day = nextDay++;
     const token = generateInviteToken();
     const { data, error } = await owner.client.rpc("create_period_with_slots", {
       p_title: title,
-      p_start_date: "2027-03-01",
-      p_end_date: "2027-03-02",
+      p_start_date: `2027-03-${String(day).padStart(2, "0")}`,
+      p_end_date: `2027-03-${String(day + 1).padStart(2, "0")}`,
       p_token_digest: await digestInviteToken(token),
       p_pet_ids: [owner.petId],
       p_caretaker_note: NOTE,
@@ -99,14 +93,14 @@ describe("releasing a term and the caretaker's reveal", () => {
     return (data ?? []).map((slot) => slot.id);
   }
 
-  /** Take `count` slots with ONE fresh capability and hand back its raw secret. */
-  async function claim(periodId: string, token: string, count: number): Promise<{ secret: string; slotIds: string[] }> {
+  /** Take `count` slots of one period with the GIVEN capability, so one secret can be made to
+   *  span two trips — the state that exposes cross-period over-reach. */
+  async function claimWith(periodId: string, token: string, secret: string, count: number): Promise<string[]> {
     const free = await freeSlotIds(periodId);
     if (free.length < count) {
       throw new Error(`release-reveal test: wanted ${count} free slots, found ${free.length}`);
     }
     const slotIds = free.slice(0, count);
-    const secret = generateClaimSecret();
 
     const { error } = await anon.rpc("claim_slots", {
       p_token: token,
@@ -115,7 +109,13 @@ describe("releasing a term and the caretaker's reveal", () => {
       p_name: "Ania",
     });
     expect(error).toBeNull();
-    return { secret, slotIds };
+    return slotIds;
+  }
+
+  /** Mint-your-own convenience wrapper over claimWith. */
+  async function claim(periodId: string, token: string, count: number): Promise<{ secret: string; slotIds: string[] }> {
+    const secret = generateClaimSecret();
+    return { secret, slotIds: await claimWith(periodId, token, secret, count) };
   }
 
   async function reveal(token: string, secret: string): Promise<ClaimedDetails | RevokedAnswer | null> {
@@ -125,12 +125,16 @@ describe("releasing a term and the caretaker's reveal", () => {
   }
 
   /** Narrow to the content answer so "the payload came back" cannot be satisfied by
-   *  `{revoked: true}`. Throws rather than returning null, because every caller below has
-   *  already asserted the reveal is alive at that point. */
+   *  `{revoked: true}`. Throws rather than returning null, and names WHICH of the two non-content
+   *  answers arrived — the difference between "you hold nothing here" and "the trip was called
+   *  off" is the distinction this file exists to observe, so a failure must not flatten it. */
   async function revealContent(token: string, secret: string): Promise<ClaimedDetails> {
     const answer = await reveal(token, secret);
-    if (answer === null || "revoked" in answer) {
-      throw new Error("release-reveal test: expected a content answer from the reveal door");
+    if (answer === null) {
+      throw new Error("release-reveal test: expected content from the reveal door, got null");
+    }
+    if ("revoked" in answer) {
+      throw new Error("release-reveal test: expected content from the reveal door, got {revoked: true}");
     }
     return answer;
   }
@@ -138,18 +142,15 @@ describe("releasing a term and the caretaker's reveal", () => {
   async function release(periodId: string, slotId: string): Promise<void> {
     const { data, error } = await owner.client.rpc("release_slot", { p_period_id: periodId, p_slot_id: slotId });
     expect(error).toBeNull();
-    // The function returns the freed slot id; a NULL here means it matched nothing and the rest
-    // of the test would be asserting against a write that never happened.
+    // The function returns the freed slot id. A NULL means its WHERE matched nothing, so the
+    // rest of the test would be asserting against a write that never happened. This does not
+    // prove the SET wrote all three columns — the column reads below do that.
     expect(data).toBe(slotId);
   }
 
   /** Read one slot's three claim columns back as the owner. The function's return value is its
-   *  own account of what it did — anchoring both halves to the row keeps them honest. */
-  async function claimColumnsOf(slotId: string): Promise<{
-    claimed_by_name: string | null;
-    claimed_at: string | null;
-    claim_digest: string | null;
-  }> {
+   *  own account of what it did; anchoring to the row keeps every case honest. */
+  async function claimColumnsOf(slotId: string): Promise<ClaimColumns> {
     const { data, error } = await owner.client
       .from("care_slots")
       .select("claimed_by_name, claimed_at, claim_digest")
@@ -178,35 +179,33 @@ describe("releasing a term and the caretaker's reveal", () => {
       expect(before.slots.map((slot) => slot.id)).toEqual(slotIds);
       expect(JSON.stringify(before)).toContain(SECRET_BODY);
 
-      await release(period.id, slotIds[0] ?? "");
+      await release(period.id, slotIds[0]);
 
-      // The write actually landed, and it took the digest with it — that column is the whole
-      // mechanism behind the assertion below.
-      expect(await claimColumnsOf(slotIds[0] ?? "")).toEqual({
-        claimed_by_name: null,
-        claimed_at: null,
-        claim_digest: null,
-      });
+      // The write landed and took the digest with it — that column is the whole mechanism
+      // behind the assertion below.
+      expect(await claimColumnsOf(slotIds[0])).toEqual(FREED);
 
       const after = await reveal(period.token, secret);
-      // Plain null, not `{revoked: true}`: the trip is live, this caretaker simply holds nothing
-      // in it any more, so they get exactly the stranger's answer.
+      // Plain null: the trip is live, this caretaker simply holds nothing in it any more, so
+      // they get exactly the stranger's answer.
       expect(after).toBeNull();
     });
 
-    it("leaves the trip itself untouched for everyone else", async () => {
-      // Releasing is not revoking. A second caretaker who still holds a term keeps their reveal,
-      // which is what separates this from the S-06 path.
-      const period = await seedPeriod("Dwie zdolności");
-      const first = await claim(period.id, period.token, 1);
-      const second = await claim(period.id, period.token, 1);
+    it("takes even the called-off card from a holder on a REVOKED trip", async () => {
+      // The composition the header names. `get_claimed_details` checks the claim gate BEFORE it
+      // branches on revoked_at, so releasing the holder's last term drops them out of the gate
+      // and the one-bit status goes with it. This is what prd.md §Open Questions #5 means by
+      // "bulk release would change what the caretaker sees, and change it for the worse" — here
+      // it is observed rather than argued.
+      const period = await seedPeriod("Odwołany i zwolniony");
+      const { secret, slotIds } = await claim(period.id, period.token, 1);
 
-      await release(period.id, first.slotIds[0] ?? "");
+      expect((await owner.client.rpc("revoke_period", { p_period_id: period.id })).data).toBe(period.id);
+      expect(await reveal(period.token, secret)).toEqual({ revoked: true });
 
-      expect(await reveal(period.token, first.secret)).toBeNull();
-      const survivor = await revealContent(period.token, second.secret);
-      expect(survivor.slots.map((slot) => slot.id)).toEqual(second.slotIds);
-      expect(survivor.caretaker_note).toBe(NOTE);
+      await release(period.id, slotIds[0]);
+
+      expect(await reveal(period.token, secret)).toBeNull();
     });
   });
 
@@ -223,25 +222,42 @@ describe("releasing a term and the caretaker's reveal", () => {
 
       const after = await revealContent(period.token, secret);
       expect(after.slots.map((slot) => slot.id)).toEqual([kept]);
-      // Everything the reveal exists to serve survives — this is the half that fails if an
+      // Everything the reveal exists to serve survives — this is the case that fails if an
       // implementation clears the capability on any release rather than on its last term.
       expect(after.caretaker_note).toBe(NOTE);
-      expect(JSON.stringify(after)).toContain(SECRET_BODY);
       expect(after.name).toBe("Ania");
     });
 
-    it("keeps the kept term's digest intact while the freed one is cleared", async () => {
-      // The two rows shared one capability, so a release that reached further than the slot it
-      // was given would show up here as a cleared digest on the row nobody released.
-      const period = await seedPeriod("Digest sąsiada");
-      const { slotIds } = await claim(period.id, period.token, 2);
-      const [released, kept] = slotIds;
+    it("leaves their OTHER trip alone, including its digest", async () => {
+      // One capability across two trips — the state a caretaker who helps two households is in,
+      // and which tests/rls/reveal-instructions.test.ts already treats as realistic. Without
+      // this case, an implementation that cleared every row carrying the digest in ANY period
+      // passes the whole file while silently cutting that caretaker out of their second trip.
+      //
+      // The kept row's digest is compared against an INDEPENDENTLY derived value, not against a
+      // snapshot of itself: an all-null snapshot would otherwise equal an all-null re-read and
+      // the case would pass having proved nothing.
+      const secret = generateClaimSecret();
+      const digest = await digestClaimSecret(secret);
 
-      const keptBefore = await claimColumnsOf(kept);
-      await release(period.id, released);
+      const here = await seedPeriod("Dom pierwszy");
+      const there = await seedPeriod("Dom drugi");
+      const [releasedId] = await claimWith(here.id, here.token, secret, 1);
+      const [keptId] = await claimWith(there.id, there.token, secret, 1);
 
-      expect((await claimColumnsOf(released)).claim_digest).toBeNull();
-      expect(await claimColumnsOf(kept)).toEqual(keptBefore);
+      expect((await claimColumnsOf(keptId)).claim_digest).toBe(digest);
+
+      await release(here.id, releasedId);
+
+      expect(await claimColumnsOf(releasedId)).toEqual(FREED);
+      const keptAfter = await claimColumnsOf(keptId);
+      expect(keptAfter.claimed_by_name).toBe("Ania");
+      expect(keptAfter.claimed_at).not.toBeNull();
+      expect(keptAfter.claim_digest).toBe(digest);
+      // And the reveal for the other trip still answers in full.
+      const other = await revealContent(there.token, secret);
+      expect(other.slots.map((slot) => slot.id)).toEqual([keptId]);
+      expect(JSON.stringify(other)).toContain(SECRET_BODY);
     });
   });
 });
