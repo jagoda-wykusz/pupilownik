@@ -429,14 +429,14 @@ None. No migration ships in this change; scratch migrations used for mutation ch
 
 #### Automated
 
-- [x] 5.1 Component project passes: `npx vitest run --project component`
-- [x] 5.2 Full suite passes: `npm test`
-- [x] 5.3 Type check passes: `npx astro check`
-- [x] 5.4 Lint passes: `npm run lint`
-- [x] 5.5 Build passes: `npm run build`
+- [x] 5.1 Component project passes: `npx vitest run --project component` — e602673
+- [x] 5.2 Full suite passes: `npm test` — e602673
+- [x] 5.3 Type check passes: `npx astro check` — e602673
+- [x] 5.4 Lint passes: `npm run lint` — e602673
+- [x] 5.5 Build passes: `npm run build` — e602673
 
 #### Manual
 
-- [x] 5.6 Mutation check: a differing release miss message fails the `toEqual` comparison
-- [x] 5.7 Mutation check: adding a `Content-Type` header in `RegenerateLinkButton` fails its test
-- [x] 5.8 §7 and §6.6 read back against the shipped code, every present-tense claim verified
+- [x] 5.6 Mutation check: a differing release miss message fails the `toEqual` comparison — e602673
+- [x] 5.7 Mutation check: adding a `Content-Type` header in `RegenerateLinkButton` fails its test — e602673
+- [x] 5.8 §7 and §6.6 read back against the shipped code, every present-tense claim verified — e602673
