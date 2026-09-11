@@ -376,14 +376,14 @@ None. No migration ships in this change; scratch migrations used for mutation ch
 
 #### Automated
 
-- [ ] 2.1 New file passes: `npx vitest run --project integration tests/rls/release-reveal.test.ts`
-- [ ] 2.2 Full suite passes: `npm test`
-- [ ] 2.3 Lint passes: `npm run lint`
+- [x] 2.1 New file passes: `npx vitest run --project integration tests/rls/release-reveal.test.ts`
+- [x] 2.2 Full suite passes: `npm test`
+- [x] 2.3 Lint passes: `npm run lint`
 
 #### Manual
 
-- [ ] 2.4 Mutation check: dropping `claim_digest` from `release_slot`'s SET list fails Half A
-- [ ] 2.5 The two halves are independent — commenting out either leaves the other passing
+- [x] 2.4 Mutation check: dropping `claim_digest` from `release_slot`'s SET list fails Half A
+- [x] 2.5 The two halves are independent — commenting out either leaves the other passing
 
 ### Phase 3: A valid token opens nothing on the owner side (Risk #5)
 
