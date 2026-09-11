@@ -243,9 +243,19 @@ p_claim_secret, p_name)`, `VOLATILE` — a separate function because Postgres
    owner can now free one taken term at a time. What S-06 then settled is the rest:
    revoking a trip does **not** release the terms already taken, and that is a
    recorded product decision, not an outstanding item. The reason is not obvious
-   and is worth keeping here: the caretaker's 404 comes from `revoked_at` killing
-   token resolution **before** `claim_digest` is read, so a bulk release would
-   change nothing the caretaker sees — only what the owner sees. Reopening it would
+   and is worth keeping here — **corrected 2026-09-11**, because the reason first
+   recorded was the pre-Phase-2 one and it was inverted. It said the caretaker's 404
+   comes from `revoked_at` killing token resolution _before_ `claim_digest` is read,
+   so a bulk release would change nothing the caretaker sees. Phase 2 made that
+   false in both halves: the digest is now read FIRST (see the ordering above), and
+   `release_slot` nulls `claim_digest`, so releasing a holder's terms makes them
+   fail the claim gate and replaces their "the trip was called off" card with a
+   stranger's dead link. Measured: `{"revoked": true}` before the release, `NULL`
+   after.
+
+   So bulk release changes exactly what the caretaker sees, and changes it for the
+   **worse** — which makes the decision not to do it better founded than the
+   original note claimed, not worse. Reopening it would
    need its own bulk function, because `release_slot`'s scalar arity and scalar
    return cannot express "released 7 of 12". Recorded in `prd.md` §Open Questions.
 

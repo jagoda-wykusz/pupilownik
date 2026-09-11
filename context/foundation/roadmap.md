@@ -41,7 +41,7 @@ Rdzeń wartości — czyli ta jedna cecha, po usunięciu której produkt staje s
 | S-03 | caretaker-claims-slot       | opiekun otwiera link i zajmuje wolny slot (bez podwójnej obsady)   | S-08          | FR-007, FR-008, FR-009, US-02 | done     |
 | S-04 | owner-occupancy-view        | właściciel widzi pełną obsadę okresu — kto zajął którą porę        | S-03          | FR-006, US-01                 | done     |
 | S-05 | caretaker-names-visibility  | opiekun widzi imiona innych opiekunów w obrębie okresu             | S-03          | FR-011                        | proposed |
-| S-06 | close-care-period           | właściciel zamyka/odwołuje okres i unieważnia link                 | S-02          | FR-012                        | ready    |
+| S-06 | close-care-period           | właściciel zamyka/odwołuje okres i unieważnia link                 | S-02          | FR-012                        | done     |
 
 Pozostała ścieżka must-have (czyli minimalny zestaw wymagań, bez których PRD nie uznaje MVP za działające): **S-03 → S-04**. Wszystko inne jest nice-to-have albo już wylądowało.
 
@@ -197,13 +197,13 @@ Otwarty dług z designu: pole **`NOTATKA`** (wolny tekst na poziomie okresu) wyp
 
 ### S-06: Właściciel zamyka / odwołuje okres
 
-- **Outcome:** właściciel może **odwołać** okres opieki — jednym, nieodwracalnym działaniem, które unieważnia link zapraszający (odwołany wyjazd, wrażliwy link) — a opiekun, który zajął już termin, dowiaduje się przy wejściu na link, że wyjazd został odwołany, zamiast widzieć tę samą martwą stronę co obcy.
+- **Outcome:** właściciel może **odwołać** okres opieki — jednym działaniem, które unieważnia link zapraszający (odwołany wyjazd, wrażliwy link) i jest nieodwracalne na każdej ścieżce produktowej: nie ma un-revoke, a `regenerate_period_token` odmawia odwołanemu okresowi. Jest to **decyzja produktowa, nie ograniczenie schematu** — `care_periods_update_own` nie ma granularności kolumnowej, więc bezpośredni UPDATE właściciela wciąż tę kolumnę czyści. Opiekun, który zajął termin **i wciąż ma swoją capability**, dowiaduje się przy wejściu na link, że wyjazd został odwołany, zamiast widzieć tę samą martwą stronę co obcy; po zwolnieniu jego terminu albo utracie ciasteczka wraca do strony generycznej.
 - **Change ID:** close-care-period
 - **PRD refs:** FR-012 (nice-to-have)
 - **Prerequisites:** S-02 (spełnione)
 - **Parallel with:** S-03, S-04, S-05
 - **Blockers:** —
-- **Unknowns:** **Sprostowane 2026-09-11 — to pole mówiło „—", i było to nieprawdą.** Slice niósł cztery decyzje produktowe, których repo nie rozstrzygało, a dwa komentarze migracji oddawały je S-06 **z nazwy** (`20260906003122:32,120-121`). Jak wylądowały: (1) **jedna akcja, nie dwie** — `prd.md:140` traktuje zamknięcie i odwołanie jako jeden identyczny efekt, runda sokratejska przyjęła „okres mija sam", a schemat ma jedną oś lifecycle, więc „zamknąć" nie stało się osobnym działaniem; (2) **nieodwracalne** — brak un-revoke, wymuszone predykatem `revoked_at is null` w `revoke_period` oraz odmową `regenerate_period_token`; (3) **posiadacz claimu dostaje odrębną odpowiedź** — `get_claimed_details` rozwiązuje okres bez filtra i za bramką digestu odpowiada `{"revoked": true}`, co jest drugim świadomym poszerzeniem reguły 4 (`docs/reference/data-access.md`); (4) **zwalnianie zajętych terminów NIE weszło** — 404 powstaje, zanim `claim_digest` jest czytany, więc masowe zwolnienie nie zmienia nic, co opiekun widzi.
+- **Unknowns:** **Sprostowane 2026-09-11 — to pole mówiło „—", i było to nieprawdą.** Slice niósł cztery decyzje produktowe, których repo nie rozstrzygało, a dwa komentarze migracji oddawały je S-06 **z nazwy** (`20260906003122:32,120-121`). Jak wylądowały: (1) **jedna akcja, nie dwie** — sekcja Access Control w `prd.md` traktuje zamknięcie i odwołanie jako jeden identyczny efekt, runda sokratejska przyjęła „okres mija sam", a schemat ma jedną oś lifecycle, więc „zamknąć" nie stało się osobnym działaniem; (2) **nieodwracalne** — brak un-revoke, decyzja produktowa, nie ograniczenie: predykat `revoked_at is null` w `revoke_period` czyni drugie wywołanie no-opem i chroni oryginalny znacznik czasu, a `regenerate_period_token` odmawia — ale bezpośredni UPDATE właściciela wciąż kolumnę czyści, bo polityka nie ma granularności kolumnowej; (3) **posiadacz claimu dostaje odrębną odpowiedź** — `get_claimed_details` rozwiązuje okres bez filtra i za bramką digestu odpowiada `{"revoked": true}`, co jest drugim świadomym poszerzeniem reguły 4 (`docs/reference/data-access.md`); (4) **zwalnianie zajętych terminów NIE weszło** — powód zapisany pierwotnie („404 powstaje, zanim `claim_digest` jest czytany") pochodził ze stanu przed fazą 2 i był odwrócony; **sprostowany 2026-09-11**: `release_slot` zeruje `claim_digest`, więc zwolnienie terminów odbiera opiekunowi kartę „wyjazd odwołany" i zwraca mu martwy link obcego — zmienia dokładnie to, co widzi, i na gorsze.
 - **Risk:** Nice-to-have, ale prerekwizyty ma spełnione od 2026-09-06, więc był plannowalny od dziś — jedyna pozycja, którą dało się poprowadzić równolegle do gwiazdy przewodniej. Teza „ścieżka unieważnienia jest już częściowo pokryta" okazała się trafna co do mechanizmu i myląca co do kosztu: sam zapis był szablonem `release_slot`, ale slice'owi przypadło rozstrzygnięcie, **co odwołanie znaczy dla opiekuna**, co dotknęło funkcji dostępnej dla `anon` i wymagało wyrównania pracy wykonywanej przez tę funkcję (impl-review fazy 2, F2).
 - **Status:** done
 
@@ -219,7 +219,7 @@ Otwarty dług z designu: pole **`NOTATKA`** (wolny tekst na poziomie okresu) wyp
 | S-03       | caretaker-claims-slot       | Opiekun zajmuje slot przez link (atomowo)                       | done                  | Zarchiwizowane 2026-09-08                        |
 | S-04       | owner-occupancy-view        | Widok obsady okresu dla właściciela                             | no                    | Ostatni must-have; po S-03                       |
 | S-05       | caretaker-names-visibility  | Widoczność imion opiekunów w okresie                            | no                    | Nice-to-have; po S-03                            |
-| S-06       | close-care-period           | Zamknięcie/odwołanie okresu + unieważnienie linku               | yes                   | Nice-to-have, ale plannowalny równolegle do S-03 |
+| S-06       | close-care-period           | Zamknięcie/odwołanie okresu + unieważnienie linku               | done                  | Nice-to-have, ale plannowalny równolegle do S-03 |
 
 ## Open Roadmap Questions
 

@@ -5,13 +5,20 @@
 --
 -- Phase 1 wrote "closing all three anon doors at once", which was true when it was written.
 -- Phase 2 then dropped the revoked filter from get_claimed_details, so the third door no longer
--- closes — it ANSWERS, with one bit, to a caller who can prove a claim. That correction was
--- made in docs/reference/data-access.md and in the contract-surfaces registry during the Phase 2
--- review (F7), and in both places the phrase became "closes the read and write doors and reduces
--- the third to a one-bit status". The function's own comment was the third copy of the sentence
--- and it was missed, which is the whole reason Phase 4 re-reads this slice's own edits rather
--- than trusting them (context/foundation/lessons.md, and the closing note of
--- 2026-09-08-owner-occupancy-view's impl-review).
+-- closes — it ANSWERS, with one bit, to a caller who can prove a claim. That correction was made
+-- in docs/reference/data-access.md and in the contract-surfaces registry's care_periods.revoked_at
+-- row during the Phase 2 review (F7), where the phrase became "closes the read and write doors
+-- and reduces the third to a one-bit status". This comment was another copy and was missed, which
+-- is the whole reason Phase 4 re-reads this slice's own edits rather than trusting them
+-- (context/foundation/lessons.md, and the closing note of 2026-08-08-owner-occupancy-view's
+-- impl-review).
+--
+-- CORRECTION (full-plan review F3, 2026-09-11): the paragraph above originally claimed this was
+-- the THIRD copy and that the registry had been fixed. Both were wrong — the registry's
+-- revoke_period row still carried the sentence, and a test file carried it too, so there were
+-- five copies and two survived this migration. Fixed there separately. Recorded rather than
+-- rewritten: a migration whose purpose is to retire a stale sentence should not quietly acquire
+-- a stale sentence of its own.
 --
 -- Refreshed by a new statement rather than by editing 20260910120000, which is the same
 -- supersede move Phase 2 made for the revoked_at COLUMN comment and for the same reason: a

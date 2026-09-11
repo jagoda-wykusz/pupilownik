@@ -1,6 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { beforeAll, describe, expect, it } from "vitest";
-import { digestInviteToken, generateInviteToken } from "@/lib/invite-token";
+import { digestInviteToken, generateClaimSecret, generateInviteToken } from "@/lib/invite-token";
 import { createAnonClient, createOwnerWithPet, type OwnerWithPetContext } from "../helpers/auth";
 import { getTestEnv } from "../setup";
 import type { Database } from "@/db/database.types";
@@ -55,10 +55,22 @@ describe("revoke_period — the owner's revoke door", () => {
     return { id: data.id, token };
   }
 
-  async function periodOf(owner: OwnerWithPetContext, periodId: string): Promise<PeriodRow | undefined> {
+  // THROWS on absence rather than returning undefined (full-plan review). The caller is always
+  // the owning owner reading their own row, so a missing row is a bug in the test, not a case —
+  // and `undefined` slipping through is what made `expect(...).not.toBeNull()` unfailable, since
+  // Vitest's toBeNull is `Object.is(x, null)` and therefore ACCEPTS undefined. The negative
+  // assertions were always safe; only the positive ones were hollow.
+  async function periodOf(owner: OwnerWithPetContext, periodId: string): Promise<PeriodRow> {
     const { data, error } = await owner.client.from("care_periods").select(PERIOD_COLUMNS).eq("id", periodId);
     expect(error).toBeNull();
-    return (data ?? [])[0];
+    // Length, not `row === undefined`: this tsconfig has noUncheckedIndexedAccess off, so the
+    // element type is non-optional and an undefined check reads as unreachable to eslint —
+    // while being entirely reachable at runtime, which is the whole point of the throw.
+    const rows = data ?? [];
+    if (rows.length === 0) {
+      throw new Error(`revoke-period test: no care_periods row ${periodId} visible to its owner`);
+    }
+    return rows[0];
   }
 
   async function resolves(token: string): Promise<boolean> {
@@ -114,7 +126,7 @@ describe("revoke_period — the owner's revoke door", () => {
 
       // And the link still works: the refusal happened before the body ran.
       await expect(resolves(period.token)).resolves.toBe(true);
-      expect((await periodOf(a, period.id))?.revoked_at).toBeNull();
+      expect((await periodOf(a, period.id)).revoked_at).toBeNull();
     });
 
     it("service_role may NOT execute it", async () => {
@@ -146,20 +158,81 @@ describe("revoke_period — the owner's revoke door", () => {
       expect(data).toBe(period.id);
 
       // Read back from the table, not from the return value.
-      expect((await periodOf(a, period.id))?.revoked_at).not.toBeNull();
+      expect((await periodOf(a, period.id)).revoked_at).not.toBeNull();
 
-      // The effect that matters to the caretaker, through the door they actually use. This is
-      // what makes the test cover the FEATURE and not just the column write: the three anon
-      // doors share one `revoked_at is null` predicate, so killing the read door is the
-      // observable half of closing all three.
+      // The effect that matters to the caretaker, through the door they actually use.
+      //
+      // Corrected (full-plan review): this used to say "the three anon doors share one
+      // `revoked_at is null` predicate, so killing the read door is the observable half of
+      // closing all three" — false since Phase 2, and it was the justification for treating
+      // ONE read-door assertion as covering the whole feature. The read and write doors share
+      // the predicate; the reveal door does not. So this line is the observable half at THIS
+      // layer only, and the reveal door's behaviour is pinned in the case below plus
+      // tests/rls/reveal-instructions.test.ts.
       await expect(resolves(period.token)).resolves.toBe(false);
+    });
+
+    it("makes the reveal door answer a proven claim-holder that the trip was called off", async () => {
+      // The JOIN between the write half and the read half, which nothing covered (full-plan
+      // review): every other test of the caretaker-facing answer sets `revoked_at` by a direct
+      // owner UPDATE, so the two halves were each covered and never connected. If revoke_period
+      // wrote the wrong column, the read-door assertion above would catch it — but nothing
+      // proved that the function this slice shipped is what produces the one-bit answer the
+      // slice exists for.
+      const period = await seedPeriod(a, "A-lacznik", "2027-06-20", "2027-06-21");
+
+      const slots = await a.client
+        .from("care_slots")
+        .select("id")
+        .eq("period_id", period.id)
+        .order("slot_date")
+        .order("time_of_day")
+        .limit(1);
+      expect(slots.error).toBeNull();
+      const slotId = slots.data?.[0]?.id;
+      if (slotId === undefined) {
+        throw new Error("revoke-period test: no slot to claim");
+      }
+
+      const secret = generateClaimSecret();
+      expect(
+        (
+          await anon.rpc("claim_slots", {
+            p_token: period.token,
+            p_slot_ids: [slotId],
+            p_claim_secret: secret,
+            p_name: "Ania",
+          })
+        ).error,
+      ).toBeNull();
+
+      // Live trip: the holder gets the full payload.
+      const before = await anon.rpc("get_claimed_details", { p_token: period.token, p_claim_secret: secret });
+      expect(before.error).toBeNull();
+      expect(Object.keys((before.data ?? {}) as object)).toContain("caretaker_note");
+
+      // Revoke through the FUNCTION, not a direct UPDATE.
+      expect((await revoke(a.client, period.id)).data).toBe(period.id);
+
+      const after = await anon.rpc("get_claimed_details", { p_token: period.token, p_claim_secret: secret });
+      expect(after.error).toBeNull();
+      expect(Object.keys((after.data ?? {}) as object)).toEqual(["revoked"]);
+
+      // And a caller who cannot prove a claim still sees nothing at all, so the join did not
+      // widen the answer beyond the holder.
+      const stranger = await anon.rpc("get_claimed_details", {
+        p_token: period.token,
+        p_claim_secret: generateClaimSecret(),
+      });
+      expect(stranger.error).toBeNull();
+      expect(stranger.data).toBeNull();
     });
 
     it("answers NULL on a second revoke and preserves the ORIGINAL timestamp", async () => {
       const period = await seedPeriod(a, "A-dwa-razy", "2027-06-10", "2027-06-11");
 
       expect((await revoke(a.client, period.id)).data).toBe(period.id);
-      const first = (await periodOf(a, period.id))?.revoked_at;
+      const first = (await periodOf(a, period.id)).revoked_at;
       expect(first).not.toBeNull();
 
       const { data, error } = await revoke(a.client, period.id);
@@ -171,7 +244,7 @@ describe("revoke_period — the owner's revoke door", () => {
 
       // And the write really is once-only: without the predicate this would be a fresh now(),
       // silently moving the answer to "when was this trip called off".
-      expect((await periodOf(a, period.id))?.revoked_at).toBe(first);
+      expect((await periodOf(a, period.id)).revoked_at).toBe(first);
     });
 
     it("answers NULL for another owner's period and leaves their link live", async () => {
@@ -184,7 +257,7 @@ describe("revoke_period — the owner's revoke door", () => {
       expect(error).toBeNull();
       expect(data).toBeNull();
 
-      expect((await periodOf(b, theirs.id))?.revoked_at).toBeNull();
+      expect((await periodOf(b, theirs.id)).revoked_at).toBeNull();
       await expect(resolves(theirs.token)).resolves.toBe(true);
     });
 

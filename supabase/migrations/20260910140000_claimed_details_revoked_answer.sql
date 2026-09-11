@@ -18,7 +18,7 @@
 -- on a claim_digest matching a care_slots row IN THIS PERIOD — and that digest is the sha256
 -- of a 43-char secret this function never returns and the database only ever stores hashed
 -- (20260907171514_claim_secret_not_digest.sql). It is unforgeable, and holding one is provable
--- only by having claimed while the link was live (src/pages/invite/claim.ts:96-105).
+-- only by having claimed while the link was live (the mint-and-claim block in src/pages/invite/claim.ts).
 --
 -- So the one bit is disclosed only to someone who already had it: they knew the period existed,
 -- because they claimed a slot in it. This is a STRICTLY WEAKER widening than S-03's accepted
@@ -134,10 +134,18 @@ begin
   -- state the schema permits — one digest carrying two names, reachable only through a direct
   -- owner UPDATE — both functions must at least agree on which name they mean.
   --
-  -- `coalesce(v_period.id, ...)` is the equalisation, not a lookup that can succeed: on a
+  -- `coalesce(v_period.id, ...)` is the equalisation, not a lookup meant to succeed: on a
   -- missed period lookup v_period is all-NULLs (verified: `found=f`, `id is null`), and the
-  -- all-zero uuid is not a generatable primary key, so this probe is guaranteed to miss. Its
-  -- only purpose is to make the miss cost the same index probe as a hit would.
+  -- all-zero uuid is not a value `gen_random_uuid()` produces, so this probe misses for every
+  -- period this application creates. Its only purpose is to make the miss cost the same index
+  -- probe as a hit would.
+  --
+  -- Corrected (full-plan review): an earlier version of this comment said the zero uuid "is not
+  -- a generatable primary key", which is false — `care_periods` grants INSERT to authenticated
+  -- with no column list and `care_periods_insert_own` checks only `owner_id`, so an owner can
+  -- plant a row with that id. It changes nothing: the `v_period_found` gate below returns first,
+  -- so a planted row is unreachable from here. The point is that the sentence asserted what the
+  -- catalog permits without reading it, in the file whose header argues for reading it.
   --
   -- Unqualified on purpose, despite `search_path = ''`: COALESCE is a SQL construct, not a
   -- function, so `pg_catalog.coalesce` does not resolve — it raises 42883 at RUNTIME, which

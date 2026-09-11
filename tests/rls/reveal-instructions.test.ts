@@ -438,8 +438,10 @@ describe("the two-tier reveal", () => {
       // This is the assertion that bites: a future edit attaching the title, the note or the
       // caretaker's name to this branch adds a key, and the key set is the one thing such an
       // edit cannot leave alone.
+      // The key set alone. A `not.toContain("caretaker_note")` used to follow this line and
+      // could not fail once the exact equality passed — the fifth instance of the very
+      // construction impl-review F3 removed, left behind inside F3's own fix (full-plan review).
       expect(Object.keys(after ?? {})).toEqual(["revoked"]);
-      expect(Object.keys(after ?? {})).not.toContain("caretaker_note");
     });
 
     it("keeps a revoked period byte-identical to a stranger for anyone who cannot prove a claim", async () => {

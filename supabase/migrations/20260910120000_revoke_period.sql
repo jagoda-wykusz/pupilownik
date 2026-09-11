@@ -1,6 +1,6 @@
 -- S-06 Phase 1: the revoke door, and irreversibility made a property of the database.
 --
--- FR-012 shipped as ONE action, "odwołaj", not two. prd.md:140 already treats closing and
+-- FR-012 shipped as ONE action, "odwołaj", not two. prd.md's Access Control section already treats closing and
 -- revoking as one identical effect ("po zamknięciu/odwołaniu okresu link przestaje działać"),
 -- the PRD's own Socratic round accepted the counter-argument "okres mija sam, ręczne
 -- zamykanie zbędne", and this schema has exactly ONE lifecycle axis to hang a state on:
@@ -37,10 +37,21 @@
 -- auto-expiry fails exactly then"): revocation violates that principle by design, which is
 -- fine when the owner intends it and is why the control confirms before firing.
 --
+-- DATED 2026-09-11 (full-plan review F-C). Two clauses of the paragraph above were true when
+-- this migration was written and Phase 2 made them false: get_claimed_details no longer shares
+-- the predicate — it answers a proven claim-holder with one bit — and "no notification" means
+-- no PUSH notification, since such a holder now learns it on the page. Left standing rather
+-- than rewritten, because an applied migration is history; the current description lives in
+-- this function's catalog comment (refreshed by 20260911100000), in
+-- docs/reference/contract-surfaces.md and in rule 4 of docs/reference/data-access.md. Do not
+-- cite this paragraph as current. Note that the hedge further down this file got Phase 2 right
+-- while this paragraph did not — the same file, two different tenses, which is exactly how the
+-- class recurs.
+--
 -- release_slot.sql:20-25 recorded the single-caretaker version of that sentence for freeing one
 -- term. This is the all-at-once version. "No notification to the caretaker" is the same scope
--- decision, not an oversight: this product has zero contact columns in any of its 16
--- migrations and no stable caretaker identity to address (src/lib/caretaker-name.ts:151), and
+-- decision, not an oversight: this product has zero contact columns in ANY
+-- migration and no stable caretaker identity to address (see the "no stable caretaker identity" note in src/lib/caretaker-name.ts), and
 -- prd.md:97 makes the owner's own channel the design — "jeden link do wysłania dowolnym
 -- kanałem to najniższe tarcie". The owner already messages these people.
 --

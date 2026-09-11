@@ -85,7 +85,14 @@ An owner on `/periods/[id]` sees an "Odwołaj wyjazd" control that takes two tap
 confirmed, permanently kills the invite link — enforced in SQL, not in the browser. A caretaker who
 had claimed slots and reopens their link is told the trip was called off, in Polish, on a page that
 no longer sends them to ask for a replacement link nobody can issue. A stranger with a typo sees
-exactly what they see today, byte for byte.
+exactly what a revoked-and-unproven visitor sees, byte for byte.
+
+> **Corrected 2026-09-11, full-plan review.** This clause originally read "exactly what they see
+> today, byte for byte", which the plan then contradicted in Phase 2 change 4 — that change
+> _required_ rewriting the generic dead-link card, because the old copy promised a replacement
+> link the owner is now blocked from minting. The property actually shipped, and the one worth
+> stating, is indistinguishability between a revoked link and a typo — not sameness with the
+> pre-slice page.
 
 **Verification**: `npm run test` green (including a test that fails in **both** directions on the
 widening — a non-holder must NOT learn the period exists, and a holder MUST get the distinct
@@ -104,11 +111,23 @@ answer); `npm run lint`; `npx astro check`; the manual walkthrough in Phase 3's 
   consequence of S-02's deliberate no-expiry decision (_"a caretaker still needs the instructions
   on the last evening; auto-expiry fails exactly then"_), it predates this slice, and it stays out.
   Recorded as an open question, not silently absorbed.
-- **No bulk release of claimed slots.** Owner decision. Decisive reason it is separable: the 404
-  comes from `revoked_at` killing token resolution _before_ `claim_digest` is read, so
-  bulk-releasing changes **nothing** the caretaker sees. `release_slot` is not reusable as written
+- **No bulk release of claimed slots.** Owner decision. The reason recorded here at planning time
+  was: "the 404 comes from `revoked_at` killing token resolution _before_ `claim_digest` is read,
+  so bulk-releasing changes **nothing** the caretaker sees."
+
+  > **Corrected 2026-09-11, full-plan review F1.** That was true of the function as it stood when
+  > this plan was written, and Phase 2 inverted both halves of it. The digest is now read first,
+  > and `release_slot` nulls `claim_digest` — so releasing a holder's terms makes them fail the
+  > claim gate and **takes away** their "the trip was called off" card, handing back a stranger's
+  > dead link. Measured: `{"revoked": true}` before the release, `NULL` after. Bulk release
+  > therefore changes exactly what the caretaker sees, and for the worse, which leaves the
+  > decision better founded than this paragraph originally argued. This sentence was the source
+  > copy for the same error in `data-access.md`, `prd.md` and `roadmap.md`; all four are fixed.
+
+  `release_slot` is not reusable as written
   (scalar arity; a scalar return cannot express "released 7 of 12"; this repo's rule makes a
   signature change a drop+create with fresh grants).
+
 - **No notification to the caretaker.** Settled precedent for the structurally identical case:
   `release_slot.sql:20-25` — _"a scope decision, not an oversight"_. The product has zero contact
   columns across all 16 migrations and no stable caretaker identity (`caretaker-name.ts:151`).
