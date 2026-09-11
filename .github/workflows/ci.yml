@@ -1,0 +1,110 @@
+# The full test suite, including the 22 integration files that need a real database.
+#
+# WHAT THIS IS, AND WHAT IT IS NOT. This repository is PRIVATE on the GitHub Free plan, where
+# branch protection and rulesets are unavailable — so a red run here CANNOT block a merge, at any
+# price, and nothing in this file should be written as if that will change. It is a signal.
+#
+# The thing that actually blocks is elsewhere: `npm run ci:gate` is the Cloudflare Workers Builds
+# build command, and a non-zero exit there produces no version, which means no deploy. That gate
+# runs lint, typecheck, build, the unit + component projects and the secret scan — everything
+# except the integration suite.
+#
+# WHY THE SPLIT IS FORCED, not chosen: the Cloudflare build container has no Docker, so
+# `supabase start` cannot run there, and the 22 integration files are permanently unrunnable in
+# the publish gate. This workflow is the only environment in which they execute at all. Between
+# the two, everything that can be checked is checked, and everything that can block does.
+
+name: CI
+
+on:
+  push:
+  pull_request:
+
+# One run per ref. A push onto a branch with an open PR would otherwise hold two ~10-minute runs
+# open for the same commit, and the older one is never the interesting result.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  suite:
+    runs-on: ubuntu-latest
+    # Well above the ~9-12 minute expectation, and deliberately not tight: a job killed by its own
+    # timeout reports nothing useful, and the failure mode worth catching here is a hung stack,
+    # which the readiness probes already bound with their own message.
+    timeout-minutes: 25
+
+    env:
+      # The production Supabase host, so the bundle scan guards the REAL project here and not only
+      # the throwaway local stack. It has to be passed explicitly because SUPABASE_URL in this job
+      # must point at 127.0.0.1 — tests/env.ts refuses any non-localhost host, since the suite
+      # creates and deletes users. A project ref is not a secret (see scripts/check-client-bundle.mjs),
+      # which is why it is in the file where review can see it rather than in repository settings.
+      SECRET_SCAN_HOSTS: ifrvrwkisixavvmtnfpg.supabase.co
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # .nvmrc, not a literal: one pin, and it is the same file the Cloudflare runner reads.
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # The Supabase CLI is already a devDependency, so `npx supabase` is the version
+      # package-lock.json pins — the same one the developer runs. That is worth more here than
+      # supabase/setup-cli@v3, which would install a second, independently drifting copy.
+      #
+      # `supabase start` applies supabase/migrations/ (19 files) and supabase/seed.sql itself, so
+      # there is no separate migration step. No `db:reset` either: no integration test depends on
+      # seeded identities — every fixture is self-created through tests/helpers/auth.ts.
+      - name: Start the local Supabase stack
+        run: npx supabase start
+
+      # The stack mints its own keys per `supabase start`. They happen to be fixed constants for
+      # the CLI version pinned today, but upstream is deprecating that, so read them rather than
+      # hardcoding them. `-o env` prints API_URL / ANON_KEY / SERVICE_ROLE_KEY as quoted KEY=VALUE.
+      - name: Export the stack's URL and keys
+        run: |
+          npx supabase status -o env | tr -d '"' > /tmp/supabase.env
+          {
+            echo "SUPABASE_URL=$(grep '^API_URL=' /tmp/supabase.env | cut -d= -f2-)"
+            echo "SUPABASE_KEY=$(grep '^ANON_KEY=' /tmp/supabase.env | cut -d= -f2-)"
+            echo "SUPABASE_SERVICE_KEY=$(grep '^SERVICE_ROLE_KEY=' /tmp/supabase.env | cut -d= -f2-)"
+          } >> "$GITHUB_ENV"
+
+      # tests/env.ts reads .env.test as a FILE before consulting process.env, and throws if it is
+      # absent — exported variables alone do not satisfy it. The file's placeholder values lose to
+      # the real environment (`process.env[key] ??= value`), so the exports above stay authoritative.
+      - name: Provide .env.test
+        run: cp .env.test.example .env.test
+
+      - name: Typecheck
+        run: npm run check
+
+      # After the typecheck on purpose: `astro check` regenerates .astro/, whose generated types
+      # type-aware ESLint needs. Running lint first would require a separate `astro sync`.
+      - name: Lint
+        run: npm run lint
+
+      # Before the tests, not only before the scan: tests/unit/client-bundle.test.ts scans
+      # dist/client and fails — deliberately, rather than skipping — when there is no build.
+      - name: Build
+        run: npm run build
+
+      # ALL THREE PROJECTS, which is this workflow's entire reason to exist. Verify any change to
+      # this line with the whole suite and never `--project <one>`: a single project cannot
+      # exhibit a cross-project config conflict, and one shipped to master that way already.
+      - name: Test
+        run: npx vitest run
+
+      # Guards the production host here, via SECRET_SCAN_HOSTS above. In the Cloudflare build the
+      # same command guards it through the real build variables instead.
+      - name: Scan the client bundle for secrets
+        run: npm run check:secrets
