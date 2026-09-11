@@ -501,10 +501,11 @@ anything needing Docker, so a hand-rolled workflow is not redundant with it but 
 ## Performance Considerations
 
 The publish gate adds ~69 s of compute to a deploy that previously ran ~15 s of build, inside a
-20-minute build timeout — not a constraint. The Actions run costs ~20-25 minutes of billable time
-per change against 2,000 free minutes/month, i.e. roughly 80-100 changes per month inside the free
-tier. If that ceiling is ever approached, the first lever is narrowing the push trigger, not
-dropping a check.
+20-minute build timeout — not a constraint. **Measured on the first real run (2026-09-12, branch `ci/first-actions-run`): 5m17s**, against a research estimate of 9-12 minutes — so the estimate this plan was written against was more than twice the truth. The Actions run costs ~5-6 minutes of billable time
+per change against 2,000 free minutes/month — roughly 300+ changes per month inside the free tier,
+not the 80-100 this plan originally derived from the 20-25 minute estimate. The ceiling is far
+enough away that it is not worth planning around; if it were ever approached, the first lever is
+narrowing the push trigger, not dropping a check.
 
 ## Migration Notes
 
@@ -556,9 +557,9 @@ everyone afterwards.
 
 #### Automated
 
-- [ ] 3.1 YAML parses and the run starts
-- [ ] 3.2 The full run is green end to end (39 files / 369 tests)
-- [ ] 3.3 `supabase start` + suite completes inside ~9-12 min
+- [x] 3.1 YAML parses and the run starts
+- [x] 3.2 The full run is green end to end (39 files / 369 tests)
+- [x] 3.3 `supabase start` + suite completes inside ~9-12 min
 
 #### Manual
 
