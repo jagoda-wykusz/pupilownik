@@ -564,7 +564,7 @@ everyone afterwards.
 #### Manual
 
 - [ ] 3.4 Run appears on both a branch push and a pull request; concurrency cancels superseded runs
-- [ ] 3.5 Secret-scan log line names the production host, proving `SECRET_SCAN_HOSTS` arrived
+- [x] 3.5 Secret-scan log line names the production host, proving `SECRET_SCAN_HOSTS` arrived
 
 ### Phase 4: Pin both gates so they cannot be quietly hollowed out
 
