@@ -37,3 +37,12 @@ Two gates, in two places, for two different failures — not duplication:
 
 - **GitHub Actions = the full suite as a SIGNAL.** It is the only environment where the 22 integration files can run at all, because `supabase start` needs a Docker host and the Cloudflare build container is not one. Cannot block a merge on this plan; still the difference between "nothing runs" and "everything runs and reports".
 - **Workers Builds build command = the publish blocker.** The fast half only (lint, `--project unit --project component`, build, `check:secrets`). It is the one thing that can stop a bad artifact going live, including on a direct push to master.
+
+## Open questions closed (2026-09-11)
+
+Answers to the four questions the research left for the plan:
+
+1. **A failing test blocks publication.** The `unit` + `component` half runs inside the Workers Builds build command and a red run stops the deploy. Cost is not the argument either way — both projects together are 6.3s — the decision is that a flaky test stopping a deploy is the cheaper failure.
+2. **Stay on GitHub Free.** No upgrade to Pro, so branch protection stays unavailable and the Actions run stays a signal, permanently. The plan must not assume a merge gate exists, and should not be written as if one is coming.
+3. **No non-production branch builds.** Only `master` builds and deploys. The consequence is accepted deliberately: the publish blocker fires when publication is already under way, so the first signal on a feature branch comes from GitHub Actions alone.
+4. **`.nvmrc` → 22.23.2**, the version preinstalled on the Workers Builds runner, so no Node download per build. Note that this still does not match the local dev machine (`v24.12.0`); the pin describes the runner, not the developer, and that is now a knowing choice rather than an accident.
