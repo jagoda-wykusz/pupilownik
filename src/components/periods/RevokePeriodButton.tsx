@@ -85,10 +85,17 @@ export default function RevokePeriodButton({ periodId, revoked = false }: Props)
   }
 
   if (revoked) {
+    // Deliberately NOT a second card (impl-review). A revoked period already states the fact
+    // twice above this point — the header line's "· link został unieważniony" and
+    // RegenerateLinkButton's refusal, which explains why no new link can be minted. A third
+    // muted box repeating it in a third vocabulary ("odwołany" vs "unieważniony") is what the
+    // review found under the single "Link dla opiekuna" heading.
+    //
+    // So this keeps only what ONLY this control knows: that it cannot be undone, and what the
+    // caretaker sees. One line, and it uses the page's verb.
     return (
-      <p className="border-border bg-card text-muted-foreground rounded-lg border-[1.5px] p-5 text-[13px]">
-        Ten wyjazd został odwołany — link nie działa i nie da się go przywrócić. Opiekun, który zajął termin, zobaczy na
-        stronie, że wyjazd nie jest już aktualny.
+      <p className="text-muted-foreground text-[13px]">
+        Tego nie da się cofnąć. Opiekun, który zajął termin, zobaczy na stronie, że wyjazd został odwołany.
       </p>
     );
   }
@@ -108,8 +115,8 @@ export default function RevokePeriodButton({ periodId, revoked = false }: Props)
           Odwołaj wyjazd
         </Button>
         <p className="text-muted-foreground text-[13px]">
-          Link przestanie działać na zawsze — tego nie da się cofnąć. Zajęte terminy zostają zapisane, ale opiekunowie
-          stracą dostęp do wskazówek.
+          Link zostanie unieważniony na zawsze — tego nie da się cofnąć. Zajęte terminy zostają zapisane, ale
+          opiekunowie stracą dostęp do wskazówek.
         </p>
       </div>
     );
@@ -117,28 +124,19 @@ export default function RevokePeriodButton({ periodId, revoked = false }: Props)
 
   return (
     <div className="space-y-3">
-      {/* "Na pewno?" IS the confirm. Two taps, and the second one is a different word in a
-          different place than the first, so a double-tap on "Odwołaj wyjazd" cannot end a trip
-          by itself — which matters here more than anywhere else in the product, because this
-          action has no undo at all. */}
+      {/* THE ESCAPE COMES FIRST, and that ordering is the safety property (impl-review 2b).
+          Both buttons are `w-full`, so whichever one is rendered first occupies exactly the
+          rectangle the idle "Odwołaj wyjazd" button just occupied. The first draft put the
+          destructive confirm there, which meant a fast double-tap at one point armed and then
+          confirmed — on the product's only irreversible action, and on a phone, where that is
+          not a hypothetical. Putting "Nie odwołuj" in that slot inverts it: a stray second tap
+          lands on the way out.
+
+          So the two taps differ in BOTH text and position, which is what the plan asked for and
+          what ReleaseSlotButton gets for free by being a small control whose confirm changes
+          width. Pinned by document order in tests/component/revoke-period-button.test.tsx —
+          these are stacked in a flex column, so DOM order is visual order. */}
       <div className="flex min-w-0 flex-col gap-2">
-        <Button
-          type="button"
-          variant="destructive"
-          className="w-full"
-          disabled={pending}
-          ref={confirmRef}
-          aria-busy={pending}
-          // The accessible name STARTS with the visible text, which WCAG 2.5.3 requires: a
-          // voice-control user says what they can see ("Na pewno"), and a label that does not
-          // contain it leaves them unable to activate the button at all. It tracks `pending`
-          // for the same reason — aria-label overrides the visible text, so a static one would
-          // keep saying "Na pewno?" while the button reads "Odwoływanie...".
-          aria-label={pending ? "Odwoływanie wyjazdu" : "Na pewno? Potwierdź odwołanie wyjazdu"}
-          onClick={revoke}
-        >
-          {pending ? "Odwoływanie..." : "Na pewno? Odwołaj na zawsze"}
-        </Button>
         {/* An explicit way out, not just "tap elsewhere": the armed state has no backdrop to
             dismiss, and on a touch screen there is no hover to reveal one. */}
         <Button
@@ -153,6 +151,28 @@ export default function RevokePeriodButton({ periodId, revoked = false }: Props)
           }}
         >
           Nie odwołuj
+        </Button>
+        <Button
+          type="button"
+          variant="destructive"
+          className="w-full"
+          disabled={pending}
+          ref={confirmRef}
+          aria-busy={pending}
+          // NO aria-label, deliberately — and this is the fix for impl-review 2a rather than an
+          // omission. WCAG 2.5.3 requires the accessible name to CONTAIN the visible label. The
+          // first draft paired the visible "Na pewno? Odwołaj na zawsze" with the label "Na
+          // pewno? Potwierdź odwołanie wyjazdu", which shares only the first two words — a
+          // voice-control user saying what they can see could not activate it at all.
+          //
+          // ReleaseSlotButton needs a label because a dozen identical confirms sit down one
+          // page and "Na pewno?" alone would read the same for all of them. This control is
+          // alone on its page, so the visible text IS the best accessible name: it satisfies
+          // 2.5.3 by construction, and it tracks `pending` on its own — no label to fall out of
+          // sync when the button starts reading "Odwoływanie...".
+          onClick={revoke}
+        >
+          {pending ? "Odwoływanie..." : "Na pewno? Odwołaj na zawsze"}
         </Button>
       </div>
       <ServerError message={error} />

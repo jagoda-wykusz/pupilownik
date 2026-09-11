@@ -71,7 +71,10 @@ describe("RevokePeriodButton", () => {
       // Not a disabled button — no button. There is no un-revoke, so a control that could be
       // focused and pressed would be promising an action the product does not have.
       expect(screen.queryAllByRole("button")).toHaveLength(0);
-      expect(screen.getByText(/nie da się go przywrócić/)).toBeTruthy();
+      // Only what this control alone knows — the irreversibility. The fact that the link is
+      // dead is stated by the page's header line and by RegenerateLinkButton's refusal above
+      // it, so repeating it here was the third statement of one fact (impl-review).
+      expect(screen.getByText(/nie da się cofnąć/)).toBeTruthy();
     });
   });
 
@@ -113,15 +116,44 @@ describe("RevokePeriodButton", () => {
       expect(fetchMock).not.toHaveBeenCalled();
     });
 
-    it("names the confirm with its visible text first, so voice control can reach it", async () => {
+    it("gives the confirm an accessible name that CONTAINS its whole visible text", async () => {
       const user = userEvent.setup();
       renderButton();
       await user.click(idle());
 
-      // WCAG 2.5.3: the accessible name must contain the visible label, or a user saying what
-      // they see cannot activate the control.
-      const name = confirm().getAttribute("aria-label") ?? "";
-      expect(name.startsWith("Na pewno?")).toBe(true);
+      // WCAG 2.5.3 "label in name": the accessible name must contain the visible label, or a
+      // voice-control user saying what they can see cannot activate the control.
+      //
+      // Asserted against the button's OWN text rather than a hard-coded prefix, which is what
+      // makes this bite (impl-review 2a). The first version asserted only
+      // `name.startsWith("Na pewno?")` — and passed while the visible text read "Na pewno?
+      // Odwołaj na zawsze" and the label read "Na pewno? Potwierdź odwołanie wyjazdu", which
+      // share nothing after those two words. Reading the text from the DOM means the two can
+      // never drift apart again without failing here.
+      const button = confirm();
+      const visible = button.textContent.trim();
+      const accessibleName = button.getAttribute("aria-label") ?? visible;
+
+      expect(visible).not.toBe("");
+      expect(accessibleName).toContain(visible);
+    });
+
+    it("puts the escape where the idle button was, so a stray second tap cannot revoke", async () => {
+      const user = userEvent.setup();
+      renderButton();
+
+      await user.click(idle());
+
+      // Both armed buttons are `w-full` in a flex column, so document order IS visual order:
+      // whichever comes first occupies the rectangle the idle button just occupied. The escape
+      // has to be that one (impl-review 2b) — otherwise a fast double-tap at a single point
+      // arms and then confirms, on the only action in this product with no undo.
+      const buttons = screen.getAllByRole("button");
+      const cancelIndex = buttons.indexOf(cancel());
+      const confirmIndex = buttons.indexOf(confirm());
+
+      expect(cancelIndex).toBeGreaterThanOrEqual(0);
+      expect(cancelIndex).toBeLessThan(confirmIndex);
     });
 
     it("renames itself while in flight, so the name never contradicts the text", async () => {

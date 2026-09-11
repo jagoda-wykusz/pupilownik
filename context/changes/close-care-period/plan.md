@@ -541,7 +541,7 @@ Keep every other status on the existing generic message.
 
 **Intent**: Phase 2's impl-review F9. Ungating the reveal means any request to `/invite/<anything>`
 carrying a claim cookie now issues a second RPC. The page reads that cookie with **no shape check**,
-unlike `src/pages/invite/claim.ts:96`, which gates on `CAPABILITY_SHAPE`. `HttpOnly` binds browsers,
+unlike `src/pages/invite/claim.ts`, which gates on `CAPABILITY_SHAPE` (moved to `src/lib/claim-cookie.ts` when this item shipped). `HttpOnly` binds browsers,
 not `curl`, so a garbage cookie currently buys a parse-then-reject round trip, and there is no rate
 limiting anywhere in this repo.
 
@@ -799,26 +799,26 @@ bodies. Nothing depends on `revoke_period` outside this slice's own route.
 
 #### Automated
 
-- [x] 3.1 Route tests pass: `npm run test -- tests/api/revoke-period.test.ts`
-- [x] 3.2 Reveal tests still pass with the cookie shape gate in place: `npm run test -- tests/rls/reveal-instructions.test.ts`
-- [x] 3.3 Full suite green: `npm run test`
-- [x] 3.4 Types check: `npx astro check`
-- [x] 3.5 Lint passes: `npm run lint`
-- [x] 3.6 Build succeeds: `npm run build`
+- [x] 3.1 Route tests pass: `npm run test -- tests/api/revoke-period.test.ts` — f3ea47b
+- [x] 3.2 Reveal tests still pass with the cookie shape gate in place: `npm run test -- tests/rls/reveal-instructions.test.ts` — f3ea47b
+- [x] 3.3 Full suite green: `npm run test` — f3ea47b
+- [x] 3.4 Types check: `npx astro check` — f3ea47b
+- [x] 3.5 Lint passes: `npm run lint` — f3ea47b
+- [x] 3.6 Build succeeds: `npm run build` — f3ea47b
 
 #### Manual
 
-- [x] 3.7 Two taps to revoke; a double-tap cannot revoke by itself
-- [x] 3.8 "Nie" returns to idle and clears the error
-- [x] 3.9 After confirming: reload, marker, regenerate refusal, terminal state
-- [x] 3.10 List and detail pages show the same phrase
-- [x] 3.11 Keyboard-only focus moves correctly on every state swap
-- [x] 3.12 Screen reader announces the confirm's full name, starting with the visible text
-- [x] 3.13 Control and errors stay inside the card at 320px
-- [x] 3.14 Caretaker link behaves as Phase 2 specified
-- [x] 3.15 Regenerating a revoked trip from a stale tab shows the terminal sentence, not "Spróbuj ponownie"
-- [x] 3.16 A malformed claim cookie on a dead link renders exactly the generic inactive card
-- [x] 3.17 The claim island's 404 no longer sends the caretaker after a link nobody can mint
+- [x] 3.7 Two taps to revoke; a double-tap cannot revoke by itself — f3ea47b
+- [x] 3.8 "Nie" returns to idle and clears the error — f3ea47b
+- [x] 3.9 After confirming: reload, marker, regenerate refusal, terminal state — f3ea47b
+- [x] 3.10 List and detail pages show the same phrase — f3ea47b
+- [x] 3.11 Keyboard-only focus moves correctly on every state swap — f3ea47b
+- [x] 3.12 Screen reader announces the confirm's full name, starting with the visible text — f3ea47b
+- [x] 3.13 Control and errors stay inside the card at 320px — f3ea47b
+- [x] 3.14 Caretaker link behaves as Phase 2 specified — f3ea47b
+- [x] 3.15 Regenerating a revoked trip from a stale tab shows the terminal sentence, not "Spróbuj ponownie" — f3ea47b
+- [x] 3.16 A malformed claim cookie on a dead link renders exactly the generic inactive card — f3ea47b
+- [x] 3.17 The claim island's 404 no longer sends the caretaker after a link nobody can mint — f3ea47b
 
 ### Phase 4: Close-out — the documents this slice made stale
 

@@ -42,18 +42,28 @@ interface CallResult {
 
 type Handler = typeof revokePeriod;
 
-async function call(init: { periodId: string; cookieHeader?: string; userId?: string }): Promise<CallResult> {
+async function call(init: {
+  periodId: string;
+  cookieHeader?: string;
+  userId?: string;
+  origin?: string;
+}): Promise<CallResult> {
   const path = `/api/periods/${init.periodId}/revoke`;
-  const request = new Request(new URL(`http://127.0.0.1${path}`), {
+  const url = new URL(`http://127.0.0.1${path}`);
+  const request = new Request(url, {
     method: "POST",
     headers: {
       ...(init.cookieHeader === undefined ? {} : { Cookie: init.cookieHeader }),
+      ...(init.origin === undefined ? {} : { Origin: init.origin }),
       "Content-Type": "application/json",
     },
   });
 
   const context = {
     request,
+    // The handler reads `context.url.origin` for its own origin check, so the context has to
+    // carry a url — Astro provides one; the fake one here is the same URL as the request.
+    url,
     cookies: createFakeCookies(),
     params: { id: init.periodId },
     // A missing user is what the middleware leaves behind for an unauthenticated call — and
@@ -108,15 +118,63 @@ describe("POST /api/periods/[id]/revoke — the owner's revoke route", () => {
     stranger = other.owner;
   });
 
-  it("answers 401 without a session, and never reaches the RPC", async () => {
+  it("answers 401 without a session", async () => {
     const period = await seedPeriod(owner, "A-bez-sesji");
 
     const result = await call({ periodId: period.id });
 
     expect(result.status).toBe(401);
-    // The proof it never reached the RPC is the row, not the status: a handler that checked
-    // auth after the write would answer 401 too.
     expect(await revokedAtOf(owner, period.id)).toBeNull();
+  });
+
+  it("checks auth BEFORE the write, not after", async () => {
+    // Measured, and the reason this case exists as its own test: the row assertion above does
+    // NOT pin the ordering. With no cookie the client runs as `anon`, which holds no EXECUTE on
+    // revoke_period, so the write is refused by the grant layer whatever the handler does —
+    // moving the auth check after the RPC leaves that test green (verified).
+    //
+    // A session PRESENT but `locals.user` absent is the one shape this harness can use to tell
+    // the two apart: the client is authenticated, so the RPC would succeed, and only the
+    // handler's ordering stops it.
+    const period = await seedPeriod(owner, "A-kolejnosc");
+
+    const result = await call({ periodId: period.id, cookieHeader });
+
+    expect(result.status).toBe(401);
+    expect(await revokedAtOf(owner, period.id)).toBeNull();
+  });
+
+  it("refuses a cross-site Origin with 403, before it reaches the RPC", async () => {
+    // The endpoint's CSRF control, now owned by this route rather than inherited from Astro's
+    // default (impl-review). The default is real — verified against the installed framework —
+    // but it is a default: `security: { checkOrigin: false }`, a deployment path that skips
+    // internal middlewares, or an island refactor that starts sending Content-Type would each
+    // remove it without touching this file. This assertion is what would notice.
+    const period = await seedPeriod(owner, "A-obce-zrodlo");
+
+    const result = await call({
+      periodId: period.id,
+      cookieHeader,
+      userId: owner.userId,
+      origin: "https://zly.example",
+    });
+
+    expect(result.status).toBe(403);
+    expect(await revokedAtOf(owner, period.id)).toBeNull();
+  });
+
+  it("allows a same-origin request, so the 403 above cannot pass for the wrong reason", async () => {
+    const period = await seedPeriod(owner, "A-swoje-zrodlo");
+
+    const result = await call({
+      periodId: period.id,
+      cookieHeader,
+      userId: owner.userId,
+      origin: "http://127.0.0.1",
+    });
+
+    expect(result.status).toBe(200);
+    expect(await revokedAtOf(owner, period.id)).not.toBeNull();
   });
 
   it("answers 400 for a malformed period id", async () => {
@@ -158,7 +216,17 @@ describe("POST /api/periods/[id]/revoke — the owner's revoke route", () => {
     // owner learns nothing about whether another owner's period exists.
     expect(result.status).toBe(404);
     expect(await revokedAtOf(stranger, theirs.id)).toBeNull();
-    expect(strangerCookieHeader).toBeTruthy();
+  });
+
+  it("lets the other owner revoke their OWN period, so the 404 above cannot pass for the wrong reason", async () => {
+    // The positive control the template carries (tests/api/release-slot.test.ts). Without it a
+    // route that answered 404 for everything would satisfy the IDOR case above.
+    const theirs = await seedPeriod(stranger, "B-swoje-route");
+
+    const result = await call({ periodId: theirs.id, cookieHeader: strangerCookieHeader, userId: stranger.userId });
+
+    expect(result.status).toBe(200);
+    expect(await revokedAtOf(stranger, theirs.id)).not.toBeNull();
   });
 
   it("answers 404 for a well-formed id that does not exist", async () => {

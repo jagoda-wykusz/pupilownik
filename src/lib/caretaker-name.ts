@@ -9,7 +9,7 @@
 // schema, which has one.
 //
 // XSS is NOT the risk here (Astro escapes every interpolation, and nothing in this repo uses
-// set:html — src/lib/claim-cookie.ts:23 depends on that staying true). The risks this module
+// set:html — the `__Host-` trade-off note in src/lib/claim-cookie.ts depends on that staying true). The risks this module
 // answers are: a name that renders as nothing, a name that reverses the line it sits on, and a
 // name the owner reads as a different person than it is.
 //

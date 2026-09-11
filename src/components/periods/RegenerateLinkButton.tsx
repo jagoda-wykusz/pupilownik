@@ -4,8 +4,10 @@ import { Button } from "@/components/ui/button";
 import { ServerError } from "@/components/auth/ServerError";
 import { InviteLinkPanel } from "@/components/periods/InviteLinkPanel";
 
-// The only way to recover a lost link in this slice: mint a new token, which replaces
-// the digest and so invalidates the previous link. Revoking without replacing is S-06.
+// One of the owner's two link actions: mint a new token, which replaces the digest and so
+// invalidates the previous link. The other is RevokePeriodButton, mounted directly below this
+// one since S-06 Phase 3 — replace the link, or end it. Once a period is revoked this component
+// refuses to mint (see `revoked` below) and the database refuses too.
 //
 // The new raw token is shown here and nowhere else, for the same reason the create
 // screen shows it once — it is never stored, so a reload cannot bring it back.

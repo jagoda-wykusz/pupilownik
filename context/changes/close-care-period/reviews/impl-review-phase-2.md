@@ -165,7 +165,7 @@
 
 - **Severity**: 🔵 OBSERVATION · **Dimension**: Safety & Quality
 - **Detail**: The page reads the claim cookie with no shape check, unlike
-  `src/pages/invite/claim.ts:96` (`CAPABILITY_SHAPE`). `HttpOnly` binds browsers, not `curl`, so
+  `src/pages/invite/claim.ts` (`CAPABILITY_SHAPE`; Phase 3 moved it to `src/lib/claim-cookie.ts`). `HttpOnly` binds browsers, not `curl`, so
   any `Cookie: pupilownik_claim=x` on `/invite/<anything>` fires the RPC. Every `/invite/*`
   request carrying a cookie now costs 3 DB calls instead of 2, and there is no rate limiting
   anywhere. The length bound is the first cost _inside_ the function, not the first cost of the

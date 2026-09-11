@@ -15,12 +15,16 @@ export const CLAIM_COOKIE = "pupilownik_claim";
 
 // The shape a well-formed capability has: 32 bytes base64url, unpadded. Identical to the invite
 // token's, because `generateClaimSecret` is a literal alias of `generateInviteToken` — and
-// identical to the 43-char bound both database functions apply before they hash anything.
+// COMPATIBLE WITH, and strictly narrower than, the bound both database functions apply before
+// they hash anything: they check `length(...) <> 43` only, this also constrains the charset. The
+// narrowing is unreachable in practice — every stored claim_digest is the hash of a value minted
+// by generateClaimSecret or reused only after passing this same regex — but "identical" was the
+// wrong word and a later reader could lean on it.
 //
 // It lives here rather than in a call site because it is part of this cookie's contract, and
-// since S-06 Phase 2 there are TWO readers: the claim route, which decides whether to reuse an
-// incoming value or mint a fresh one, and the invite page, which since the reveal call was
-// ungated issues an RPC for ANY request carrying this cookie. Checking the shape first is
+// there are TWO readers: the claim route, which decides whether to reuse an incoming value or
+// mint a fresh one, and — since S-06 Phase 3 — the invite page, which needs the check because
+// Phase 2 ungated the reveal call and it now issues an RPC for ANY request carrying this cookie. Checking the shape first is
 // defence in depth and a cost saving, never a behaviour change — a malformed secret is already
 // a guaranteed miss inside get_claimed_details, so a rejected cookie must degrade exactly as
 // that NULL does, or it would break the uniform-failure answer.
