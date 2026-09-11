@@ -1,7 +1,7 @@
 ---
 change_id: ci-quality-gates
 title: Put a test gate in front of the deploy that already publishes every push
-status: preparing
+status: planned
 created: 2026-09-11
 updated: 2026-09-11
 archived_at: null
