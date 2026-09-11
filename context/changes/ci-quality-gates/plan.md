@@ -582,8 +582,8 @@ everyone afterwards.
 
 #### Automated
 
-- [x] 5.1 Full chain green before the dashboard is touched: `npm run ci:gate`
-- [x] 5.2 Docs prettier-clean: `npx prettier --check README.md AGENTS.md docs/reference/data-access.md context/foundation/test-plan.md context/foundation/infrastructure.md context/deployment/deploy-plan.md`
+- [x] 5.1 Full chain green before the dashboard is touched: `npm run ci:gate` — 8c7f129
+- [x] 5.2 Docs prettier-clean: `npx prettier --check README.md AGENTS.md docs/reference/data-access.md context/foundation/test-plan.md context/foundation/infrastructure.md context/deployment/deploy-plan.md` — 8c7f129
 
 #### Manual
 
