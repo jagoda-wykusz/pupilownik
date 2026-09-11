@@ -2,19 +2,23 @@ import { describe, expect, it } from "vitest";
 
 import { composeCaretakerView } from "@/lib/invite-view";
 
-// FR-008's guarantee, at the layer that decides what the caretaker page may render.
+// What composeCaretakerView may put in front of the caretaker, at the layer that decides it.
 //
-// The database half is already pinned: tests/rls/reveal-instructions.test.ts asserts that the
-// read door's payload carries no sensitive row and no note, by searching the WHOLE serialized
-// answer rather than a named field — because the failure to catch is "the column split is right
-// but the API serializes it anyway". This file asserts the same property one layer up, the same
-// way, because until composeCaretakerView existed the gate lived in a Map and a ternary in
-// .astro frontmatter: rebuilding either from the PUBLIC payload leaked the sensitive tier to
-// every holder of the link with the entire suite still green (test-plan.md §3 Phase 4, Risk #4).
+// BE PRECISE ABOUT WHAT THIS CAN AND CANNOT PROVE, because the first version of this header was
+// not and a review caught it. Secrecy is NOT enforced here: `get_period_by_token` returns public
+// instruction rows only, so before a claim this function is never handed a sensitive row or the
+// note in the first place — there is nothing to withhold. The real gate is the two database
+// doors plus splitRevealAnswer, pinned by tests/rls/reveal-instructions.test.ts and
+// tests/unit/invite-view.test.ts. What THIS file pins is everything downstream of that gate:
+// that the two tiers stay apart, that rows land on the pet they belong to, that a pet is neither
+// dropped nor conjured, and that the note travels with the reveal and only with it.
 //
-// The sentinels below are searched for as SUBSTRINGS of the serialized result, not read out of
-// named fields. A test that checks `pet.sensitiveInstructions` is empty passes just as happily
-// when the same rows are copied somewhere else in the object.
+// Hence the shape of the pre-claim cases below. Searching a serialized result for a string the
+// function was never given proves nothing — that technique is load-bearing in
+// reveal-instructions.test.ts because the DATABASE holds the rows and chooses not to serialize
+// them. The equivalent here is to hand the PUBLIC payload a sentinel row and assert the
+// composition never promotes it into the sensitive tier, which is the mistake this code could
+// actually make.
 
 const SECRET_TITLE = "Klucze";
 const SECRET_BODY = "Klucze u sąsiadki, mieszkanie 4, kod 1234";
@@ -42,9 +46,13 @@ function pet(id: string, name: string, instructions: Instruction[]): Pet {
   return { id, name, species: "dog", instructions };
 }
 
+/** A row that is PUBLIC but carries a sentinel, so the pre-claim cases can assert the tier it
+ *  ends up in rather than assert the absence of a string the function never received. */
+const PUBLIC_SENTINEL = "PUBLICZNY-WIERSZ-NIE-JEST-WRAZLIWY";
+
 /** The read door's answer: every pet, PUBLIC rows only. */
 const PUBLIC_PETS: Pet[] = [
-  pet("pet-a", "Burek", [instruction("pub-a", "Karmienie", "Rano i wieczorem")]),
+  pet("pet-a", "Burek", [instruction("pub-a", "Karmienie", PUBLIC_SENTINEL)]),
   pet("pet-b", "Mruczek", [instruction("pub-b", "Spacer", "Raz dziennie")]),
 ];
 
@@ -56,13 +64,33 @@ const DETAILS = {
 
 describe("composeCaretakerView — the instruction tier gate", () => {
   describe("before a claim", () => {
-    it("hides the sensitive tier and the note ANYWHERE in the result, not just in their own fields", () => {
+    it("never promotes a public row into the sensitive tier", () => {
+      // The falsifiable half of the pre-claim guarantee, and the one mistake this code could
+      // actually make: composing `sensitiveInstructions` from the public payload. Asserting the
+      // absence of SECRET_BODY here would prove nothing — it is never passed in.
       const composed = composeCaretakerView({ pets: PUBLIC_PETS, details: null });
 
-      const serialized = JSON.stringify(composed);
-      expect(serialized).not.toContain(SECRET_BODY);
-      expect(serialized).not.toContain(SECRET_TITLE);
-      expect(serialized).not.toContain(NOTE);
+      expect(JSON.stringify(composed.pets.map((entry) => entry.sensitiveInstructions))).not.toContain(PUBLIC_SENTINEL);
+      expect(composed.pets[0]?.publicInstructions.map((row) => row.body)).toEqual([PUBLIC_SENTINEL]);
+    });
+
+    it("carries no trip note, whatever the public payload holds", () => {
+      const composed = composeCaretakerView({ pets: PUBLIC_PETS, details: null });
+
+      expect(composed.caretakerNote).toBeNull();
+      expect(JSON.stringify(composed)).not.toContain(NOTE);
+    });
+
+    it("treats a proven-but-empty reveal exactly as no reveal", () => {
+      // The shape the door genuinely returns for a caretaker whose trip has no sensitive rows
+      // and no note — non-null, but carrying nothing. `details !== null` must not be read as
+      // "something to show", which is the branch a conditional implementation would get wrong.
+      const composed = composeCaretakerView({ pets: PUBLIC_PETS, details: { pets: [], caretaker_note: null } });
+
+      expect(composed.caretakerNote).toBeNull();
+      expect(composed.pets.map((entry) => entry.name)).toEqual(["Burek", "Mruczek"]);
+      expect(composed.pets.every((entry) => entry.sensitiveInstructions.length === 0)).toBe(true);
+      expect(composed.pets[0]?.publicInstructions.map((row) => row.id)).toEqual(["pub-a"]);
     });
 
     it("still renders every pet with its public rows, so the page is not emptied by the gate", () => {

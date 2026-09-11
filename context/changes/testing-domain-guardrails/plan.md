@@ -94,6 +94,8 @@ Move the public/sensitive composition out of `[token].astro`'s frontmatter into 
 
 **Contract**: Reads `src/pages/invite/[token].astro`, splits on the frontmatter fence, and asserts: the frontmatter calls the composition function; below the fence there is no reference to `details` (the template must read only composed values). Name the reason in the test title, not only in a comment.
 
+**Narrowed during implementation, 2026-09-11.** The blanket "no reference to `details` below the fence" cannot hold together with change #2's boundary: the template also reads `details.name` for the "Zapisano, X!" banner and `details !== null` for the island's `hasCapability` prop, and moving those into the lib is the restructuring change #2 and §What We're NOT Doing both forbid. The guard therefore bans the INSTRUCTION and NOTE readings specifically — `details.pets`, `details?.pets`, `sensitiveByPet`, `caretaker_note`, `pet.instructions` — in the template, and the same readings plus `new Map(` in the comment-stripped frontmatter, where the realistic bypass (an alias assigned above the fence and rendered below) would otherwise slip through every template-only assertion. Both halves of the file are comment-stripped before asserting, and the "guards the guard" case asserts the call SHAPE rather than the bare identifier, which the import line and the frontmatter's own rationale comment would otherwise satisfy forever.
+
 ### Success Criteria:
 
 #### Automated Verification:
@@ -358,17 +360,17 @@ None. No migration ships in this change; scratch migrations used for mutation ch
 
 #### Automated
 
-- [x] 1.1 Unit project passes: `npx vitest run --project unit`
-- [x] 1.2 Full suite passes: `npm test`
-- [x] 1.3 Type check passes: `npx astro check`
-- [x] 1.4 Lint passes: `npm run lint`
-- [x] 1.5 Build passes: `npm run build`
+- [x] 1.1 Unit project passes: `npx vitest run --project unit` — 877f970
+- [x] 1.2 Full suite passes: `npm test` — 877f970
+- [x] 1.3 Type check passes: `npx astro check` — 877f970
+- [x] 1.4 Lint passes: `npm run lint` — 877f970
+- [x] 1.5 Build passes: `npm run build` — 877f970
 
 #### Manual
 
-- [x] 1.6 Mutation check: sensitive map rebuilt from the public payload fails the composition test
-- [x] 1.7 Mutation check: a `details?.caretaker_note` reference in the template fails the source guard
-- [x] 1.8 `/invite/<token>` renders identically before and after a claim
+- [x] 1.6 Mutation check: sensitive map rebuilt from the public payload fails the composition test — 877f970
+- [x] 1.7 Mutation check: a `details?.caretaker_note` reference in the template fails the source guard — 877f970
+- [x] 1.8 `/invite/<token>` renders identically before and after a claim — 877f970
 
 ### Phase 2: Releasing a term and the caretaker's reveal (Risk #5)
 

@@ -145,10 +145,15 @@ if (supabase && claimSecret) {
 }
 
 // The reveal answer, split into the two things the page does with it. The split lives in
-// invite-view.ts, next to resolveInviteView and pinned by the same test file, because it
-// carries a security property: `details` is what every renderer of trip content reads, and it
-// must be null for the revoked answer. Inline here it was two ternaries enforced by nothing
-// (impl-review F4).
+// invite-view.ts, next to resolveInviteView and pinned by tests/unit/invite-view.test.ts,
+// because it carries a security property: `details` is what every renderer of trip content
+// reads, and it must be null for the revoked answer. Inline here it was two ternaries enforced
+// by nothing (impl-review F4).
+//
+// That module now holds THREE decisions of this page, pinned by one test file each: the split
+// and the view resolution here, and composeCaretakerView in
+// tests/unit/invite-composition.test.ts. This sentence used to promise a single shared test
+// file; it stopped being true when the third arrived (Phase 4 impl-review F7).
 const { details, claimRevoked } = splitRevealAnswer<ClaimedDetails>(claimed);
 
 // Unknown, tampered and malformed tokens all land on one page with one status and one title,

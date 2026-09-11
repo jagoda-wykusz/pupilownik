@@ -109,8 +109,20 @@ export function composeCaretakerView<P extends { id: string; instructions: unkno
   /** Pets from the read door — PUBLIC instruction rows only. */
   pets: P[];
   /** The reveal door's content answer, or null for every visitor who has not proven a claim.
-   *  Its `pets` carry ONLY the sensitive rows. */
-  details: { pets: P[]; caretaker_note: string | null } | null;
+   *  Its `pets` carry ONLY the sensitive rows.
+   *
+   *  Deliberately NARROWER than `P` — just the two fields actually read — so the reveal door is
+   *  not required to carry `name` and `species`, which this function never touches.
+   *
+   *  BE PRECISE about what the narrowing does NOT buy, because the review that prompted it
+   *  claimed more and was wrong (measured with tsc: the swapped call still compiles, exit 0).
+   *  Typing both tiers as `P[]` meant a call with the two arguments SWAPPED typechecked cleanly
+   *  and would hand the sensitive tier to every holder of the link. Narrowing does not close
+   *  that: TypeScript is structural, so a full public pet is still assignable to the narrower
+   *  shape. Closing it would need nominal/branded types for the two tiers. What guards it today
+   *  is that there is exactly one call site, and tests/unit/invite-source.test.ts pins its
+   *  shape. */
+  details: { pets: { id: string; instructions: P["instructions"] }[]; caretaker_note: string | null } | null;
 }): { pets: ComposedPet<P>[]; caretakerNote: string | null } {
   const sensitiveByPet = new Map((input.details?.pets ?? []).map((pet) => [pet.id, pet.instructions]));
 
