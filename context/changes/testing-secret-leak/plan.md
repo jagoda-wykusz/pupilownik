@@ -266,11 +266,11 @@ Four comments justify a correct practice with a false reason; §5 describes a CI
 
 #### Automated
 
-- [x] 3.1 Full suite passes: `npm test`
-- [x] 3.2 Lint passes: `npm run lint`
-- [x] 3.3 Build passes: `npm run build`
+- [x] 3.1 Full suite passes: `npm test` — 2136253
+- [x] 3.2 Lint passes: `npm run lint` — 2136253
+- [x] 3.3 Build passes: `npm run build` — 2136253
 
 #### Manual
 
-- [x] 3.4 §5 read back against the repo — every gate named is found, none named is absent
-- [x] 3.5 The four comments state the RLS suppression and the definer exception
+- [x] 3.4 §5 read back against the repo — every gate named is found, none named is absent — 2136253
+- [x] 3.5 The four comments state the RLS suppression and the definer exception — 2136253
