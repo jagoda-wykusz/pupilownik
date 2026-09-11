@@ -143,14 +143,30 @@ test files). Phase 1 bootstraps it.
 
 What actually runs, where, and what stops a bad change.
 
-**Read the "Where" column literally.** Until 2026-09-11 this table credited four gates to
-"Cloudflare Workers Builds" and described a CI that does not exist: `.github/workflows/ci.yml`
-ran lint + build on push and PR until `b1fd059` deleted it in favour of a Workers Builds
-connection that was never made (confirmed in the Cloudflare dashboard, 2026-09-11). **Nothing
-has run on push or on a pull request since 2026-06-27.** Every gate below is local, every one
-of them is bypassable with `--no-verify`, and none of them runs for a clone that has not
-configured the agent hooks. Restoring CI is an open infrastructure decision, not a rollout
-phase.
+**Read the "Where" column literally, and read this paragraph before the table.**
+
+**There is a deploy pipeline, and it contains no test.** Cloudflare Workers Builds is connected
+to this repository: a push builds and publishes the project. What it runs is the build command —
+`astro build`. That does not run `npm run lint`, does not run `npm test`, does not run
+`npm run check:secrets`, and does not typecheck `.astro` templates (which is why `astro check`
+was promoted to pre-commit in the first place). So **every push publishes, and nothing between
+the commit and production executes a single assertion in this plan.**
+
+That is a worse position than having no pipeline at all, because a pipeline invites the belief
+that something is checking. Until the three commands above are wired into the build step, the
+only thing standing between a broken test and a live deploy is a developer who remembers to run
+it — and the pre-commit hook, which is bypassable with `--no-verify` and absent for anyone who
+has not installed hooks.
+
+**Correction, recorded because the mistake is instructive.** This section said until 2026-09-11
+that no CI existed at all. That was wrong. It came from reading `infrastructure.md:96` — "Wire
+CI (GitHub → Workers Builds)" — as a description of state when it is a numbered SETUP STEP, and
+from `b1fd059` having deleted `.github/workflows/ci.yml`. The archived
+`context/archive/2026-09-11-testing-secret-leak/research.md` and its review carry the same wrong
+conclusion; they are superseded by this paragraph and must not be quoted for it. The lesson is
+the one this project keeps relearning from the other direction: **an instruction and an
+inventory look identical in prose, and the only way to tell them apart is to observe the
+system.**
 
 | Gate                                          | Where it runs                                                  | Enforced?                                         | Catches                                                             |
 | --------------------------------------------- | -------------------------------------------------------------- | ------------------------------------------------- | ------------------------------------------------------------------- |
@@ -178,9 +194,13 @@ paragraph stating that no CI exists. A review caught it. Correcting a document i
 believing it corrected is the same failure as writing it wrong: the unit of verification is the
 CLAIM, not the section.
 
-**The day CI returns**, `npm run lint`, `npm test` and `npm run check:secrets` are the three
-commands to wire; each one runs standalone today precisely so that wiring is one line and not
-a project.
+**The three commands to wire into the Workers Builds build step** are `npm run lint`,
+`npm test` and `npm run check:secrets`. Each runs standalone today precisely so that wiring is
+one line and not a project. Order matters: `npm run build` must precede `npm test`, because the
+secret scan inspects `dist/client`. `npm test` additionally needs a Supabase stack for its
+integration project, which a build runner does not have — so either split the suite by project
+(`--project unit --project component`) or accept that only the non-integration half can gate a
+deploy until that is solved.
 
 ### Which layer each gate lives in
 

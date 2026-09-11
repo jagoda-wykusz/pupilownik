@@ -167,13 +167,15 @@ npx wrangler deploy
 
 Set `SUPABASE_URL` and `SUPABASE_KEY` as secrets in your Cloudflare dashboard or via `npx wrangler secret put`.
 
-## CI
+## CI / CD
 
-**There is none.** A GitHub Actions workflow ran lint and build on every push and pull request until it was deleted in `b1fd059` (2026-06-27), in favour of [Cloudflare Workers Builds](https://developers.cloudflare.com/workers/ci-cd/builds/) — a connection that was never made. Verified in the Cloudflare dashboard on 2026-09-11: no Workers Builds project is connected to this repository.
+**Pushes deploy. Nothing tests them.**
 
-This section previously described that intended setup as if it existed ("merges auto-deploy, pull requests get preview URLs"). Nothing runs on push or on a pull request, and deploys are manual.
+Cloudflare Workers Builds is connected to this repository: a push builds and publishes the project. The build step runs the build command — `astro build` — and that is all. It does **not** run `npm run lint`, `npm test`, `npm run check:secrets`, or `astro check`. A broken test, a failing lint and a secret pasted into a client island all deploy exactly as cleanly as working code.
 
-Until CI is restored, **the checks are yours to run**:
+There is no GitHub Actions workflow; one existed and ran lint + build on every push and pull request until `b1fd059` deleted it (2026-06-27) in favour of the Workers Builds connection.
+
+Until the checks are wired into the build step, **run them yourself before pushing**:
 
 ```bash
 npm run lint          # whole project; the pre-commit hook only lints STAGED files
@@ -182,9 +184,11 @@ npm test              # unit + component + integration (integration needs `npm r
 npm run check:secrets # also runs inside `npm test`
 ```
 
-A pre-commit hook runs `lint-staged` (eslint on staged code, prettier on staged json/css/md) and `npx astro check`. It is bypassable with `--no-verify`, and it does not run for anyone who has not installed hooks. See `context/foundation/test-plan.md` §5 for the full, verified gate inventory.
+A pre-commit hook runs `lint-staged` (eslint on staged code, prettier on staged json/css/md) and `npx astro check`. It is bypassable with `--no-verify` and does not run for anyone who has not installed hooks.
 
-When CI is restored, order matters: `npm run build` before `npm test`.
+`SUPABASE_URL` and `SUPABASE_KEY` must be set in **two places**: as build-environment variables in the Workers Builds config, and as runtime secrets (`npx wrangler secret put`). Both are `optional: true` in `astro.config.mjs`, so a build succeeds without them and the failure surfaces at runtime instead.
+
+See `context/foundation/test-plan.md` §5 for the full, verified gate inventory.
 
 ## License
 
