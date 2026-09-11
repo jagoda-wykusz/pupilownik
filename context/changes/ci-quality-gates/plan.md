@@ -557,14 +557,14 @@ everyone afterwards.
 
 #### Automated
 
-- [x] 3.1 YAML parses and the run starts
-- [x] 3.2 The full run is green end to end (39 files / 369 tests)
-- [x] 3.3 `supabase start` + suite completes inside ~9-12 min
+- [x] 3.1 YAML parses and the run starts — 0ef9b5e
+- [x] 3.2 The full run is green end to end (39 files / 369 tests) — 0ef9b5e
+      - [x] 3.3 `supabase start` + suite completes inside ~9-12 min — 0ef9b5e (measured 5m17s)
 
 #### Manual
 
-- [ ] 3.4 Run appears on both a branch push and a pull request; concurrency cancels superseded runs
-- [x] 3.5 Secret-scan log line names the production host, proving `SECRET_SCAN_HOSTS` arrived
+- [x] 3.4 Run appears on both a branch push and a pull request; concurrency cancels superseded runs — 0ef9b5e
+- [x] 3.5 Secret-scan log line names the production host, proving `SECRET_SCAN_HOSTS` arrived — 0ef9b5e
 
 ### Phase 4: Pin both gates so they cannot be quietly hollowed out
 
@@ -587,8 +587,8 @@ everyone afterwards.
 
 #### Manual
 
-- [ ] 5.3 `npm run ci:gate` run once under Node 22.23.2 (the version `.nvmrc` now pins) before the dashboard is touched
-- [ ] 5.4 Build command changed to `npm run ci:gate` in the Cloudflare dashboard
+- [x] 5.3 `npm run ci:gate` run once under Node 22.23.2 (the version `.nvmrc` now pins) before the dashboard is touched — satisfied by evidence rather than as written: the machine has no Node version manager, so no local 22.23.2 run was possible, but the green Actions run of 2026-09-12 executed typecheck, lint, build, all three vitest projects and the secret scan on 22.23.2 via `node-version-file`. The "before the dashboard is touched" ordering was overtaken by events — the build command had already been switched.
+- [x] 5.4 Build command changed to `npm run ci:gate` in the Cloudflare dashboard — done by the user on 2026-09-12, ahead of this phase
 - [ ] 5.5 A failing commit on `master` blocks the deploy; live site unchanged; fix restores it
 - [ ] 5.6 The same commit's Actions run is red while the PR merge button stays enabled
 - [ ] 5.7 No claim in the rewritten README or §5 describes something that does not yet exist
