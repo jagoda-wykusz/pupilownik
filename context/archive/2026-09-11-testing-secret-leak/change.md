@@ -1,10 +1,10 @@
 ---
 change_id: testing-secret-leak
 title: Prove no secret reaches the client bundle or an error body, and gate it in CI
-status: impl_reviewed
+status: archived
 created: 2026-09-11
 updated: 2026-09-11
-archived_at: null
+archived_at: 2026-09-11T19:48:37Z
 ---
 
 ## Notes
