@@ -824,13 +824,13 @@ bodies. Nothing depends on `revoke_period` outside this slice's own route.
 
 #### Automated
 
-- [x] 4.1 Full suite green: `npm run test`
-- [x] 4.2 Lint and formatting pass: `npm run lint`
-- [x] 4.3 Build succeeds: `npm run build`
-- [x] 4.4 No stale forward references: `grep -rn "S-06" supabase/migrations/ docs/ context/foundation/`
+- [x] 4.1 Full suite green: `npm run test` — 5c316e1
+- [x] 4.2 Lint and formatting pass: `npm run lint` — 5c316e1
+- [x] 4.3 Build succeeds: `npm run build` — 5c316e1
+- [x] 4.4 No stale forward references: `grep -rn "S-06" supabase/migrations/ docs/ context/foundation/` — 5c316e1
 
 #### Manual
 
-- [x] 4.5 The two new registry rows and `regenerate_period_token`'s row describe live behaviour
-- [x] 4.6 Rule 4 reads as one rule with two bounded widenings
-- [x] 4.7 The live catalog's `revoked_at` column comment matches the migration
+- [x] 4.5 The two new registry rows and `regenerate_period_token`'s row describe live behaviour — 5c316e1
+- [x] 4.6 Rule 4 reads as one rule with two bounded widenings — 5c316e1
+- [x] 4.7 The live catalog's `revoked_at` column comment matches the migration — 5c316e1
