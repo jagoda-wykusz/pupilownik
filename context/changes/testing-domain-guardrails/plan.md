@@ -412,16 +412,16 @@ None. No migration ships in this change; scratch migrations used for mutation ch
 
 #### Automated
 
-- [ ] 4.1 Claim suites pass: `npx vitest run --project integration tests/api/invite-claim.test.ts tests/rls/claim-slots.test.ts`
-- [ ] 4.2 Full suite passes: `npm test`
-- [ ] 4.3 Suite is not flaky: three consecutive `npm test` runs green
-- [ ] 4.4 Lint passes: `npm run lint`
+- [x] 4.1 Claim suites pass: `npx vitest run --project integration tests/api/invite-claim.test.ts tests/rls/claim-slots.test.ts`
+- [x] 4.2 Full suite passes: `npm test`
+- [x] 4.3 Suite is not flaky: three consecutive `npm test` runs green
+- [x] 4.4 Lint passes: `npm run lint`
 
 #### Manual
 
-- [ ] 4.5 Mutation check: dropping `and s.claimed_by_name is null` produces two winners and fails the HTTP case
-- [ ] 4.6 Mutation check: dropping `care_slots_claim_complete` fails the constraint cases
-- [ ] 4.7 Overlapping-selection case run ~10 times by hand without spurious failure
+- [x] 4.5 Mutation check: dropping `and s.claimed_by_name is null` produces two winners and fails the HTTP case
+- [x] 4.6 Mutation check: dropping `care_slots_claim_complete` fails the constraint cases
+- [x] 4.7 Overlapping-selection case run ~10 times by hand without spurious failure
 
 ### Phase 5: Uniform failure, the mint island, and closing the documents
 

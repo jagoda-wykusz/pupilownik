@@ -545,5 +545,46 @@ describe("claim_slots — the caretaker write door", () => {
       expect(rows[0].claimed_at).not.toBeNull();
       expect(rows[0].claim_digest).toBe(claimants.find((claimant) => claimant.name === winner)?.capability.digest);
     });
+
+    it("stays all-or-nothing when two capabilities race on OVERLAPPING selections", async () => {
+      // The one-slot race above cannot deadlock: a deadlock needs two transactions taking row
+      // locks in different orders, which needs overlapping SETS. This is therefore the only
+      // case that reaches the 40P01 path src/pages/invite/claim.ts maps to a 409, and the only
+      // one where a partially-applied claim could appear if the guarded UPDATE stopped being
+      // one statement.
+      //
+      // Both refusals are permitted and the test says which: PT409 (the slot was taken first)
+      // and 40P01 (the deadlock victim). Asserting a single expected interleave would be
+      // asserting the scheduler, not the code. What must hold either way is that the loser
+      // wrote NOTHING — not even the slot it alone requested.
+      const period = await seedPeriod(a, "A-nakladajace", "2027-06-01", "2027-06-02");
+      const [first, shared, third] = await freeSlotIds(a, period.id, 3);
+
+      const celina = await newCapability();
+      const dorota = await newCapability();
+
+      const outcomes = await Promise.all([
+        claim(createAnonClient(), period.token, [first, shared], celina.secret, "Celina"),
+        claim(createAnonClient(), period.token, [shared, third], dorota.secret, "Dorota"),
+      ]);
+
+      const won = outcomes.filter((outcome) => outcome.error === null);
+      const refused = outcomes.filter((outcome) => outcome.error !== null);
+      expect(won).toHaveLength(1);
+      expect(refused).toHaveLength(1);
+      expect(["PT409", "40P01"]).toContain(refused[0]?.error?.code);
+
+      const claimed = (await slotsOf(a, period.id)).filter((slot) => slot.claimed_by_name !== null);
+
+      // Exactly two rows, both the winner's, and the digest proves WHICH capability holds them.
+      expect(claimed).toHaveLength(2);
+      const winner = claimed[0]?.claimed_by_name;
+      expect(claimed.every((slot) => slot.claimed_by_name === winner)).toBe(true);
+      const expected = winner === "Celina" ? celina.digest : dorota.digest;
+      expect(claimed.every((slot) => slot.claim_digest === expected)).toBe(true);
+      expect(claimed.map((slot) => slot.id).sort()).toEqual(
+        (winner === "Celina" ? [first, shared] : [shared, third]).sort(),
+      );
+    });
   });
 });
