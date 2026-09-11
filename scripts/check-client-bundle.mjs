@@ -34,6 +34,22 @@
 //      day an island imports it, that pattern false-positives and the check gets disabled.
 //
 // Never prints a matched value — only the file and the pattern name.
+//
+// WHAT CHANGED WHEN THIS BECAME A DEPLOY GATE (2026-09-11, `ci-quality-gates`). This script is
+// now the last link of `npm run ci:gate`, which is the Cloudflare Workers Builds build command.
+// A non-zero exit here therefore produces no version, and no version means NO DEPLOY. That
+// re-prices the missing-env branch below: it used to mean "this developer gets a weaker scan",
+// and it now means "nothing publishes until the build variables come back". `SUPABASE_URL` and
+// `SUPABASE_KEY` are declared `optional: true` in astro.config.mjs, so their absence does not
+// fail a build — it fails THIS, which is the same outcome by a different route. If that is ever
+// the wrong tradeoff for a given context, `SECRET_SCAN_ALLOW_MISSING_ENV=1` is the deliberate
+// opt-out; weakening the exit code is not.
+//
+// AND ONE FLAG THAT MUST NEVER BE SET IN WORKERS BUILDS: `CLOUDFLARE_INCLUDE_PROCESS_ENV`.
+// @cloudflare/vite-plugin writes `dist/server/.dev.vars` from local secrets; with that flag set
+// it serializes the PROCESS environment instead — which in the build container is the production
+// SUPABASE_KEY, written to a plaintext file inside the build output. Unset, as it is today, no
+// such file is produced in CI at all.
 
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative, extname } from "node:path";

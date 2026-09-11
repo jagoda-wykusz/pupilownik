@@ -390,12 +390,45 @@ limit — a red Actions run does not block a merge on this plan.
 
 - §5 — the gate inventory gains the two new gates; the `eslint .` row's "not in the deploy path"
   is no longer true and must change.
+- §5 line 177 — the typecheck row still names `npx astro check` for the pre-commit hook; the hook now calls
+  `npm run check`.
 - Lines 114-115 — "The gate had nowhere to live: there is no CI (see §5)" describes the state this
   change ends. Rewrite to point at the wiring that now exists.
 - §3 row for Phase 3 points at `context/changes/testing-secret-leak/`, which has been archived to
   `context/archive/2026-09-11-testing-secret-leak/`. Fix the path.
 
-#### 4. Infrastructure
+#### 4. The build-variable dependency, recorded where it bites
+
+**File**: `context/foundation/infrastructure.md` (the build-variables note at line 58) and
+`context/deployment/deploy-plan.md:25`
+
+**Intent**: Both documents record that `SUPABASE_URL` / `SUPABASE_KEY` are `optional: true`, so a
+build succeeds without them and only production fails at runtime. Phase 1 changed that: the secret
+scan exits 2 when they are absent and it is now the last link of the publish gate, so their
+absence blocks publication instead. Say so where the old reading lives. Add the one operational
+rule that follows: `CLOUDFLARE_INCLUDE_PROCESS_ENV` must never be set in Workers Builds, because
+it turns the production key into a plaintext file inside the build output.
+
+**Contract**: annotation at both locations, dated, naming this change. The script header already
+carries the same statement (`scripts/check-client-bundle.mjs`, added during the phase-1 review).
+
+#### 5. The documents Phase 1 made stale
+
+**Files**: `README.md:18,187` · `AGENTS.md:25,34` · `docs/reference/data-access.md:324` ·
+`context/deployment/deploy-plan.md:14` · `CLAUDE.md.scaffold:46`
+
+**Intent**: Phase 1 renamed the typecheck invocation and moved the Node pin, which falsified seven
+lines across six files. They are named here rather than left to the implementer's eye, because a
+document that describes a state the system no longer has is the recurring failure this project
+keeps recording. Four say `Node v22.14.0`; three say `npx astro check`. `AGENTS.md:34` additionally
+says "there is no GitHub Actions workflow", which Phase 3 falsifies.
+
+**Contract**: each line updated to `22.23.2` or `npm run check` respectively.
+`context/deployment/deploy-plan.md:14` needs more than a version bump — it also asserts that
+22.14.0 matched the Workers Builds default image, which research measured as false (neither
+preinstalled version is 22.14.0). Correct the claim, do not just change the number.
+
+#### 6. Infrastructure
 
 **File**: `context/foundation/infrastructure.md`
 
@@ -480,13 +513,13 @@ everyone afterwards.
 
 #### Automated
 
-- [x] 1.1 The whole chain passes locally: `npm run ci:gate`
-- [x] 1.2 `astro check` is reachable by name: `npm run check`
-- [x] 1.3 The hook still fires on commit (the Phase 1 commit itself is the proof)
+- [x] 1.1 The whole chain passes locally: `npm run ci:gate` — 6d239cd
+- [x] 1.2 `astro check` is reachable by name: `npm run check` — 6d239cd
+- [x] 1.3 The hook still fires on commit (the Phase 1 commit itself is the proof) — 6d239cd
 
 #### Manual
 
-- [x] 1.4 `npm run ci:gate` confirmed safe to paste into a dashboard field
+- [x] 1.4 `npm run ci:gate` confirmed safe to paste into a dashboard field — 6d239cd
 
 ### Phase 2: Harden the known flake before the first CI run
 
@@ -530,11 +563,12 @@ everyone afterwards.
 #### Automated
 
 - [ ] 5.1 Full chain green before the dashboard is touched: `npm run ci:gate`
-- [ ] 5.2 Docs prettier-clean: `npx prettier --check README.md context/foundation/test-plan.md context/foundation/infrastructure.md`
+- [ ] 5.2 Docs prettier-clean: `npx prettier --check README.md AGENTS.md docs/reference/data-access.md context/foundation/test-plan.md context/foundation/infrastructure.md context/deployment/deploy-plan.md`
 
 #### Manual
 
-- [ ] 5.3 Build command changed to `npm run ci:gate` in the Cloudflare dashboard
-- [ ] 5.4 A failing commit on `master` blocks the deploy; live site unchanged; fix restores it
-- [ ] 5.5 The same commit's Actions run is red while the PR merge button stays enabled
-- [ ] 5.6 No claim in the rewritten README or §5 describes something that does not yet exist
+- [ ] 5.3 `npm run ci:gate` run once under Node 22.23.2 (the version `.nvmrc` now pins) before the dashboard is touched
+- [ ] 5.4 Build command changed to `npm run ci:gate` in the Cloudflare dashboard
+- [ ] 5.5 A failing commit on `master` blocks the deploy; live site unchanged; fix restores it
+- [ ] 5.6 The same commit's Actions run is red while the PR merge button stays enabled
+- [ ] 5.7 No claim in the rewritten README or §5 describes something that does not yet exist
