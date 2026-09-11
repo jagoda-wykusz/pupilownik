@@ -38,11 +38,14 @@ interface CallResult {
   body: unknown;
 }
 
-async function callPost(cookieHeader: string, userId: string | null, rawBody: string): Promise<CallResult> {
+async function callPost(cookieHeader: string | null, userId: string | null, rawBody: string): Promise<CallResult> {
   const url = new URL("http://127.0.0.1/api/pets");
   const request = new Request(url, {
     method: "POST",
-    headers: { Cookie: cookieHeader, "Content-Type": "application/json" },
+    headers: {
+      ...(cookieHeader === null ? {} : { Cookie: cookieHeader }),
+      "Content-Type": "application/json",
+    },
     body: rawBody,
   });
 
@@ -68,13 +71,30 @@ describe("POST /api/pets — validated atomic create", () => {
     owner = authed.owner;
   });
 
-  it("refuses a request with no session (401) and writes nothing", async () => {
-    // The guard at src/pages/api/pets.ts:11 had no test of its own — the only untested owner
-    // guard in the repo. Note what removing it does NOT do: the write still fails, because a
-    // sessionless caller gets an anon-keyed client and anon holds no EXECUTE on
-    // create_pet_with_instructions. What this pins is that the route answers a clean 401 rather
-    // than a 500 carrying a database error. tests/api/token-scope.test.ts covers the same guard
-    // against a caller holding a live invite token.
+  // The guard at src/pages/api/pets.ts:11 had no test of its own — the only untested owner guard
+  // in the repo. Two cases, because they fail differently and only the second one is sharp.
+  it("refuses a request with no session at all (401) and writes nothing", async () => {
+    // No Cookie header: the handler's Supabase client is anon-keyed. Removing the guard would
+    // NOT produce a row here — anon holds no EXECUTE on create_pet_with_instructions, so the
+    // write dies at the database. What this pins is the ANSWER: a clean 401 rather than a 500
+    // carrying a database error. tests/api/token-scope.test.ts covers this shape against a
+    // caller holding a live invite token.
+    const before = await owner.client.from("pets").select("id");
+
+    const { status } = await callPost(null, null, JSON.stringify({ name: "Rex", species: "dog", instructions: [] }));
+
+    expect(status).toBe(401);
+
+    const after = await owner.client.from("pets").select("id");
+    expect(after.data?.length).toBe(before.data?.length ?? 0);
+  });
+
+  it("checks auth BEFORE the write, with a valid session cookie but no locals.user", async () => {
+    // The sharp one, and the shape a middleware mistake actually produces: the Cookie header
+    // carries a genuine session, so createClient yields an AUTHENTICATED client which does hold
+    // EXECUTE on create_pet_with_instructions. Here the route guard is the only fence, and
+    // measured: delete it and this answers 201 with a real row. Mirrors
+    // tests/api/revoke-period.test.ts:130 for this route.
     const before = await owner.client.from("pets").select("id");
 
     const { status } = await callPost(

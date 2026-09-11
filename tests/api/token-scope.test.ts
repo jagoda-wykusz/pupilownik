@@ -1,4 +1,5 @@
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it } from "vitest";
+import type { APIRoute } from "astro";
 import { POST as revokePeriod } from "@/pages/api/periods/[id]/revoke";
 import { POST as releaseSlot } from "@/pages/api/periods/[id]/slots/[slotId]/release";
 import { POST as mintToken } from "@/pages/api/periods/[id]/token";
@@ -11,43 +12,49 @@ import { createAuthenticatedOwnerWithPet } from "../helpers/session";
 
 // Risk #5, asserted in its own words: "the link-only path grants MORE THAN ITS SCOPE".
 //
-// Every existing 401 test proves the adjacent claim — a request with no session is refused —
-// by simply omitting `locals.user`. None of them ever puts a real invite token in the caller's
-// hands. So: one live token, held by a caller with no session, presented every way the
-// transport allows, against every owner-only entry point. All of them answer 401 and write
-// nothing.
+// Every other 401 test proves the adjacent claim — a request with no session is refused — by
+// simply omitting `locals.user`. None of them ever puts a real invite token in the caller's
+// hands. So: one live token, held by a caller with no session, presented every way a route can
+// actually observe it, against every owner-only entry point.
 //
-// WHAT THE ROUTE GUARD IS AND IS NOT, measured rather than assumed — the first version of this
-// header got it wrong and the mutation run corrected it. Deleting `if (!context.locals.user)`
-// from a route does NOT turn these into 200/201: the request reaches the database and is
-// refused there with SQLSTATE 42501, because a caller with no session gets an anon-keyed client
-// and anon holds no EXECUTE on revoke_period, release_slot, regenerate_period_token or
-// create_pet_with_instructions. So the grant layer is a real second fence, not a formality, and
-// the route check is defence in depth over it.
+// WHAT THE ROUTE GUARD IS AND IS NOT. Measured twice, because the first answer was too broad:
 //
-// What these cases therefore pin is the ANSWER, and that is worth pinning on its own: without
-// the guard the caller gets a 500 carrying a database failure instead of a clean 401. The state
-// assertions below stay because they are what would matter if a future owner route wrote
-// through a path anon CAN reach — they are not what discriminates today, and this comment says
-// so rather than letting a reader infer more.
+//   - Caller with NO session cookie at all (this file). Deleting `if (!context.locals.user)`
+//     does not yield 201 — the request reaches the database and is refused with SQLSTATE 42501,
+//     because the client is anon-keyed and anon holds no EXECUTE on revoke_period, release_slot,
+//     regenerate_period_token or create_pet_with_instructions. The grant layer is a real second
+//     fence here, and what these cases pin is the ANSWER: a clean 401 instead of a 500 carrying
+//     a database error.
+//   - Caller WITH a session cookie but no `locals.user` — the middleware-mistake shape, covered
+//     in tests/api/revoke-period.test.ts:130 and tests/api/pets.post.test.ts. There the client is
+//     `authenticated`, the grant layer lets it through, and the route guard is the ONLY fence.
+//     Measured: removing the guard from pets.ts yields 201 and a real row.
 //
-// THE TOKEN IS VERIFIED LIVE inside this file (see beforeAll) before a single case runs.
-// Without that, every row here could pass for the wrong reason — a dead token proves nothing
-// about scope.
+// Both shapes matter and they are different threats. This file is the link-only one, which is
+// what Risk #5 is about; it deliberately sends no session cookie.
 //
-// Each payload below is otherwise VALID, so a 400 cannot masquerade as protection: every one of
-// these requests is well-formed enough that only authorization stands between it and a write.
+// PLACEMENTS ARE PER-ROUTE, not a full product, because a token planted where a handler never
+// looks is decoration, not a probe. Checked against the code:
+//   - `cookie` works on all five — @supabase/ssr parses the Cookie header in src/lib/supabase.ts,
+//     so this genuinely pins "a pupilownik_claim cookie is not mistaken for a session".
+//   - `body` only where a body is read (POST /api/periods, POST /api/pets).
+//   - `url` only where an id param exists to substitute (the three /periods/[id] routes). No
+//     route reads query params, so the query string is carried for realism, not as the probe.
+// The url placement deliberately puts a NON-uuid in `params.id`. That is the shape an attacker
+// would try, and it means a 400 could in principle stand in for the 401 — it does not today,
+// because every one of these routes checks auth before it validates the id, which is itself
+// worth keeping true.
 //
-// What this file deliberately does NOT cover: CSRF posture. Each case builds its own Request,
-// so it says nothing about what the islands send — that lives in tests/component/, as
-// tests/api/revoke-period.test.ts:15-17 already records.
+// THE TOKEN IS VERIFIED LIVE before every case (beforeEach), not once. A dead token would make
+// each 401 meaningless, and two of these routes could in principle kill it mid-file.
+//
+// NOT covered: CSRF posture. Each case builds its own Request, so it says nothing about what the
+// islands send — that lives in tests/component/, as tests/api/revoke-period.test.ts:15-17 records.
 
 type Placement = "body" | "cookie" | "url";
 
-const PLACEMENTS: Placement[] = ["body", "cookie", "url"];
-
-function createFakeCookies(seed: Record<string, string> = {}) {
-  const store = new Map<string, string>(Object.entries(seed));
+function createFakeCookies() {
+  const store = new Map<string, string>();
   return {
     get(name: string) {
       const value = store.get(name);
@@ -74,7 +81,7 @@ interface CallResult {
  *  session — `locals.user` is null, exactly what the middleware leaves for an anonymous call
  *  (these /api paths are not in PROTECTED_ROUTES, so the handler's own check is all there is). */
 async function callRoute(init: {
-  handler: (context: unknown) => Promise<Response>;
+  handler: APIRoute;
   path: string;
   params: Record<string, string>;
   payload?: Record<string, unknown>;
@@ -98,20 +105,18 @@ async function callRoute(init: {
     ...(body === undefined ? {} : { body }),
   });
 
-  // The token in the URL also reaches a param, not just the query string: substituting it for
-  // an id is the shape an attacker would actually try on a route that takes one.
-  const params =
-    init.placement === "url" ? { ...init.params, ...("id" in init.params ? { id: init.token } : {}) } : init.params;
+  const params = init.placement === "url" ? { ...init.params, id: init.token } : init.params;
 
   const context = {
     request,
     url,
-    cookies: createFakeCookies(init.placement === "cookie" ? { [CLAIM_COOKIE]: init.token } : {}),
+    cookies: createFakeCookies(),
     params,
     locals: { user: null },
   };
 
-  const response = await init.handler(context);
+  type Args = Parameters<APIRoute>;
+  const response = await init.handler(context as unknown as Args[0]);
   const responseBody: unknown = await response.json();
   return { status: response.status, body: responseBody };
 }
@@ -121,7 +126,12 @@ describe("a valid invite token opens nothing on the owner side", () => {
   let token: string;
   let periodId: string;
   let claimedSlotId: string;
-  let claimDigest: string | null;
+
+  async function tokenResolves(): Promise<boolean> {
+    const { data, error } = await createAnonClient().rpc("get_period_by_token", { p_token: token });
+    expect(error).toBeNull();
+    return data !== null;
+  }
 
   beforeAll(async () => {
     const authed = await createAuthenticatedOwnerWithPet("Burek");
@@ -152,10 +162,9 @@ describe("a valid invite token opens nothing on the owner side", () => {
     claimedSlotId = free.data?.[0]?.id ?? "";
     expect(claimedSlotId).not.toBe("");
 
-    const anon = createAnonClient();
     expect(
       (
-        await anon.rpc("claim_slots", {
+        await createAnonClient().rpc("claim_slots", {
           p_token: token,
           p_slot_ids: [claimedSlotId],
           p_claim_secret: generateClaimSecret(),
@@ -163,105 +172,99 @@ describe("a valid invite token opens nothing on the owner side", () => {
         })
       ).error,
     ).toBeNull();
-
-    // GUARDS THE WHOLE FILE: the token must actually open the caretaker door right now. A dead
-    // token would make every 401 below meaningless — it would prove nothing about scope.
-    const resolved = await anon.rpc("get_period_by_token", { p_token: token });
-    expect(resolved.error).toBeNull();
-    expect(resolved.data).not.toBeNull();
-
-    claimDigest = (await claimColumnsOf(claimedSlotId)).claim_digest;
-    expect(claimDigest).not.toBeNull();
   });
 
-  async function claimColumnsOf(
-    slotId: string,
-  ): Promise<{ claimed_by_name: string | null; claim_digest: string | null }> {
-    const { data, error } = await owner.client
-      .from("care_slots")
-      .select("claimed_by_name, claim_digest")
-      .eq("id", slotId)
-      .single();
-    expect(error).toBeNull();
-    if (!data) {
-      throw new Error(`token-scope test: slot ${slotId} not readable`);
-    }
-    return data;
-  }
+  // Per case, not once: revoke and token-mint would each invalidate this token if they ever
+  // succeeded, and the cases after them would then assert 401 against a dead link — passing for
+  // exactly the reason that would make them meaningless.
+  beforeEach(async () => {
+    expect(await tokenResolves()).toBe(true);
+  });
 
-  async function revokedAt(): Promise<string | null | undefined> {
+  /** The slice of state the route under test would have changed, serialized so before and after
+   *  can be compared without hardcoding a seed count — a hardcoded count turns red the day an
+   *  unrelated case seeds another row. */
+  async function periodRevokedAt(): Promise<string> {
     const { data, error } = await owner.client.from("care_periods").select("revoked_at").eq("id", periodId);
     expect(error).toBeNull();
-    return (data ?? [])[0]?.revoked_at;
+    return JSON.stringify((data ?? [])[0]?.revoked_at ?? null);
   }
 
-  async function countOf(table: "care_periods" | "pets"): Promise<number> {
+  async function slotClaim(): Promise<string> {
+    const { data, error } = await owner.client
+      .from("care_slots")
+      .select("claimed_by_name, claimed_at, claim_digest")
+      .eq("id", claimedSlotId)
+      .single();
+    expect(error).toBeNull();
+    return JSON.stringify(data);
+  }
+
+  async function tokenLiveness(): Promise<string> {
+    return JSON.stringify(await tokenResolves());
+  }
+
+  async function rowCount(table: "care_periods" | "pets"): Promise<string> {
     const { count, error } = await owner.client.from(table).select("id", { count: "exact", head: true });
     expect(error).toBeNull();
-    return count ?? 0;
+    return JSON.stringify(count ?? 0);
   }
 
   interface Entry {
     route: string;
+    placements: Placement[];
     call: (placement: Placement) => Promise<CallResult>;
-    /** Prove the refusal was a refusal: the state this route would have changed is untouched. */
-    assertUntouched: () => Promise<void>;
+    /** The state this route would have changed, as a comparable string. */
+    state: () => Promise<string>;
   }
 
   const entries: Entry[] = [
     {
       route: "POST /api/periods/[id]/revoke",
+      placements: ["cookie", "url"],
       call: (placement) =>
         callRoute({
-          handler: revokePeriod as unknown as (c: unknown) => Promise<Response>,
+          handler: revokePeriod,
           path: `/api/periods/${periodId}/revoke`,
           params: { id: periodId },
           token,
           placement,
         }),
-      assertUntouched: async () => {
-        expect(await revokedAt()).toBeNull();
-      },
+      state: periodRevokedAt,
     },
     {
       route: "POST /api/periods/[id]/slots/[slotId]/release",
+      placements: ["cookie", "url"],
       call: (placement) =>
         callRoute({
-          handler: releaseSlot as unknown as (c: unknown) => Promise<Response>,
+          handler: releaseSlot,
           path: `/api/periods/${periodId}/slots/${claimedSlotId}/release`,
           params: { id: periodId, slotId: claimedSlotId },
           token,
           placement,
         }),
-      assertUntouched: async () => {
-        const columns = await claimColumnsOf(claimedSlotId);
-        expect(columns.claimed_by_name).toBe("Ania");
-        expect(columns.claim_digest).toBe(claimDigest);
-      },
+      state: slotClaim,
     },
     {
       route: "POST /api/periods/[id]/token",
+      placements: ["cookie", "url"],
       call: (placement) =>
         callRoute({
-          handler: mintToken as unknown as (c: unknown) => Promise<Response>,
+          handler: mintToken,
           path: `/api/periods/${periodId}/token`,
           params: { id: periodId },
           token,
           placement,
         }),
-      assertUntouched: async () => {
-        // The link the caller already holds still resolves — no fresh token was minted, which
-        // would have invalidated this one.
-        const resolved = await createAnonClient().rpc("get_period_by_token", { p_token: token });
-        expect(resolved.error).toBeNull();
-        expect(resolved.data).not.toBeNull();
-      },
+      // A fresh mint would replace the digest and kill the link the caller already holds.
+      state: tokenLiveness,
     },
     {
       route: "POST /api/periods",
+      placements: ["cookie", "body"],
       call: (placement) =>
         callRoute({
-          handler: createPeriod as unknown as (c: unknown) => Promise<Response>,
+          handler: createPeriod,
           path: "/api/periods",
           params: {},
           payload: {
@@ -273,34 +276,37 @@ describe("a valid invite token opens nothing on the owner side", () => {
           token,
           placement,
         }),
-      assertUntouched: async () => {
-        expect(await countOf("care_periods")).toBe(1);
-      },
+      state: () => rowCount("care_periods"),
     },
     {
       route: "POST /api/pets",
+      placements: ["cookie", "body"],
       call: (placement) =>
         callRoute({
-          handler: createPet as unknown as (c: unknown) => Promise<Response>,
+          handler: createPet,
           path: "/api/pets",
           params: {},
           payload: { name: "Podszyty", species: "dog", instructions: [] },
           token,
           placement,
         }),
-      assertUntouched: async () => {
-        expect(await countOf("pets")).toBe(1);
-      },
+      state: () => rowCount("pets"),
     },
   ];
 
-  const cases = entries.flatMap((entry) => PLACEMENTS.map((placement) => ({ entry, placement })));
+  const cases = entries.flatMap((entry) => entry.placements.map((placement) => ({ entry, placement })));
 
-  // it.each over the product, so a newly added owner route falls under the same guard the day
-  // it joins `entries` — rather than relying on someone remembering to write its 401 test.
+  // it.each over the (route, placement) pairs each route can actually observe. Adding a route to
+  // `entries` is a manual step — this list is hand-maintained, unlike PROTECTED_ROUTES which
+  // tests/middleware/auth-gating.test.ts iterates from the source. What the table gives free is
+  // the placements: a newly listed route is probed every way it can see a token, without anyone
+  // deciding which ways those are.
   it.each(cases)("refuses $entry.route with the token in the $placement", async ({ entry, placement }) => {
+    const before = await entry.state();
+
     const { status } = await entry.call(placement);
+
     expect(status).toBe(401);
-    await entry.assertUntouched();
+    expect(await entry.state()).toBe(before);
   });
 });
