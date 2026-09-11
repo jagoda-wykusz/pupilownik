@@ -235,32 +235,32 @@ Four comments justify a correct practice with a false reason; §5 describes a CI
 
 #### Automated
 
-- [x] 1.1 Check passes on a fresh build: `npm run build` then `npm run check:secrets`
-- [x] 1.2 Unit project passes: `npx vitest run --project unit`
-- [x] 1.3 Full suite passes: `npm test`
-- [x] 1.4 Lint passes: `npm run lint`
-- [x] 1.5 Type check passes: `npx astro check`
+- [x] 1.1 Check passes on a fresh build: `npm run build` then `npm run check:secrets` — 98e06f7
+- [x] 1.2 Unit project passes: `npx vitest run --project unit` — 98e06f7
+- [x] 1.3 Full suite passes: `npm test` — 98e06f7
+- [x] 1.4 Lint passes: `npm run lint` — 98e06f7
+- [x] 1.5 Type check passes: `npx astro check` — 98e06f7
 
 #### Manual
 
-- [x] 1.6 Mutation check: a key literal pasted into a client island fails `check:secrets`
-- [x] 1.7 Mutation check: a `context: "client"` schema entry fails the schema test
-- [x] 1.8 Mutation check: a missing `dist/client` fails the test with the build instruction
+- [x] 1.6 Mutation check: a key literal pasted into a client island fails `check:secrets` — 98e06f7
+- [x] 1.7 Mutation check: a `context: "client"` schema entry fails the schema test — 98e06f7
+- [x] 1.8 Mutation check: a missing `dist/client` fails the test with the build instruction — 98e06f7
 
 ### Phase 2: The auth routes stop forwarding upstream errors
 
 #### Automated
 
-- [ ] 2.1 New file passes: `npx vitest run --project integration tests/api/auth-error-disclosure.test.ts`
-- [ ] 2.2 Full suite passes: `npm test`
-- [ ] 2.3 Lint passes: `npm run lint`
-- [ ] 2.4 Type check passes: `npx astro check`
+- [x] 2.1 New file passes: `npx vitest run --project integration tests/api/auth-error-disclosure.test.ts`
+- [x] 2.2 Full suite passes: `npm test`
+- [x] 2.3 Lint passes: `npm run lint`
+- [x] 2.4 Type check passes: `npx astro check`
 
 #### Manual
 
-- [ ] 2.5 Mutation check: restoring `error.message` into a redirect fails the whole-string comparison
-- [ ] 2.6 Wrong password and unknown address show the same sentence and a clean URL
-- [ ] 2.7 The upstream message is visible in the server log
+- [x] 2.5 Mutation check: restoring `error.message` into a redirect fails the whole-string comparison
+- [x] 2.6 Wrong password and unknown address show the same sentence and a clean URL
+- [x] 2.7 The upstream message is visible in the server log
 
 ### Phase 3: Correct the prose this change measured
 
