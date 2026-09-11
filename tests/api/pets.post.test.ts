@@ -38,7 +38,7 @@ interface CallResult {
   body: unknown;
 }
 
-async function callPost(cookieHeader: string, userId: string, rawBody: string): Promise<CallResult> {
+async function callPost(cookieHeader: string, userId: string | null, rawBody: string): Promise<CallResult> {
   const url = new URL("http://127.0.0.1/api/pets");
   const request = new Request(url, {
     method: "POST",
@@ -49,7 +49,7 @@ async function callPost(cookieHeader: string, userId: string, rawBody: string): 
   const context = {
     request,
     cookies: createFakeCookies(),
-    locals: { user: { id: userId } },
+    locals: { user: userId === null ? null : { id: userId } },
   };
 
   type PostArgs = Parameters<typeof POST>;
@@ -66,6 +66,27 @@ describe("POST /api/pets — validated atomic create", () => {
     const authed = await createAuthenticatedOwner();
     cookieHeader = authed.cookieHeader;
     owner = authed.owner;
+  });
+
+  it("refuses a request with no session (401) and writes nothing", async () => {
+    // The guard at src/pages/api/pets.ts:11 had no test of its own — the only untested owner
+    // guard in the repo. Note what removing it does NOT do: the write still fails, because a
+    // sessionless caller gets an anon-keyed client and anon holds no EXECUTE on
+    // create_pet_with_instructions. What this pins is that the route answers a clean 401 rather
+    // than a 500 carrying a database error. tests/api/token-scope.test.ts covers the same guard
+    // against a caller holding a live invite token.
+    const before = await owner.client.from("pets").select("id");
+
+    const { status } = await callPost(
+      cookieHeader,
+      null,
+      JSON.stringify({ name: "Rex", species: "dog", instructions: [] }),
+    );
+
+    expect(status).toBe(401);
+
+    const after = await owner.client.from("pets").select("id");
+    expect(after.data?.length).toBe(before.data?.length ?? 0);
   });
 
   it("rejects a payload with a missing name (400) and writes nothing", async () => {

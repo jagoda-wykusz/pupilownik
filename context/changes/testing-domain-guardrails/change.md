@@ -1,7 +1,7 @@
 ---
 change_id: testing-domain-guardrails
 title: Testing domain guardrails
-status: impl_reviewed
+status: implementing
 created: 2026-09-11
 updated: 2026-09-11
 archived_at: null

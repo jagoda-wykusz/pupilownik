@@ -279,6 +279,12 @@ Spread the `{status, body}` uniformity pattern to the two endpoints that only ch
 
 **Intent**: The claim × release and claim × revoke races, and the absence of a row-lock proof, are decisions made in this plan. Written down they are decisions; unwritten they read as oversights — the failure mode `lessons.md` records for prose that states a system's posture.
 
+**Two corrections this change owes §7, both measured during implementation and agreed with the user — they are commitments, not options.**
+
+1. **The caretaker page was never the secrecy boundary (Phase 1).** `get_period_by_token` returns public instruction rows only, so before a claim the page is never handed a sensitive row or the trip note — there is nothing to withhold. Secrecy is enforced by the two SECURITY DEFINER doors plus `splitRevealAnswer`. What Phase 1 pins is everything downstream: tier separation, id-keyed matching, no dropped or conjured pet, the note travelling only with the reveal. §7 must use that narrower wording, not "leaks a house key".
+
+2. **The owner routes are double-fenced, and the grant layer is the stronger fence (Phase 3).** This plan asserted that a handler mistake "bypasses the grant proof entirely, and nothing would fail". Measured: deleting `if (!context.locals.user)` from `revoke.ts` and `pets.ts` does NOT produce a 200/201 — the request reaches the database and is refused with SQLSTATE 42501, because a sessionless caller gets an anon-keyed client and anon holds no EXECUTE on `revoke_period`, `release_slot`, `regenerate_period_token` or `create_pet_with_instructions`. `tests/api/token-scope.test.ts` therefore pins the ANSWER (a clean 401 rather than a 500 carrying a database error), not the last line of defence. §7 records what Risk #5 is actually defended by, so the next reader does not over-credit the route check.
+
 **Contract**: §7 gains entries for: the claim × release lost-update window (owner's stale tab, PRD §Open Questions #3, re-evaluate if co-owners or realtime arrive); the claim × revoke race (both endings permitted, so a test would assert consistency rather than protection); and the row-lock mechanism (outcome-tested only — a deterministic proof needs two held transactions and therefore a `pg` client this repo does not carry). §6.6 gains a note for this phase. §3's Phase 4 row moves to `complete` with this change folder. Every sentence written in the present tense is read against the code at the moment of writing.
 
 #### 5. Close the change
@@ -389,14 +395,14 @@ None. No migration ships in this change; scratch migrations used for mutation ch
 
 #### Automated
 
-- [ ] 3.1 New file passes: `npx vitest run --project integration tests/api/token-scope.test.ts`
-- [ ] 3.2 Full suite passes: `npm test`
-- [ ] 3.3 Lint passes: `npm run lint`
+- [x] 3.1 New file passes: `npx vitest run --project integration tests/api/token-scope.test.ts`
+- [x] 3.2 Full suite passes: `npm test`
+- [x] 3.3 Lint passes: `npm run lint`
 
 #### Manual
 
-- [ ] 3.4 Mutation check: removing one route's `locals.user` guard fails all three token placements
-- [ ] 3.5 The token is verified live inside the test, so no row can pass for the wrong reason
+- [x] 3.4 Mutation check: removing one route's `locals.user` guard fails all three token placements
+- [x] 3.5 The token is verified live inside the test, so no row can pass for the wrong reason
 
 ### Phase 4: Contention at the HTTP layer, and the rest of Risk #3
 
