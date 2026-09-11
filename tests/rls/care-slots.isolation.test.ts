@@ -156,7 +156,12 @@ describe("care_slots RLS owner-isolation", () => {
     ];
     for (const partial of partials) {
       const attempt = await a.client.from("care_slots").update(partial).eq("id", aSlotId);
-      expect(attempt.error, `partial write ${JSON.stringify(partial)} should be refused`).not.toBeNull();
+      // The CONSTRAINT must refuse it, by name. `not.toBeNull()` would also be satisfied by a
+      // permission error, a type error, or any future guard that happens to reject the same
+      // write — so it asserts "something said no", not "this rule said no". Naming it is what
+      // distinguishes this from care_slots_digest_format, which refuses some of the same rows.
+      expect(attempt.error?.code, `partial write ${JSON.stringify(partial)} should be refused`).toBe("23514");
+      expect(attempt.error?.message).toContain("care_slots_claim_complete");
     }
 
     // All three together is what S-03's claim function writes, and it is allowed.

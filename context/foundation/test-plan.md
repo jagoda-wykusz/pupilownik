@@ -6,7 +6,7 @@
 >
 > Refresh: re-run `/10x-test-plan --refresh` when stale (see §8).
 >
-> Last updated: 2026-07-12
+> Last updated: 2026-09-11
 
 ## 1. Strategy
 
@@ -19,9 +19,9 @@ Tests follow three non-negotiable principles for this project:
 2. **User concerns are first-class evidence.** Risks anchored in "the team
    is worried about X, and the failure would surface somewhere in <area>"
    carry the same weight as PRD lines or hot-spot data.
-3. **Risks are scenarios, not code locations.** This plan documents *what
-   could fail* and *why we believe it's likely* — drawn from documents,
-   interview, and codebase *signal* (churn, structure, test base). It does
+3. **Risks are scenarios, not code locations.** This plan documents _what
+   could fail_ and _why we believe it's likely_ — drawn from documents,
+   interview, and codebase _signal_ (churn, structure, test base). It does
    NOT claim to know which line owns the failure. That knowledge is produced
    by `/10x-research` during each rollout phase. If the plan and research
    disagree about where the failure lives, research is the ground truth.
@@ -34,8 +34,8 @@ leans on the PRD guardrails and the Phase 2 interview more than on churn.
 
 The top failure scenarios this project must protect against, ordered by
 risk = impact × likelihood. Risks are failure scenarios in user / business
-terms, not test names. The Source column cites the *evidence that surfaced
-this risk* — never a specific file as "where the failure lives" (see §1
+terms, not test names. The Source column cites the _evidence that surfaced
+this risk_ — never a specific file as "where the failure lives" (see §1
 principle #3).
 
 Note on maturity: **auth**, the **F-01 data foundation** (profiles +
@@ -45,27 +45,27 @@ therefore live and covered (see the row below). Risks #3 and #4 remain real PRD
 guardrails living in code that does not exist yet (S-03); they activate as that
 slice ships (see §3 Phase 4).
 
-| # | Risk (failure scenario) | Impact | Likelihood | Source (evidence — not anchor) |
-|---|--------------------------|--------|------------|---------------------------------|
-| 1 | A logged-in owner reads or modifies another owner's rows (data / instructions / sign-ups) through a missing or incorrect RLS policy | High | High | interview Q1; PRD §Access Control; AGENTS hard rule "RLS on every table"; hot-spot dir `supabase/migrations/` (2 commits/30d) |
-| 2 | A protected route stops being gated, or signup/signin/session handling lets an unauthenticated user reach owner data | High | Med | interview Q1; PRD §Access Control; hot-spot dir `src/` (`middleware` + auth routes) |
-| 3 | *(forward — S-03)* Two caretakers claim the same slot; allocation is not atomic, producing a double-booking | High | Med | PRD §NFR (atomic claim), §Business Logic; interview Q3 |
-| 4 | *(forward — S-01/S-03)* Sensitive instructions (address, access codes) are shown before a slot is claimed, or to someone outside the invite link | High | Med | PRD FR-008, §NFR; interview Q1 |
-| 5 | The link-only (no-auth) caretaker path grants more than its scope, or a leaked/guessed token exposes a period | High | Med | PRD FR-005/FR-007; interview Q3; abuse lens (IDOR / bearer token). **Active since S-02.** Covered by `tests/rls/invite-token.test.ts` (the SECURITY DEFINER function is the only anon door), `tests/api/periods.post.test.ts` (the minted token opens the period; no digest in the response) and `tests/middleware/auth-gating.test.ts` (`/invite` public by requirement, and its no-referrer/no-store headers) |
-| 6 | A Secret/service-role key or sensitive instruction text escapes into the client bundle, logs, or error bodies | High | Low–Med | AGENTS hard rule "server-only secrets"; abuse lens (secret/PII leakage) |
-| 7 | An API handler trusts client input (missing or weak zod), accepting malformed or forbidden data | Med | Med | AGENTS rule "validate input with zod"; abuse lens (untrusted input) |
+| #   | Risk (failure scenario)                                                                                                                          | Impact | Likelihood | Source (evidence — not anchor)                                                                                                                                                                                                                                                                                                                                                                                  |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ------ | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | A logged-in owner reads or modifies another owner's rows (data / instructions / sign-ups) through a missing or incorrect RLS policy              | High   | High       | interview Q1; PRD §Access Control; AGENTS hard rule "RLS on every table"; hot-spot dir `supabase/migrations/` (2 commits/30d)                                                                                                                                                                                                                                                                                   |
+| 2   | A protected route stops being gated, or signup/signin/session handling lets an unauthenticated user reach owner data                             | High   | Med        | interview Q1; PRD §Access Control; hot-spot dir `src/` (`middleware` + auth routes)                                                                                                                                                                                                                                                                                                                             |
+| 3   | _(forward — S-03)_ Two caretakers claim the same slot; allocation is not atomic, producing a double-booking                                      | High   | Med        | PRD §NFR (atomic claim), §Business Logic; interview Q3                                                                                                                                                                                                                                                                                                                                                          |
+| 4   | _(forward — S-01/S-03)_ Sensitive instructions (address, access codes) are shown before a slot is claimed, or to someone outside the invite link | High   | Med        | PRD FR-008, §NFR; interview Q1                                                                                                                                                                                                                                                                                                                                                                                  |
+| 5   | The link-only (no-auth) caretaker path grants more than its scope, or a leaked/guessed token exposes a period                                    | High   | Med        | PRD FR-005/FR-007; interview Q3; abuse lens (IDOR / bearer token). **Active since S-02.** Covered by `tests/rls/invite-token.test.ts` (the SECURITY DEFINER function is the only anon door), `tests/api/periods.post.test.ts` (the minted token opens the period; no digest in the response) and `tests/middleware/auth-gating.test.ts` (`/invite` public by requirement, and its no-referrer/no-store headers) |
+| 6   | A Secret/service-role key or sensitive instruction text escapes into the client bundle, logs, or error bodies                                    | High   | Low–Med    | AGENTS hard rule "server-only secrets"; abuse lens (secret/PII leakage)                                                                                                                                                                                                                                                                                                                                         |
+| 7   | An API handler trusts client input (missing or weak zod), accepting malformed or forbidden data                                                  | Med    | Med        | AGENTS rule "validate input with zod"; abuse lens (untrusted input)                                                                                                                                                                                                                                                                                                                                             |
 
 ### Risk Response Guidance
 
-| Risk | What would prove protection | Must challenge | Context `/10x-research` must ground | Likely cheapest layer | Anti-pattern to avoid |
-|------|-----------------------------|----------------|--------------------------------------|-----------------------|-----------------------|
-| #1 | Owner A's session cannot SELECT or UPDATE owner B's row; an anonymous request sees nothing | "RLS enabled" ≠ "policies correct"; a SELECT-only test misses UPDATE/INSERT holes | How a user JWT is injected into a test request; the anon/publishable-keyed client path; which tables currently exist | integration vs local Supabase, two distinct JWTs | Asserting via the service-role/postgres client — it bypasses RLS, so the test always passes (tautology) |
-| #2 | An unauthenticated request to a `PROTECTED_ROUTES` path redirects to signin and returns no owner data; auth flows succeed and fail correctly | "Happy-path login works" ≠ "the protected route is gated"; a redirect status ≠ data actually withheld | Middleware ordering; how `context.locals.user` resolves; session-cookie shape on the workerd runtime | integration on routes + middleware | Mocking the Supabase auth client so the test asserts the mock instead of real gating |
-| #3 | A second concurrent claim on a taken slot is rejected; exactly one caretaker wins | "Final status 200" ≠ "only one winner"; sequential tests miss the race | (S-03 must exist) the claim entry point, the DB-level uniqueness/locking guarantee | integration with concurrent requests | Testing two sequential claims and calling it concurrency |
-| #4 | Public instructions are visible pre-claim; sensitive fields appear only to a caretaker who has claimed, and never outside the link | "It's a separate column" ≠ "the API never serializes it pre-claim" | (S-01/S-03 must exist) where the public/sensitive split is enforced — query vs response shaping | integration on the caretaker read path | Asserting the DB column split while the API leaks the field anyway |
-| #5 | A valid link grants access only to its own period; an invalid/old token is rejected; the link cannot reach the owner panel | "Has a token" ≠ "token is scoped"; absence of login ≠ absence of authorization | (S-02/S-03 must exist) token generation/validation, scope enforcement, revocation | integration on the link route | Treating an unguessable token as sufficient without a scope check (IDOR) |
-| #6 | The built client bundle contains no Secret key; error responses carry no secret or PII | "It's a server env var" ≠ "it never reached the client"; absence in source ≠ absence in the built bundle | Build-output location; what error bodies serialize | deterministic build-artifact grep + response assertion | Grepping source instead of the built bundle |
-| #7 | Malformed, oversized, or forbidden payloads are rejected server-side with a clean error | "The client validates" ≠ "the server validates"; a 200 ≠ stored correctly | Each handler's zod schema and what input the route actually trusts | unit / integration on API handlers | Re-asserting the zod schema's own shape (implementation mirror) |
+| Risk | What would prove protection                                                                                                                  | Must challenge                                                                                           | Context `/10x-research` must ground                                                                                  | Likely cheapest layer                                  | Anti-pattern to avoid                                                                                   |
+| ---- | -------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------- |
+| #1   | Owner A's session cannot SELECT or UPDATE owner B's row; an anonymous request sees nothing                                                   | "RLS enabled" ≠ "policies correct"; a SELECT-only test misses UPDATE/INSERT holes                        | How a user JWT is injected into a test request; the anon/publishable-keyed client path; which tables currently exist | integration vs local Supabase, two distinct JWTs       | Asserting via the service-role/postgres client — it bypasses RLS, so the test always passes (tautology) |
+| #2   | An unauthenticated request to a `PROTECTED_ROUTES` path redirects to signin and returns no owner data; auth flows succeed and fail correctly | "Happy-path login works" ≠ "the protected route is gated"; a redirect status ≠ data actually withheld    | Middleware ordering; how `context.locals.user` resolves; session-cookie shape on the workerd runtime                 | integration on routes + middleware                     | Mocking the Supabase auth client so the test asserts the mock instead of real gating                    |
+| #3   | A second concurrent claim on a taken slot is rejected; exactly one caretaker wins                                                            | "Final status 200" ≠ "only one winner"; sequential tests miss the race                                   | (S-03 must exist) the claim entry point, the DB-level uniqueness/locking guarantee                                   | integration with concurrent requests                   | Testing two sequential claims and calling it concurrency                                                |
+| #4   | Public instructions are visible pre-claim; sensitive fields appear only to a caretaker who has claimed, and never outside the link           | "It's a separate column" ≠ "the API never serializes it pre-claim"                                       | (S-01/S-03 must exist) where the public/sensitive split is enforced — query vs response shaping                      | integration on the caretaker read path                 | Asserting the DB column split while the API leaks the field anyway                                      |
+| #5   | A valid link grants access only to its own period; an invalid/old token is rejected; the link cannot reach the owner panel                   | "Has a token" ≠ "token is scoped"; absence of login ≠ absence of authorization                           | (S-02/S-03 must exist) token generation/validation, scope enforcement, revocation                                    | integration on the link route                          | Treating an unguessable token as sufficient without a scope check (IDOR)                                |
+| #6   | The built client bundle contains no Secret key; error responses carry no secret or PII                                                       | "It's a server env var" ≠ "it never reached the client"; absence in source ≠ absence in the built bundle | Build-output location; what error bodies serialize                                                                   | deterministic build-artifact grep + response assertion | Grepping source instead of the built bundle                                                             |
+| #7   | Malformed, oversized, or forbidden payloads are rejected server-side with a clean error                                                      | "The client validates" ≠ "the server validates"; a 200 ≠ stored correctly                                | Each handler's zod schema and what input the route actually trusts                                                   | unit / integration on API handlers                     | Re-asserting the zod schema's own shape (implementation mirror)                                         |
 
 ## 3. Phased Rollout
 
@@ -73,36 +73,57 @@ Each row is a discrete rollout phase that will open its own change folder
 via `/10x-new`. Status moves left-to-right through the values below; the
 orchestrator updates Status as artifacts appear on disk.
 
-| # | Phase name | Goal (one line) | Risks covered | Test types | Status | Change folder |
-|---|------------|-----------------|----------------|------------|--------|----------------|
-| 1 | Bootstrap runner + RLS owner-isolation | Prove an owner cannot read/modify another's rows; establish the reusable RLS-test harness every future table copies | #1 | vitest setup + integration vs local Supabase | complete | context/archive/2026-06-28-testing-rls-owner-isolation/ |
-| 2a | Auth gating | Protected routes gate unauthenticated access; auth/session flows behave; an invalid session cannot reach owner data | #2 | integration (routes + middleware) | complete | context/archive/2026-07-12-testing-auth-gating/ |
-| 2b | Input validation | API handlers reject malformed/forbidden input server-side (zod), not just the client | #7 | unit / integration on API handlers | not started | — |
-| 3 | Secret-leak & quality-gate wiring | Secrets never ship to the client; lock the cheap floor (lint/build/secret-grep) | #6 | deterministic build-artifact checks + gate wiring | not started | — |
-| 4 | Domain guardrails (gated) | Instruction visibility scoping, link-only access enforcement, atomic slot claim | #3, #4, #5 | TBD per slice | not started | — |
+| #   | Phase name                             | Goal (one line)                                                                                                     | Risks covered | Test types                                        | Status      | Change folder                                           |
+| --- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ------------- | ------------------------------------------------- | ----------- | ------------------------------------------------------- |
+| 1   | Bootstrap runner + RLS owner-isolation | Prove an owner cannot read/modify another's rows; establish the reusable RLS-test harness every future table copies | #1            | vitest setup + integration vs local Supabase      | complete    | context/archive/2026-06-28-testing-rls-owner-isolation/ |
+| 2a  | Auth gating                            | Protected routes gate unauthenticated access; auth/session flows behave; an invalid session cannot reach owner data | #2            | integration (routes + middleware)                 | complete    | context/archive/2026-07-12-testing-auth-gating/         |
+| 2b  | Input validation                       | API handlers reject malformed/forbidden input server-side (zod), not just the client                                | #7            | unit / integration on API handlers                | not started | —                                                       |
+| 3   | Secret-leak & quality-gate wiring      | Secrets never ship to the client; lock the cheap floor (lint/build/secret-grep)                                     | #6            | deterministic build-artifact checks + gate wiring | not started | —                                                       |
+| 4   | Domain guardrails (gated)              | Instruction visibility scoping, link-only access enforcement, atomic slot claim                                     | #3, #4, #5    | unit + integration + component, no new runner     | complete    | context/changes/testing-domain-guardrails/              |
 
 Phase 2 was split into **2a (auth gating, #2)** and **2b (input validation, #7)**
 when the gating work shipped in `context/changes/testing-auth-gating/` — Risk #2
 landed there; Risk #7 remains its own pending change.
 
-Phase 4 is blocked until slices S-01..S-03 exist — `/10x-research` cannot
-ground code that has not been written. When those slices land, split Phase 4
-per slice via `/10x-test-plan --refresh`.
+Phase 4 was blocked until slices S-01..S-03 existed — `/10x-research` cannot
+ground code that has not been written. **Unblocked 2026-09-11**: S-01..S-06 have
+all shipped and archived.
+
+Phase 4 opened out of order on 2026-09-11 at the user's explicit direction —
+Phases 2b and 3 remain `not started` and were neither skipped nor completed.
+The split-per-slice refresh this note originally prescribed was **not** run;
+instead Phase 4 opens as a single change and `/10x-research` establishes what
+the shipping slices already covered. Live signal at open: 28 test files exist,
+including `tests/rls/claim-slots.test.ts` and `tests/api/invite-claim.test.ts`
+(Risk #3 territory), `tests/rls/reveal-instructions.test.ts` (Risk #4) and the
+three files §2 already credits to Risk #5. Treat this phase's scope as
+**gap-finding over existing coverage**, not greenfield. S-06 shipped period
+revocation after this plan was last written, so the revocation leg of Risk #5
+is the one area with no prior claim of coverage in §2.
+
+**Phase 4 closed 2026-09-11** as gap-finding, in five phases: the caretaker page's
+instruction gate (#4), release x reveal (#5), token scope on the owner routes (#5),
+contention at the HTTP layer plus the claim-triple constraint (#3), and this closing
+pass. Five test files added, one production move (the per-pet instruction composition
+out of `[token].astro` into `src/lib/invite-view.ts`), no migration. Every phase was
+mutation-tested; §7 below records what those mutations revealed about what is actually
+defended, including two places where this plan's own prose was wrong.
 
 ## 4. Stack
 
 The classic test base for this project: **none yet** (no runner configured, 0
 test files). Phase 1 bootstraps it.
 
-| Layer | Tool | Version | Notes |
-|-------|------|---------|-------|
-| unit + integration | Vitest | ^4.1 | wired in Phase 1 (`vitest.config.ts`, node env, `npm test`). Natural fit: the project already builds on Vite (Astro 6). |
-| Supabase integration | local stack (`npx supabase start`) + `@supabase/supabase-js` | installed | Run RLS tests against the local Postgres with two distinct user JWTs; never the service-role client. |
-| e2e | Playwright | TBD | none yet — optional, deferred until a domain flow exists (post-Phase 4). |
-| build-artifact checks | grep over `dist/` build output | n/a | none yet — see §3 Phase 3 (secret-leak gate). |
-| (optional) AI-native | none | n/a | not justified under cost × signal at this maturity. |
+| Layer                 | Tool                                                         | Version   | Notes                                                                                                                   |
+| --------------------- | ------------------------------------------------------------ | --------- | ----------------------------------------------------------------------------------------------------------------------- |
+| unit + integration    | Vitest                                                       | ^4.1      | wired in Phase 1 (`vitest.config.ts`, node env, `npm test`). Natural fit: the project already builds on Vite (Astro 6). |
+| Supabase integration  | local stack (`npx supabase start`) + `@supabase/supabase-js` | installed | Run RLS tests against the local Postgres with two distinct user JWTs; never the service-role client.                    |
+| e2e                   | Playwright                                                   | TBD       | none yet — optional, deferred until a domain flow exists (post-Phase 4).                                                |
+| build-artifact checks | grep over `dist/` build output                               | n/a       | none yet — see §3 Phase 3 (secret-leak gate).                                                                           |
+| (optional) AI-native  | none                                                         | n/a       | not justified under cost × signal at this maturity.                                                                     |
 
 **Stack grounding tools (current session):**
+
 - Docs: Supabase skill (RLS / migration / SSR best-practices) — available, used to ground the RLS-test approach (two JWTs, no service-role client); checked: 2026-06-28. Context7 / framework-docs MCP: not available in current session.
 - Search: none — no Exa.ai / web-search MCP available in current session; checked: 2026-06-28.
 - Runtime/browser: Playwright MCP — not available in current session; checked: 2026-06-28.
@@ -114,17 +135,17 @@ The full set of gates that must pass before a change reaches production.
 "Required for §3 Phase N" means the gate is enforced once that rollout phase
 lands; before that, it is `planned`.
 
-| Gate | Where | Required? | Catches |
-|------|-------|-----------|---------|
-| format (prettier, edited file) | per-edit agent hook (`.claude/hooks/format-edited-file.mjs`) | required (wired) | formatting drift; a file the formatter cannot parse |
-| lint | local (husky/lint-staged on staged files + `npm run lint`) + Cloudflare Workers Builds | required (wired) | syntactic drift |
-| typecheck | local (husky pre-commit, `tsc --noEmit`) + Cloudflare Workers Builds | required (wired) | type drift |
-| build | local (`npm run build`) + Cloudflare Workers Builds | required (wired) | broken SSR build |
-| unit + integration | local + CI | required after §3 Phase 1 | logic + RLS regressions |
-| unit + integration, scoped to the edited file | per-edit agent hook for risk-area files (`.claude/hooks/related-tests.mjs`) | required (wired) | logic + RLS regressions on the path just edited |
-| secret-leak grep on build output | CI | required after §3 Phase 3 | Secret/PII shipped to client |
-| Supabase advisors (security) | local (`npx supabase db advisors`) | recommended on every migration | RLS / definer-function issues |
-| e2e on critical flows | CI on PR | optional (deferred to post-Phase 4) | broken critical user paths |
+| Gate                                          | Where                                                                                  | Required?                           | Catches                                             |
+| --------------------------------------------- | -------------------------------------------------------------------------------------- | ----------------------------------- | --------------------------------------------------- |
+| format (prettier, edited file)                | per-edit agent hook (`.claude/hooks/format-edited-file.mjs`)                           | required (wired)                    | formatting drift; a file the formatter cannot parse |
+| lint                                          | local (husky/lint-staged on staged files + `npm run lint`) + Cloudflare Workers Builds | required (wired)                    | syntactic drift                                     |
+| typecheck                                     | local (husky pre-commit, `tsc --noEmit`) + Cloudflare Workers Builds                   | required (wired)                    | type drift                                          |
+| build                                         | local (`npm run build`) + Cloudflare Workers Builds                                    | required (wired)                    | broken SSR build                                    |
+| unit + integration                            | local + CI                                                                             | required after §3 Phase 1           | logic + RLS regressions                             |
+| unit + integration, scoped to the edited file | per-edit agent hook for risk-area files (`.claude/hooks/related-tests.mjs`)            | required (wired)                    | logic + RLS regressions on the path just edited     |
+| secret-leak grep on build output              | CI                                                                                     | required after §3 Phase 3           | Secret/PII shipped to client                        |
+| Supabase advisors (security)                  | local (`npx supabase db advisors`)                                                     | recommended on every migration      | RLS / definer-function issues                       |
+| e2e on critical flows                         | CI on PR                                                                               | optional (deferred to post-Phase 4) | broken critical user paths                          |
 
 CI runs via Cloudflare Workers Builds connected to the GitHub repo; there is
 no GitHub Actions workflow. New gates wire into that flow.
@@ -134,14 +155,14 @@ no GitHub Actions workflow. New gates wire into that flow.
 Gates are placed by measured cost, not by preference. Measured on this project
 (Windows, 2026-09-07):
 
-| Check | Scope | Cost | Layer |
-|-------|-------|------|-------|
-| `prettier --write <file>` | one file | ~0.3s | per-edit agent hook |
-| `vitest related <file> --run` | one file's import graph | ~2s | per-edit agent hook, risk areas only |
-| `eslint --fix <file>` | one file | 12-22s (type-aware, `projectService: true`) | pre-commit (lint-staged) |
-| `eslint .` | whole project | ~110s | CI |
-| `tsc --noEmit` | whole project | ~26s | pre-commit |
-| `astro check` | whole project + templates | ~38s | not wired — promote if a template type error slips through |
+| Check                         | Scope                     | Cost                                        | Layer                                                      |
+| ----------------------------- | ------------------------- | ------------------------------------------- | ---------------------------------------------------------- |
+| `prettier --write <file>`     | one file                  | ~0.3s                                       | per-edit agent hook                                        |
+| `vitest related <file> --run` | one file's import graph   | ~2s                                         | per-edit agent hook, risk areas only                       |
+| `eslint --fix <file>`         | one file                  | 12-22s (type-aware, `projectService: true`) | pre-commit (lint-staged)                                   |
+| `eslint .`                    | whole project             | ~110s                                       | CI                                                         |
+| `tsc --noEmit`                | whole project             | ~26s                                        | pre-commit                                                 |
+| `astro check`                 | whole project + templates | ~38s                                        | not wired — promote if a template type error slips through |
 
 Two consequences worth knowing before changing the wiring:
 
@@ -230,7 +251,7 @@ capturing anything surprising the phase taught.)
 
 - **Phase 1 (RLS owner-isolation, `testing-rls-owner-isolation`)**: DELETE/UPDATE denial
   under RLS is silent — no error, just 0 rows affected — so those cases assert the row
-  *survives/is unchanged*, not that an error is thrown. Only INSERT (and the with-check
+  _survives/is unchanged_, not that an error is thrown. Only INSERT (and the with-check
   reassignment) raise a hard RLS error. `.env.test` carries a service-role key solely for
   the cascade test's `auth.admin.deleteUser`; it is fenced to that one file.
 - **S-07 (`ui-design-system`)**: splitting `vitest.config.ts` into `unit` + `integration`
@@ -253,7 +274,7 @@ capturing anything surprising the phase taught.)
   `tests/rls/invite-token.test.ts` is its only automated guard, and it needs a primitive the
   harness did not have: `createAnonClient()` (`tests/helpers/auth.ts`), a client with **no
   session**, so it genuinely carries the `anon` role. Three things that recipe taught:
-  (1) asserting "anon sees nothing" is not enough — assert the failures are *indistinguishable*
+  (1) asserting "anon sees nothing" is not enough — assert the failures are _indistinguishable_
   from each other, because a distinct answer for a revoked token confirms the period exists;
   (2) `revoke ... from public` does not revoke from `anon`/`authenticated`/`service_role` on
   Supabase (ALTER DEFAULT PRIVILEGES grants those separately), and the same gap exists at
@@ -267,7 +288,7 @@ capturing anything surprising the phase taught.)
 - **S-08 (`period-pets-relation`)**: the first table in this schema whose ownership is
   transitive through TWO parents, and the recipe changes because of it. §6.5's four denial
   surfaces are necessary but not sufficient: the predicate is a conjunction (`caller owns the
-  period AND the pet`), and a single-parent version passes every one of those four. What
+period AND the pet`), and a single-parent version passes every one of those four. What
   catches it is a pair of with-check cases in opposite directions — A's period + B's pet, and
   B's period + A's pet. Say what the missing half actually costs, not just that a test would
   miss it: with only the period half, an owner can attach **another owner's pet** to their own
@@ -283,6 +304,18 @@ capturing anything surprising the phase taught.)
   `create_period_with_slots`, so a pre-relation row, a raw insert, or deleting the last linked
   pet all leave a petless period standing. Every screen that reads a period's pets has to
   render that state rather than assume a non-empty list.
+
+- **Phase 4 (domain guardrails, `testing-domain-guardrails`)**: the phase taught one thing
+  repeatedly and it is worth more than the tests. **A prediction about what happens when a
+  guard is removed belongs in a mutation run before it belongs in prose.** Three times the
+  plan's stated premise turned out to be false, and every time the mutation — not the
+  planning, not the review of the plan — is what revealed it (see §7). Mutation testing has
+  its own ceiling too: it only refutes hypotheses you already hold, which is how a
+  release that over-reached ACROSS periods passed four tests written for the two
+  hypotheses their author had. Mechanics worth copying: mutate through a scratch migration
+  plus `npm run db:reset` rather than patching in place (prettier silently reformatted an
+  in-place mutation once, producing a no-op that read as "the test does not guard this");
+  and verify the mutation actually applied before believing the result.
 
 ### 6.7 Adding a protected-route (middleware gating) test
 
@@ -351,9 +384,66 @@ contributors should respect these unless the underlying assumption changes.
   Fixing it properly means Polish messages at the type level in that schema plus the membership
   test extended to cover it — its own unit of work, in S-01's scope, not this change's.
 
+- **The claim × release lost-update window (Phase 4).** `release_slot` carries no optimistic
+  lock, so an owner releasing from a stale tab can silently wipe a caretaker claim that landed
+  in between. Documented at `release_slot.sql:52-65` and recorded in `prd.md` §Open Questions #3
+  with `Owner: użytkownik`. NOT pinned: closing it is a product decision and a migration, not a
+  test. Re-evaluate if the product grows co-owners or realtime — the fix (`p_claimed_at` in the
+  WHERE) would make it testable in the same breath.
+
+- **The claim × revoke race (Phase 4).** Both endings are permitted — the claim lands or it
+  does not — so a test could only assert internal consistency, not protection. Cost without
+  signal under §1's first principle. Re-evaluate if revocation ever grows a side effect on
+  claimed rows.
+
+- **The deadlock branch, through the database (Phase 4).** `src/pages/invite/claim.ts` maps
+  SQLSTATE `40P01` to a retryable 409. That branch cannot be reached by racing real claims:
+  `claim_slots` allocates with one UPDATE carrying no `ORDER BY`, so both sessions run identical
+  SQL, get the same plan and take row locks in the same order — a consistent global lock order
+  makes deadlock impossible rather than merely unlikely. The mapping is covered by INJECTION
+  instead (`tests/unit/claim-error-mapping.test.ts`), which is deterministic and Docker-free.
+  Re-evaluate if the claim path ever gains a second statement or a different lock order.
+
+- **The row lock itself (Phase 4).** `claim_slots` allocates with one guarded `update … where
+claimed_by_name is null`. Every concurrency test in this repo — `tests/rls/claim-slots.test.ts`
+  and the HTTP block in `tests/api/invite-claim.test.ts` — proves the OUTCOME (exactly one
+  winner), not that the row lock was exercised: nothing forces the statements to interleave, so
+  the same assertions would pass against a broken read-then-write that happened not to overlap.
+  A deterministic proof needs two held transactions, which needs a `pg` client this repo
+  deliberately does not carry. Both files say so about themselves. Re-evaluate if a `pg`
+  dependency ever arrives for another reason.
+
+### What Phase 4 measured, and where this plan had been wrong
+
+Two claims in the §2 Risk Response table read stronger than the code supports. Both were
+corrected by mutation during Phase 4 and are recorded here so the next reader does not
+re-inherit them.
+
+- **Risk #4's anti-pattern is real, but the caretaker page was never the secrecy boundary.**
+  `get_period_by_token` returns PUBLIC instruction rows only, so before a claim the page is
+  never handed a sensitive row or the trip note — there is nothing there to withhold. Secrecy
+  is enforced by the two `SECURITY DEFINER` doors plus `splitRevealAnswer`, pinned by
+  `tests/rls/reveal-instructions.test.ts` and `tests/unit/invite-view.test.ts`. What Phase 4
+  added at the page layer (`composeCaretakerView`) pins everything DOWNSTREAM of that gate:
+  tier separation, id-keyed matching, no dropped or conjured pet, and the note travelling only
+  with the reveal. Real, and narrower than "the API leaks the field anyway" suggests here.
+
+- **Risk #5's owner routes are defended by two different fences, and which one holds depends on
+  the caller.** With NO session cookie — the link-only caretaker Risk #5 is about — deleting a
+  route's `locals.user` check does not produce a write: the client is anon-keyed and anon holds
+  no EXECUTE on `revoke_period`, `release_slot`, `regenerate_period_token` or
+  `create_pet_with_instructions`, so the write dies at the database (42501).
+  `tests/api/token-scope.test.ts` therefore pins the ANSWER — a clean 401 rather than a 500
+  carrying a database error. With a session cookie present but `locals.user` absent — the shape
+  a middleware mistake actually produces — the client is `authenticated`, the grant layer lets
+  it straight through, and the route check is the ONLY fence: measured, removing it from
+  `pets.ts` yields **201 and a real row**. That half is pinned by
+  `tests/api/revoke-period.test.ts` and `tests/api/pets.post.test.ts`. Quoting either half
+  alone misleads.
+
 ## 8. Freshness Ledger
 
-- Strategy (§1–§5) last reviewed: 2026-06-28
+- Strategy (§1–§5) last reviewed: 2026-09-11 (§3 Phase 4 closed; §2's Risk #4 and #5 wording corrected against measurement — see §7)
 - Stack versions last verified: 2026-06-28
 - AI-native tool references last verified: 2026-06-28
 

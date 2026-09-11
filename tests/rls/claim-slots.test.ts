@@ -547,16 +547,19 @@ describe("claim_slots — the caretaker write door", () => {
     });
 
     it("stays all-or-nothing when two capabilities race on OVERLAPPING selections", async () => {
-      // The one-slot race above cannot deadlock: a deadlock needs two transactions taking row
-      // locks in different orders, which needs overlapping SETS. This is therefore the only
-      // case that reaches the 40P01 path src/pages/invite/claim.ts maps to a 409, and the only
-      // one where a partially-applied claim could appear if the guarded UPDATE stopped being
-      // one statement.
+      // Overlapping sets are where a partially-applied claim would appear if the guarded UPDATE
+      // ever stopped being one statement: the loser must hold NONE of its terms, not even the
+      // one it alone requested.
       //
-      // Both refusals are permitted and the test says which: PT409 (the slot was taken first)
-      // and 40P01 (the deadlock victim). Asserting a single expected interleave would be
-      // asserting the scheduler, not the code. What must hold either way is that the loser
-      // wrote NOTHING — not even the slot it alone requested.
+      // CORRECTED after the phase-4 review — this comment used to claim these are "the only
+      // shape that can deadlock" and the assertion admitted 40P01 as a permitted refusal. Both
+      // were wrong. The UPDATE carries no ORDER BY, so both sessions run identical SQL, get the
+      // same plan, and take row locks in the SAME order; with a consistent global lock order a
+      // deadlock cannot occur. The loser blocks on the shared row, re-evaluates
+      // `claimed_by_name is null` under READ COMMITTED, and raises PT409 — always. Admitting
+      // 40P01 here was strictly weaker for no gain: it would have masked a real regression that
+      // started producing deadlocks. That branch is covered by injection instead, in
+      // tests/unit/claim-error-mapping.test.ts.
       const period = await seedPeriod(a, "A-nakladajace", "2027-06-01", "2027-06-02");
       const [first, shared, third] = await freeSlotIds(a, period.id, 3);
 
@@ -572,7 +575,7 @@ describe("claim_slots — the caretaker write door", () => {
       const refused = outcomes.filter((outcome) => outcome.error !== null);
       expect(won).toHaveLength(1);
       expect(refused).toHaveLength(1);
-      expect(["PT409", "40P01"]).toContain(refused[0]?.error?.code);
+      expect(refused[0]?.error?.code).toBe("PT409");
 
       const claimed = (await slotsOf(a, period.id)).filter((slot) => slot.claimed_by_name !== null);
 

@@ -266,6 +266,35 @@ describe("POST /api/periods/[id]/token — regeneration", () => {
     expect(status).toBe(404);
   });
 
+  it("gives the unknown, the foreign and the REVOKED period the same 404 body", async () => {
+    // Uniformity, the same property revoke's route already pins. regenerate_period_token answers
+    // one NULL for "no such period", "not yours" and "revoked" — the last one added by S-06 — and
+    // a route that told them apart would confirm a period exists to someone who cannot see it.
+    // The revoked leg is asserted only in SQL (tests/rls/invite-token.test.ts) until here.
+    const seeded = await call(createPeriod, "/api/periods", {
+      cookieHeader,
+      userId: owner.userId,
+      rawBody: validBody([owner.petId]),
+    });
+    const mine = (seeded.body as { period: { id: string } }).period.id;
+    expect((await owner.client.rpc("revoke_period", { p_period_id: mine })).data).toBe(mine);
+
+    const unknownId = crypto.randomUUID();
+    const unknown = await call(regenerateToken, `/api/periods/${unknownId}/token`, {
+      cookieHeader,
+      userId: owner.userId,
+      params: { id: unknownId },
+    });
+    const revoked = await call(regenerateToken, `/api/periods/${mine}/token`, {
+      cookieHeader,
+      userId: owner.userId,
+      params: { id: mine },
+    });
+
+    expect(unknown.status).toBe(404);
+    expect(revoked).toEqual(unknown);
+  });
+
   it("mints a new link and kills the previous one (200)", async () => {
     const { status, body } = await call(regenerateToken, `/api/periods/${periodId}/token`, {
       cookieHeader,

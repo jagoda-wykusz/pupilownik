@@ -89,6 +89,13 @@ async function call(init: {
   return { status: response.status, body: JSON.parse(rawBody) as Record<string, unknown>, cookies, rawBody };
 }
 
+/** Unique per call: the seeded period is shared by every test in this file, so a fixed name
+ *  could collide with a claim made 300 lines earlier and make an assertion pass or fail for a
+ *  reason that has nothing to do with the case under test. */
+function suffix(): string {
+  return crypto.randomUUID().slice(0, 8);
+}
+
 describe("POST /invite/claim", () => {
   let owner: OwnerWithPetContext;
   let token: string;
@@ -258,7 +265,7 @@ describe("POST /invite/claim", () => {
     await call({ body: { token, slot_ids: taken, name: "Hania" } });
 
     const alsoFree = await freeSlots(1);
-    const { status, body } = await call({
+    const { status, body, cookies } = await call({
       body: { token, slot_ids: [...taken, ...alsoFree], name: "Iwona" },
     });
 
@@ -271,6 +278,11 @@ describe("POST /invite/claim", () => {
     // All or nothing: the still-free slot was NOT claimed by Iwona.
     const { data } = await owner.client.from("care_slots").select("claimed_by_name").in("id", alsoFree);
     expect(data?.[0].claimed_by_name).toBeNull();
+
+    // And no capability. "sets NO cookie on any refusal" below covers 403, 404 and 400 — this
+    // is the PT409 path, the one refusal that comes from the database rather than the route,
+    // and a cookie here would hand the loser a reveal they never earned.
+    expect(cookies.store.has(CLAIM_COOKIE)).toBe(false);
   });
 
   it("answers a generic 409 when the conflict cannot be named", async () => {
@@ -412,14 +424,18 @@ describe("POST /invite/claim", () => {
 
   // ── Contention ──────────────────────────────────────────────────────────────────────────
   //
-  // The RPC-level race lives in tests/rls/claim-slots.test.ts:509. What it cannot reach is
-  // everything this route adds on top: the capability cookie, conflictMessage, and the mapping
-  // of BOTH refusal codes onto 409. Before this block every claim in this file was sequential,
-  // so none of that was ever exercised under contention.
+  // The RPC-level race lives in tests/rls/claim-slots.test.ts. What it cannot reach is the
+  // all-or-nothing invariant as the ROUTE reports it — one 200 and one 409 rather than two
+  // receipts — with zod, hashing and an HTTP hop between the two callers.
+  //
+  // BE PRECISE about what this is worth, because the first version of this block was not. It
+  // is a WEAKER race detector than the RPC one: two callers instead of six, with more jitter
+  // between the UPDATEs. Under the mutation that removes the freeness predicate the RPC case
+  // reports six winners and this one reports two. Its value is the route's own translation of
+  // the outcome, not extra sensitivity to the race.
   //
   // Vitest runs files in parallel but tests within a file SERIALLY, so contention has to be
-  // built inside one it() with Promise.all — splitting these across it() blocks would produce
-  // no overlap at all.
+  // built inside one it() with Promise.all.
   //
   // THE SAME HONEST LIMIT the RPC file states applies here: nothing forces the two requests to
   // interleave, so this is an OUTCOME check that is opportunistically a mechanism check. A
@@ -428,59 +444,59 @@ describe("POST /invite/claim", () => {
   describe("contention", () => {
     it("admits exactly one winner when two caretakers post for the same term at once", async () => {
       const [contested] = await freeSlots(1);
+      const [first, second] = [`Ania-${suffix()}`, `Basia-${suffix()}`];
 
       const outcomes = await Promise.all([
-        call({ body: { token, slot_ids: [contested], name: "Ania" } }),
-        call({ body: { token, slot_ids: [contested], name: "Basia" } }),
+        call({ body: { token, slot_ids: [contested], name: first } }),
+        call({ body: { token, slot_ids: [contested], name: second } }),
       ]);
 
-      const won = outcomes.filter((outcome) => outcome.status === 200);
-      const refused = outcomes.filter((outcome) => outcome.status === 409);
-      expect(won).toHaveLength(1);
-      expect(refused).toHaveLength(1);
+      // Compared as a sorted list rather than filtered by status: if a third status ever
+      // appears — the 500 fallthrough under pool pressure, say — the failure names it instead
+      // of reporting an undiagnosable "expected length 1, received 0".
+      expect(outcomes.map((outcome) => outcome.status).sort()).toEqual([200, 409]);
 
-      // The loser is told which term went, and gets NO capability — a cookie here would hand
-      // them a reveal they never earned. The sequential version of this is already pinned at
-      // "sets NO cookie on any refusal"; this is the concurrent one.
-      expect(String(refused[0]?.body.error)).toMatch(/Zajęte już:/);
-      expect(refused[0]?.cookies.store.has(CLAIM_COOKIE)).toBe(false);
-      expect(won[0]?.cookies.store.has(CLAIM_COOKIE)).toBe(true);
+      const won = outcomes.find((outcome) => outcome.status === 200);
+      expect(String(won?.body.name)).toBe(
+        outcomes.find((outcome) => outcome.status === 409) === outcomes[0] ? second : first,
+      );
 
-      // And the table agrees with the receipts: one row, one name, and it is the winner's.
+      // The table agrees with the receipts: one row, one name, and it is the winner's.
       const { data } = await owner.client.from("care_slots").select("claimed_by_name").eq("id", contested).single();
-      expect(data?.claimed_by_name).toBe(won[0]?.body.name);
+      expect(data?.claimed_by_name).toBe(won?.body.name);
     });
 
-    it("keeps all-or-nothing under overlapping selections, whichever way the refusal arrives", async () => {
-      // Overlapping sets are the ONLY shape that can deadlock — two callers taking row locks in
-      // different orders — which is the branch src/pages/invite/claim.ts maps from 40P01. A
-      // single contested slot can never produce it. The assertion admits both permitted
-      // refusals because both surface as 409: PT409 names the taken terms, the deadlock says
-      // "try again". What must hold in either case is that the loser wrote NOTHING.
+    it("keeps all-or-nothing under overlapping selections", async () => {
+      // Overlapping sets exercise the multi-row rollback: the loser must hold NONE of its
+      // terms, including the one it alone requested.
+      //
+      // They do NOT reach the deadlock branch, and the first version of this comment said they
+      // did. claim_slots allocates with a single UPDATE carrying no ORDER BY, so both sessions
+      // run identical SQL, get the same plan and take row locks in the same order — which makes
+      // deadlock impossible here, not merely unlikely. The refusal is always PT409. The 40P01
+      // mapping is covered deterministically in tests/unit/claim-error-mapping.test.ts.
       const ids = await freeSlots(3);
       const [first, shared, third] = ids;
+      const [one, two] = [`Celina-${suffix()}`, `Dorota-${suffix()}`];
 
       const outcomes = await Promise.all([
-        call({ body: { token, slot_ids: [first, shared], name: "Celina" } }),
-        call({ body: { token, slot_ids: [shared, third], name: "Dorota" } }),
+        call({ body: { token, slot_ids: [first, shared], name: one } }),
+        call({ body: { token, slot_ids: [shared, third], name: two } }),
       ]);
 
-      const won = outcomes.filter((outcome) => outcome.status === 200);
-      const refused = outcomes.filter((outcome) => outcome.status === 409);
-      expect(won).toHaveLength(1);
-      expect(refused).toHaveLength(1);
+      expect(outcomes.map((outcome) => outcome.status).sort()).toEqual([200, 409]);
 
       const { data } = await owner.client.from("care_slots").select("id, claimed_by_name").in("id", ids);
       const byId = new Map((data ?? []).map((row) => [row.id, row.claimed_by_name]));
-      const winner = String(won[0]?.body.name);
-      const loser = winner === "Celina" ? "Dorota" : "Celina";
+      const winner = String(outcomes.find((outcome) => outcome.status === 200)?.body.name);
+      const loser = winner === one ? two : one;
 
-      // The winner holds BOTH of its terms — the all-or-nothing half — and the loser holds none
-      // of them, including the one it did not contest.
-      const winnerIds = winner === "Celina" ? [first, shared] : [shared, third];
+      const winnerIds = winner === one ? [first, shared] : [shared, third];
       for (const id of winnerIds) {
         expect(byId.get(id)).toBe(winner);
       }
+      // Names are suffixed per run, so this cannot collide with a claim an earlier test in this
+      // file made in the same period.
       expect([...byId.values()]).not.toContain(loser);
     });
   });

@@ -6,7 +6,7 @@ Close `test-plan.md` §3 Phase 4 (Risks #3, #4, #5) as **gap-finding over existi
 
 ## Current State Analysis
 
-**Risk #3 — atomic claim.** The whole guarantee is one statement, `supabase/migrations/20260907171514_claim_secret_not_digest.sql:186-198` (`update … where s.claimed_by_name is null`), made truthful by the triple CHECK `care_slots_claim_complete` (`20260907065515_claim_capability_and_note.sql:75-82`). Exactly one genuinely parallel test exists — `tests/rls/claim-slots.test.ts:509` (six `Promise.all` claims on one slot) — and the file states its own limit at `:499-508`: it proves the OUTCOME, not the row lock. The HTTP route has **zero** concurrency coverage (no `Promise.all` anywhere in `tests/api/`), so the entire TypeScript path — capability cookie, `conflictMessage`, and the `40P01` → 409 mapping at `src/pages/invite/claim.ts:120-122` — is unproven under contention. The triple CHECK has no negative test: `claim-slots.test.ts:353-361` asserts the function writes all three columns and would still pass with the constraint dropped.
+**Risk #3 — atomic claim.** The whole guarantee is one statement, `supabase/migrations/20260907171514_claim_secret_not_digest.sql:186-198` (`update … where s.claimed_by_name is null`), made truthful by the triple CHECK `care_slots_claim_complete` (`20260907065515_claim_capability_and_note.sql:75-82`). Exactly one genuinely parallel test exists — `tests/rls/claim-slots.test.ts:509` (six `Promise.all` claims on one slot) — and the file states its own limit at `:499-508`: it proves the OUTCOME, not the row lock. The HTTP route has **zero** concurrency coverage (no `Promise.all` anywhere in `tests/api/`), so the entire TypeScript path — capability cookie, `conflictMessage`, and the `40P01` → 409 mapping at `src/pages/invite/claim.ts:120-122` — is unproven under contention. **CORRECTED 2026-09-11 (phase-4 review).** This analysis said the triple CHECK had no negative test. It was wrong, and the error came from the research pass being carried into the plan unverified: `tests/rls/care-slots.isolation.test.ts:123` already refuses all SIX invalid combinations, plus the complete triple and the release direction. Phase 4 first added a fourth-copy file duplicating a strict subset of it; that file was deleted and its one genuine improvement — asserting SQLSTATE 23514 and the constraint's NAME rather than `not.toBeNull()` — folded into the existing test. The mutation run did not catch the mistake, because dropping the constraint fails the existing test too.
 
 **Risk #4 — instruction visibility.** Strong at SQL: `tests/rls/reveal-instructions.test.ts:202` searches the **whole serialized RPC payload** for the sensitive body, not a named field, which is precisely the anti-pattern §2 warns about — avoided. But the page-layer gate is undefended. Delete the `details &&` / `sensitiveByPet` gating in `src/pages/invite/[token].astro:196,380,424` — e.g. build the map from `payload.pets` instead — and **every test in the suite still passes**. There is no `[token].astro` counterpart to `tests/unit/period-detail-source.test.ts` (which guards `claim_digest` on the owner page, not instructions).
 
@@ -214,6 +214,8 @@ Move the one-winner assertion up to the route, where the 409 and deadlock mappin
 
 **Contract**: Two capabilities claim overlapping slot sets in parallel. The assertion admits every permitted outcome — one all-or-nothing winner and one refusal, whether the refusal arrives as `PT409` or as a deadlock — and pins the invariant that matters in all of them: no slot carries a partial claim, and the loser wrote nothing. Add an HTTP-layer counterpart in `tests/api/invite-claim.test.ts` asserting the loser's status is 409 either way, so the `40P01` mapping is exercised rather than assumed.
 
+**CORRECTED 2026-09-11 (phase-4 review).** The last clause was false and the tests written from it carried the false claim in their comments. `claim_slots` allocates with a single UPDATE that has no `ORDER BY`, so both racing sessions run identical SQL, get the same plan, and take row locks in the SAME order — a consistent global lock order makes deadlock impossible, not merely unlikely. Overlapping selections therefore always refuse with `PT409`, which is why ten runs at each layer never saw anything else. What they genuinely exercise is the multi-row all-or-nothing rollback. The `40P01` → 409 mapping is unreachable through the database and is now covered deterministically by injecting the error into a mocked client: `tests/unit/claim-error-mapping.test.ts`, which also covers `PT400`, the uniform 404 and the 500 fallthrough. The assertion that admitted `40P01` as a permitted refusal was tightened to `toBe("PT409")` — admitting it was strictly weaker and would have masked a regression that started producing deadlocks.
+
 #### 3. The constraint the predicate rests on
 
 **File**: `tests/rls/care-slots.isolation.test.ts` (or a sibling under `tests/rls/`)
@@ -412,29 +414,29 @@ None. No migration ships in this change; scratch migrations used for mutation ch
 
 #### Automated
 
-- [x] 4.1 Claim suites pass: `npx vitest run --project integration tests/api/invite-claim.test.ts tests/rls/claim-slots.test.ts`
-- [x] 4.2 Full suite passes: `npm test`
-- [x] 4.3 Suite is not flaky: three consecutive `npm test` runs green
-- [x] 4.4 Lint passes: `npm run lint`
+- [x] 4.1 Claim suites pass: `npx vitest run --project integration tests/api/invite-claim.test.ts tests/rls/claim-slots.test.ts` — 71fdf87
+- [x] 4.2 Full suite passes: `npm test` — 71fdf87
+- [x] 4.3 Suite is not flaky: three consecutive `npm test` runs green — 71fdf87
+- [x] 4.4 Lint passes: `npm run lint` — 71fdf87
 
 #### Manual
 
-- [x] 4.5 Mutation check: dropping `and s.claimed_by_name is null` produces two winners and fails the HTTP case
-- [x] 4.6 Mutation check: dropping `care_slots_claim_complete` fails the constraint cases
-- [x] 4.7 Overlapping-selection case run ~10 times by hand without spurious failure
+- [x] 4.5 Mutation check: dropping `and s.claimed_by_name is null` produces two winners and fails the HTTP case — 71fdf87
+- [x] 4.6 Mutation check: dropping `care_slots_claim_complete` fails the constraint cases — 71fdf87
+- [x] 4.7 Overlapping-selection case run ~10 times by hand without spurious failure — 71fdf87
 
 ### Phase 5: Uniform failure, the mint island, and closing the documents
 
 #### Automated
 
-- [ ] 5.1 Component project passes: `npx vitest run --project component`
-- [ ] 5.2 Full suite passes: `npm test`
-- [ ] 5.3 Type check passes: `npx astro check`
-- [ ] 5.4 Lint passes: `npm run lint`
-- [ ] 5.5 Build passes: `npm run build`
+- [x] 5.1 Component project passes: `npx vitest run --project component`
+- [x] 5.2 Full suite passes: `npm test`
+- [x] 5.3 Type check passes: `npx astro check`
+- [x] 5.4 Lint passes: `npm run lint`
+- [x] 5.5 Build passes: `npm run build`
 
 #### Manual
 
-- [ ] 5.6 Mutation check: a differing release miss message fails the `toEqual` comparison
-- [ ] 5.7 Mutation check: adding a `Content-Type` header in `RegenerateLinkButton` fails its test
-- [ ] 5.8 §7 and §6.6 read back against the shipped code, every present-tense claim verified
+- [x] 5.6 Mutation check: a differing release miss message fails the `toEqual` comparison
+- [x] 5.7 Mutation check: adding a `Content-Type` header in `RegenerateLinkButton` fails its test
+- [x] 5.8 §7 and §6.6 read back against the shipped code, every present-tense claim verified

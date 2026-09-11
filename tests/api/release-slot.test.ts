@@ -259,6 +259,48 @@ describe("POST /api/periods/[id]/slots/[slotId]/release — the owner's release 
       const slot = (await slotsOf(owner, two.id)).find((row) => row.id === two.slotIds[0]);
       expect(slot?.claimed_by_name).toBe("Ania");
     });
+    it("gives all four misses the same status AND the same body", async () => {
+      // The four cases above each assert a status. A status alone is not the property: if the
+      // bodies differ, a prober learns which KIND of miss they hit — "not yours" versus "already
+      // free" tells them the slot exists and is someone's. release_slot answers one uniform NULL
+      // precisely so the route cannot leak that distinction, and this is the only assertion that
+      // would notice the route inventing it again. Mirrors tests/api/revoke-period.test.ts.
+      const theirs = await seedClaimed(stranger, "R-jednolitosc-cudze", "2027-07-01", "2027-07-02");
+      const mine = await seedClaimed(owner, "R-jednolitosc-moje", "2027-07-05", "2027-07-06");
+      const other = await seedClaimed(owner, "R-jednolitosc-inny", "2027-07-10", "2027-07-11");
+      const freePeriod = await seedPeriod(owner, "R-jednolitosc-wolne", "2027-07-15", "2027-07-16");
+      const [stillFree] = await slotsOf(owner, freePeriod.id);
+
+      const notYours = await call({
+        periodId: theirs.id,
+        slotId: theirs.slotIds[0],
+        cookieHeader,
+        userId: owner.userId,
+      });
+      const missing = await call({
+        periodId: mine.id,
+        slotId: crypto.randomUUID(),
+        cookieHeader,
+        userId: owner.userId,
+      });
+      const alreadyFree = await call({
+        periodId: freePeriod.id,
+        slotId: stillFree.id,
+        cookieHeader,
+        userId: owner.userId,
+      });
+      const wrongPeriod = await call({
+        periodId: mine.id,
+        slotId: other.slotIds[0],
+        cookieHeader,
+        userId: owner.userId,
+      });
+
+      expect(notYours.status).toBe(404);
+      expect(missing).toEqual(notYours);
+      expect(alreadyFree).toEqual(notYours);
+      expect(wrongPeriod).toEqual(notYours);
+    });
   });
 
   it("frees the term and says which one (200)", async () => {
