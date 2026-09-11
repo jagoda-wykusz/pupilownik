@@ -205,16 +205,19 @@ deploy until that is solved.
 ### Which layer each gate lives in
 
 Gates are placed by measured cost, not by preference. Measured on this project
-(Windows, 2026-09-07):
+(Windows, 2026-09-07). Two rows were re-measured on 2026-09-11 during `ci-quality-gates`
+research and came back substantially faster — a cost table is a measurement with a date on it,
+not a constant, and planning a gate around a stale number is how a cheap check gets called
+expensive:
 
 | Check                         | Scope                     | Cost                                        | Layer                                                          |
 | ----------------------------- | ------------------------- | ------------------------------------------- | -------------------------------------------------------------- |
 | `prettier --write <file>`     | one file                  | ~0.3s                                       | per-edit agent hook                                            |
 | `vitest related <file> --run` | one file's import graph   | ~2s                                         | per-edit agent hook, risk areas only                           |
 | `eslint --fix <file>`         | one file                  | 12-22s (type-aware, `projectService: true`) | pre-commit (lint-staged)                                       |
-| `eslint .`                    | whole project             | ~110s                                       | `npm run lint`, by hand — **nothing enforces it** (see §5)     |
+| `eslint .`                    | whole project             | **28s** (was ~110s on 2026-09-07)           | `npm run lint`, by hand — **not in the deploy path** (see §5)  |
 | `tsc --noEmit`                | whole project             | ~26s                                        | not wired — superseded by `astro check` on 2026-09-07          |
-| `astro check`                 | whole project + templates | ~38s                                        | **pre-commit** (promoted 2026-09-07, replacing `tsc --noEmit`) |
+| `astro check`                 | whole project + templates | **18s** (was ~38s on 2026-09-07)            | **pre-commit** (promoted 2026-09-07, replacing `tsc --noEmit`) |
 
 Two consequences worth knowing before changing the wiring:
 
