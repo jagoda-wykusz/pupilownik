@@ -58,6 +58,32 @@ beforeAll(async () => {
   // later with a cryptic error instead of this guidance. Probe BOTH backends the suite
   // uses: auth (signUp) and PostgREST (from("profiles")) can come up independently.
   const { anonKey } = getTestEnv();
+
+  // WHY THESE PROBES RETRY (added 2026-09-11, `ci-quality-gates` phase 2). A single attempt was
+  // enough on a developer machine, where `npm run db:start` has already returned before anyone
+  // runs the suite. It is NOT enough on a CI runner, where `supabase start` returns and the
+  // suite begins while PostgREST is still loading its schema cache — the exact race the data-API
+  // comment below records from 2026-09-07, which failed 13 files while the probe reported ready.
+  //
+  // THE COST, MEASURED rather than guessed — the first draft of this comment claimed a refused
+  // connection would short-circuit the budget, and the measurement said otherwise: an instant
+  // rejection just makes the loop retry sooner, so a stack-down run spends the WHOLE budget.
+  // Measured 2026-09-11 against a dead port: the run fails in ~8s where it used to fail in well
+  // under 1s. Only the first probe pays it, because the auth probe throws before the data-API
+  // probe runs. That is the price, and it buys the case below.
+  //
+  // AND THE THING IT BUYS, also measured: against a fake stack that answers 503/404 for its first
+  // four seconds and healthy afterwards, these probes now PASS. With READY_BUDGET_MS set to 0 —
+  // i.e. the previous single-attempt behaviour — the same fake stack fails at the auth probe. The
+  // retry is load-bearing, not decoration.
+  //
+  // The guidance message is unchanged: a stack-down run must still end in `npm run db:start`,
+  // never in a bare vitest timeout, which would make a missing stack harder to diagnose rather
+  // than easier. That is why hookTimeout in vitest.config.ts was raised to sit above the budget.
+  const READY_BUDGET_MS = 8000;
+  const ATTEMPT_TIMEOUT_MS = 3000;
+  const RETRY_DELAY_MS = 500;
+
   // `accept` decides what counts as ready. It defaults to res.ok, but the data-API probe below
   // needs something else: it asks for a table anon may not read, so a healthy answer is 401.
   const reachable = async (
@@ -65,17 +91,35 @@ beforeAll(async () => {
     init?: RequestInit,
     accept: (res: Response) => boolean = (res) => res.ok,
   ): Promise<boolean> => {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => {
-      controller.abort();
-    }, 3000);
-    try {
-      const res = await fetch(`${url}${path}`, { ...init, signal: controller.signal });
-      return accept(res);
-    } catch {
-      return false;
-    } finally {
-      clearTimeout(timeout);
+    const attempt = async (): Promise<boolean> => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => {
+        controller.abort();
+      }, ATTEMPT_TIMEOUT_MS);
+      try {
+        const res = await fetch(`${url}${path}`, { ...init, signal: controller.signal });
+        return accept(res);
+      } catch {
+        return false;
+      } finally {
+        clearTimeout(timeout);
+      }
+    };
+
+    // Deadline rather than a fixed attempt count: an attempt that hangs for its full timeout and
+    // one that is refused instantly cost wildly different amounts of wall clock, and the thing
+    // that must stay bounded is the TOTAL — `hookTimeout` in vitest.config.ts is what kills the
+    // run, and it does not care how many attempts fit inside.
+    const deadline = Date.now() + READY_BUDGET_MS;
+    for (;;) {
+      if (await attempt()) {
+        return true;
+      }
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) {
+        return false;
+      }
+      await new Promise((resolve) => setTimeout(resolve, Math.min(RETRY_DELAY_MS, remaining)));
     }
   };
 

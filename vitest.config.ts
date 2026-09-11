@@ -54,7 +54,23 @@ export default defineConfig({
           // Integration tests sign users up against the local Supabase stack; keep them
           // serial-friendly and give the network round-trips room.
           testTimeout: 20000,
-          hookTimeout: 20000,
+          // 30s, not 20s, and the arithmetic is the reason: tests/setup.ts probes two backends
+          // with an 8s readiness budget each, and a probe whose final attempt hangs costs its
+          // 3s timeout on top — so a worst-case beforeAll is 2 x (8 + 3) = 22s. At 20s the hook
+          // would be killed by vitest mid-probe and report a generic timeout instead of the
+          // "run npm run db:start" guidance the setup file exists to give.
+          hookTimeout: 30000,
+          // CI ONLY. 22 integration files run against ONE Postgres; unconstrained, vitest uses
+          // every core. The GitHub Actions runner has 2 vCPUs, and several files here create
+          // deliberate contention with Promise.all whose round trips must finish inside
+          // testTimeout — so oversubscribing a small runner turns a contention test into a
+          // flake. Local runs are untouched: `undefined` restores vitest's own default.
+          //
+          // Both Workers Builds and GitHub Actions set CI=true themselves, so nothing in the
+          // workflow has to remember this. Exercise the branch locally with
+          // `CI=1 npx vitest run --project integration` before trusting it — a conditional that
+          // only ever executes on a runner is a conditional nobody has read.
+          maxWorkers: process.env.CI ? 2 : undefined,
         },
       },
     ],

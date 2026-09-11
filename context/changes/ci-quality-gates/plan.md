@@ -525,13 +525,13 @@ everyone afterwards.
 
 #### Automated
 
-- [ ] 2.1 Integration suite passes unchanged locally: `npx vitest run --project integration`
-- [ ] 2.2 The CI branch is exercised: `CI=1 npx vitest run --project integration`
-- [ ] 2.3 With the stack stopped, the run fails with the `db:start` guidance, not a timeout
+- [x] 2.1 Integration suite passes unchanged locally: `npx vitest run --project integration`
+- [x] 2.2 The CI branch is exercised: `CI=1 npx vitest run --project integration`
+- [x] 2.3 With the stack stopped, the run fails with the `db:start` guidance, not a timeout
 
 #### Manual
 
-- [ ] 2.4 Wall-clock difference between capped and uncapped runs recorded in the commit message
+- [x] 2.4 Wall-clock difference between capped and uncapped runs recorded in the commit message
 
 ### Phase 3: The GitHub Actions workflow
 
