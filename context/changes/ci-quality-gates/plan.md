@@ -546,7 +546,7 @@ everyone afterwards.
 - [x] 2.1 Integration suite passes unchanged locally: `npx vitest run --project integration` — fdf407a
 - [x] 2.2 The CI branch is exercised: `CI=1 npx vitest run --project integration` — fdf407a
 - [x] 2.3 With the stack stopped, the run fails with the `db:start` guidance, not a timeout — fdf407a
-- [x] 2.5 The whole suite runs under CI, not one project: `CI=1 npx vitest run`
+- [x] 2.5 The whole suite runs under CI, not one project: `CI=1 npx vitest run` — 6657abe
 
 #### Manual
 
