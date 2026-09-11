@@ -145,13 +145,16 @@ p_claim_secret, p_name)`, `VOLATILE` — a separate function because Postgres
    any of the three**, so their bodies — not any policy — are what keeps an
    owner's data and the sensitive instruction tier apart.
 4. **Uniform failure for every UNPROVEN caller — with two deliberate,
-   bounded widenings.** Unknown, malformed and revoked tokens all return NULL,
-   and the page renders one 404 with one message. A distinct "this link was
+   bounded widenings.** Unknown, malformed and revoked tokens all return NULL to
+   every caller who cannot prove a claim, and the page renders one 404 with one
+   message for all of them. A distinct "this link was
    revoked" answer would confirm the period exists to someone who had no way of
    knowing. The card says only that the link is dead and that a new one has to
    come from the owner — it no longer promises a replacement, because S-06 made
    `regenerate_period_token` refuse a revoked period, so that promise was one the
-   owner could not keep. A WRITE
+   owner could not keep.
+
+   **The first widening (S-03), and it is for a WRITE.** A write
    cannot keep this whole: a claim must distinguish "won" from "refused", which
    is a signal a read never emitted. `claim_slots` therefore returns NULL for an
    unresolvable token — the half that is the security property, since it is what
@@ -179,11 +182,13 @@ p_claim_secret, p_name)`, `VOLATILE` — a separate function because Postgres
    how they learned it. This is **strictly weaker** than the write widening
    above, which hands back conflicting rows.
 
-   **The ordering inside the function is the whole correctness argument**:
-   resolve by digest → `not found` NULL → hash the secret and look for a matching
-   row → `not found` NULL (the F6 ROW gate, untouched) → _only then_ branch on
-   `revoked_at`. Move that branch ahead of the gate and any caller presenting any
-   secret learns the period exists. `tests/rls/reveal-instructions.test.ts`
+   **The one load-bearing ordering is that the revoked branch sits AFTER the claim
+   gate**, not that each gate sits next to its own lookup. Both hashes and both
+   lookups now run first (see the work-equalisation note below), then
+   `not v_period_found` → NULL, then `not v_claim_found` → NULL (the F6 ROW gate,
+   semantically untouched), and _only then_ the branch on `revoked_at`. Move that
+   branch ahead of the claim gate and any caller presenting any secret learns the
+   period exists. `tests/rls/reveal-instructions.test.ts`
    asserts both directions, so a reordering fails rather than shipping: measured
    — with the branch hoisted above the gate, the non-holder case fails with
    `expected { revoked: true } to deeply equal null`.
@@ -229,9 +234,20 @@ p_claim_secret, p_name)`, `VOLATILE` — a separate function because Postgres
    each time. Until S-02 the bearer link was read-only and this did not exist;
    S-03 introduced it. FR-010 (owner un-claim) was cut deliberately, so this is a
    known consequence rather than an oversight — but it is the consequence, and it
-   belongs here rather than only in a plan's §What We're NOT Doing. **A later
-   slice owes the owner a "release this slot" action**; a per-token rate limit
-   would only slow the taking, not undo it.
+   belongs here rather than only in a plan's §What We're NOT Doing. A per-token
+   rate limit would only slow the taking, not undo it.
+
+   **Paid in part, and the remainder is a decision rather than a debt.** This
+   paragraph used to end "a later slice owes the owner a 'release this slot'
+   action". S-04 shipped it — `release_slot`, its route and its island — so the
+   owner can now free one taken term at a time. What S-06 then settled is the rest:
+   revoking a trip does **not** release the terms already taken, and that is a
+   recorded product decision, not an outstanding item. The reason is not obvious
+   and is worth keeping here: the caretaker's 404 comes from `revoked_at` killing
+   token resolution **before** `claim_digest` is read, so a bulk release would
+   change nothing the caretaker sees — only what the owner sees. Reopening it would
+   need its own bulk function, because `release_slot`'s scalar arity and scalar
+   return cannot express "released 7 of 12". Recorded in `prd.md` §Open Questions.
 
 **The rule for future slices:** a new caretaker capability _extends this
 function_ (or adds another one under the same four rules). It does **not** add an

@@ -1,0 +1,21 @@
+-- S-06 Phase 4: the close-out sweep, in SQL.
+--
+-- No behaviour here. One `comment on function`, because the slice's own re-read found that
+-- `revoke_period`'s live comment still describes the world as it was in Phase 1.
+--
+-- Phase 1 wrote "closing all three anon doors at once", which was true when it was written.
+-- Phase 2 then dropped the revoked filter from get_claimed_details, so the third door no longer
+-- closes — it ANSWERS, with one bit, to a caller who can prove a claim. That correction was
+-- made in docs/reference/data-access.md and in the contract-surfaces registry during the Phase 2
+-- review (F7), and in both places the phrase became "closes the read and write doors and reduces
+-- the third to a one-bit status". The function's own comment was the third copy of the sentence
+-- and it was missed, which is the whole reason Phase 4 re-reads this slice's own edits rather
+-- than trusting them (context/foundation/lessons.md, and the closing note of
+-- 2026-09-08-owner-occupancy-view's impl-review).
+--
+-- Refreshed by a new statement rather than by editing 20260910120000, which is the same
+-- supersede move Phase 2 made for the revoked_at COLUMN comment and for the same reason: a
+-- migration that has been applied is history, and rewriting history hides that the description
+-- ever changed.
+comment on function public.revoke_period(uuid) is
+  'Revokes a care period''s invite link by stamping revoked_at. One write closes the read door (get_period_by_token) and the write door (claim_slots), and reduces the reveal door (get_claimed_details) to a one-bit status: from S-06 Phase 2 a caller who proves a claim on that period gets `{"revoked": true}` instead of the payload, while every unproven caller still gets the uniform NULL. Security invoker: care_periods_update_own is the authorization boundary. Write-once by product decision — there is no un-revoke, and regenerate_period_token refuses a period carrying revoked_at. Returns the period id, or NULL when the period does not exist, RLS filtered it out, or it was already revoked. Called by POST /api/periods/[id]/revoke.';

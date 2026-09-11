@@ -109,9 +109,12 @@ if (supabase) {
 // With the old gate the new SQL branch was unreachable — `payload` is null precisely when the
 // period is revoked.
 //
-// The cost is one extra RPC per dead-link view that carries a claim cookie. It is bounded
-// before anything is hashed (both arguments must be exactly 43 chars) and the lookup is by
-// unique digest, so a miss is a primary-key-shaped no-op.
+// The cost is one extra RPC per dead-link view that carries a WELL-FORMED claim cookie — the
+// shape gate below is what narrows it from "any cookie", and it landed in Phase 3 precisely
+// because "bounded before anything is hashed" was true of the function and not of the request:
+// a garbage cookie still bought a serialize, transport and parse before the 43-char check could
+// reject it (Phase 2 impl-review F9). Past the gate, both arguments are bounded before anything
+// is hashed and the lookup is by unique digest, so a miss is a primary-key-shaped no-op.
 //
 // A NULL still comes back for a wrong secret, a capability holding nothing here, or a cookie
 // earned on another trip; all three degrade silently, which is what resolveInviteView's branch

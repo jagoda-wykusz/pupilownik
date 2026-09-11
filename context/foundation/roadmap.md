@@ -197,15 +197,15 @@ Otwarty dług z designu: pole **`NOTATKA`** (wolny tekst na poziomie okresu) wyp
 
 ### S-06: Właściciel zamyka / odwołuje okres
 
-- **Outcome:** właściciel może zamknąć lub odwołać okres opieki, unieważniając link zapraszający (np. odwołany wyjazd, wrażliwy link).
+- **Outcome:** właściciel może **odwołać** okres opieki — jednym, nieodwracalnym działaniem, które unieważnia link zapraszający (odwołany wyjazd, wrażliwy link) — a opiekun, który zajął już termin, dowiaduje się przy wejściu na link, że wyjazd został odwołany, zamiast widzieć tę samą martwą stronę co obcy.
 - **Change ID:** close-care-period
 - **PRD refs:** FR-012 (nice-to-have)
 - **Prerequisites:** S-02 (spełnione)
 - **Parallel with:** S-03, S-04, S-05
 - **Blockers:** —
-- **Unknowns:** —
-- **Risk:** Nice-to-have, ale prerekwizyty ma spełnione od 2026-09-06, więc jest plannowalny od dziś — to jedyna pozycja, którą da się poprowadzić równolegle do gwiazdy przewodniej, co przy blokadzie `czas` jest realnym lewarem. Ścieżka unieważnienia jest już częściowo pokryta: `get_period_by_token` zwraca NULL dla odwołanych tokenów jednolicie z nieznanymi, a `tests/rls/invite-token.test.ts` to pilnuje. Parkowany za must-have zgodnie z celem `szybkość`.
-- **Status:** ready
+- **Unknowns:** **Sprostowane 2026-09-11 — to pole mówiło „—", i było to nieprawdą.** Slice niósł cztery decyzje produktowe, których repo nie rozstrzygało, a dwa komentarze migracji oddawały je S-06 **z nazwy** (`20260906003122:32,120-121`). Jak wylądowały: (1) **jedna akcja, nie dwie** — `prd.md:140` traktuje zamknięcie i odwołanie jako jeden identyczny efekt, runda sokratejska przyjęła „okres mija sam", a schemat ma jedną oś lifecycle, więc „zamknąć" nie stało się osobnym działaniem; (2) **nieodwracalne** — brak un-revoke, wymuszone predykatem `revoked_at is null` w `revoke_period` oraz odmową `regenerate_period_token`; (3) **posiadacz claimu dostaje odrębną odpowiedź** — `get_claimed_details` rozwiązuje okres bez filtra i za bramką digestu odpowiada `{"revoked": true}`, co jest drugim świadomym poszerzeniem reguły 4 (`docs/reference/data-access.md`); (4) **zwalnianie zajętych terminów NIE weszło** — 404 powstaje, zanim `claim_digest` jest czytany, więc masowe zwolnienie nie zmienia nic, co opiekun widzi.
+- **Risk:** Nice-to-have, ale prerekwizyty ma spełnione od 2026-09-06, więc był plannowalny od dziś — jedyna pozycja, którą dało się poprowadzić równolegle do gwiazdy przewodniej. Teza „ścieżka unieważnienia jest już częściowo pokryta" okazała się trafna co do mechanizmu i myląca co do kosztu: sam zapis był szablonem `release_slot`, ale slice'owi przypadło rozstrzygnięcie, **co odwołanie znaczy dla opiekuna**, co dotknęło funkcji dostępnej dla `anon` i wymagało wyrównania pracy wykonywanej przez tę funkcję (impl-review fazy 2, F2).
+- **Status:** done
 
 ## Backlog Handoff
 
