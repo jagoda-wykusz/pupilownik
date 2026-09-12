@@ -589,6 +589,6 @@ everyone afterwards.
 
 - [x] 5.3 `npm run ci:gate` run once under Node 22.23.2 (the version `.nvmrc` now pins) before the dashboard is touched — satisfied by evidence rather than as written: the machine has no Node version manager, so no local 22.23.2 run was possible, but the green Actions run of 2026-09-12 executed typecheck, lint, build, all three vitest projects and the secret scan on 22.23.2 via `node-version-file`. The "before the dashboard is touched" ordering was overtaken by events — the build command had already been switched.
 - [x] 5.4 Build command changed to `npm run ci:gate` in the Cloudflare dashboard — done by the user on 2026-09-12, ahead of this phase
-- [ ] 5.5 A failing commit on `master` blocks the deploy; live site unchanged; fix restores it
+- [x] 5.5 A failing commit on `master` blocks the deploy; live site unchanged; fix restores it — 2026-09-12, and on a real failure rather than the planted lint error this criterion anticipated. The first push under the new build command failed at `check:secrets` (`no usable value for SUPABASE_URL, SUPABASE_KEY` — both were set as the Worker's RUNTIME variables, never as build variables), no version was produced, and the live site stayed on the previous one. Adding the two build variables turned the next build green and publication resumed. Both halves of the criterion observed without having to simulate either.
 - [ ] 5.6 The same commit's Actions run is red while the PR merge button stays enabled
 - [ ] 5.7 No claim in the rewritten README or §5 describes something that does not yet exist
