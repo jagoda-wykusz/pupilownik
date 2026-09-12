@@ -24,7 +24,9 @@ Three facts no file in this repo records, and every one of them narrows the solu
 
 1. **Build command is the default `npm run build`.** So the gate can be wired in `package.json` — versioned, reviewable, visible in git history — instead of in dashboard state nothing verifies. This is the good case.
 2. **Only the production branch deploys. No PR builds, no preview URLs.** So a gate in the build step fires at MERGE time and blocks PUBLICATION, not a bad merge. Whatever is meant to stop bad code from reaching master has to live somewhere else.
-3. **`SUPABASE_URL` / `SUPABASE_KEY` are set as build-environment variables.** The two-place binding risk (`infrastructure.md:58`) is satisfied today — but both are `optional: true`, so their removal would not fail a build, only production at runtime. Nothing pins it.
+3. ~~**`SUPABASE_URL` / `SUPABASE_KEY` are set as build-environment variables.**~~ **WRONG, measured 2026-09-12.** The first build under the new gate failed with `check-client-bundle: no usable value for SUPABASE_URL, SUPABASE_KEY` — the build step cannot see them. They are almost certainly set as the Worker's runtime Variables & Secrets, which is a different tab and a different thing. The two-place binding risk (`infrastructure.md:58`) was NOT satisfied; it simply had no symptom, because `optional: true` means a build succeeds without them.
+
+   Worth keeping as an instance of the rule in `context/foundation/lessons.md` about verifying posture from the catalogue rather than from a statement: this claim was recorded here as dashboard state reported by a person, and it went into the plan, the research and two documents before anything executed against it. The first execution refuted it.
 
 ## GitHub state (from the user, 2026-09-11)
 
