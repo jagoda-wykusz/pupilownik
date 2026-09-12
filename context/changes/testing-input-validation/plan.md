@@ -387,14 +387,14 @@ anyway, with a worse status.
 
 #### Automated
 
-- [ ] 1.1 New tests pass: `npx vitest run --project unit auth-body-shape`
-- [ ] 1.2 Whole unit project green: `npx vitest run --project unit`
-- [ ] 1.3 Existing disclosure assertions still pass: `npx vitest run --project integration auth-error-disclosure`
-- [ ] 1.4 Typecheck and lint: `npm run check` and `npm run lint`
+- [x] 1.1 New tests pass: `npx vitest run --project unit auth-body-shape`
+- [x] 1.2 Whole unit project green: `npx vitest run --project unit`
+- [x] 1.3 Existing disclosure assertions still pass: `npx vitest run --project integration auth-error-disclosure`
+- [x] 1.4 Typecheck and lint: `npm run check` and `npm run lint`
 
 #### Manual
 
-- [ ] 1.5 Proven to bite: revert the `try` in one route, confirm failure names the content type, restore
+- [x] 1.5 Proven to bite: revert the `try` in one route, confirm failure names the content type, restore — run on BOTH routes; signup.ts failed exactly its own six sign-up assertions while the nine sign-in ones passed, so the two routes are covered independently
 
 ### Phase 2: First coverage for `/api/auth/signout`
 
