@@ -150,3 +150,39 @@ than one copy of React`, co czyta się jak zdublowana zależność, a nie jak ca
   zaaplikowała — raz był to no-op przez nieosiągalny warunek, raz przez przeformatowanie
   prettierem.
 - **Applies to**: plan, plan-review, research, implement, impl-review
+
+## Asercja podciągiem trafia we własne uzasadnienie
+
+- **Context**: Każdy test źródłowy — czytający `package.json`, plik konfiguracyjny, workflow,
+  hook albo `.astro` — który sprawdza obecność czegoś przez `toContain("...")` albo goły `grep`.
+  W tym repo to przypadek CZĘSTY, nie skrajny, bo obowiązuje tu zasada gęstego komentowania
+  „dlaczego": `.husky/pre-commit` poświęca 24 linie jednej komendzie, `check-client-bundle.mjs`
+  otwiera się 36-liniowym nagłówkiem. **Im lepiej opiszesz linię, tym pewniej Twój strażnik
+  przeżyje jej usunięcie** — bo zostaje proza, która tę linię nazywa.
+- **Problem**: W `ci-quality-gates` zdarzyło się to trzy razy jednego dnia, w trzech plikach,
+  za każdym razem w innym przebraniu. (1) `expect(gate).toContain("npm run check")` przechodziło
+  przy łańcuchu BEZ typechecku, bo trafiało w podciąg `npm run check:secrets`; towarzyszący test
+  kolejności liczył `indexOf("npm run check ")` → `-1`, a `-1 < indexOf(lint)` jest prawdą, więc
+  asercja porządku również przechodziła pusto. Usunięcie najdroższego kroku bramki nie ruszało
+  siedmiu asercji. (2) Poprawka do (1) przypięła trzy linie `vitest.config.ts` przez
+  `toContain("groupOrder")` i `toContain("globalSetup")` — oba słowa stoją w komentarzach, które
+  te linie tłumaczą, więc skasowanie konfiguracji i zostawienie prozy nadal dawało zielone.
+  **Ta sama dziura powstała wewnątrz naprawy tej dziury.** (3) Wcześniej tego samego dnia
+  `toContain("--project component")` przechodziło przy literówce w nazwie projektu, bo
+  `vitest run --project nieistniejący` kończy się kodem 0 i po prostu nic nie uruchamia.
+  Żadnego z trzech nie wyłapało czytanie kodu ani review planu — wyłapała macierz mutacji,
+  puszczona mimo zielonego wyniku.
+- **Rule**: W teście źródłowym nie sprawdzaj obecności podciągiem. Kotwicz do KSZTAŁTU, którego
+  proza nie ma: `/globalSetup:\s*\[/` zamiast `"globalSetup"`, `/npm run check(?![:\w])/`
+  zamiast `"npm run check"`. Jeśli sprawdzasz kolejność przez `indexOf`, najpierw podłoguj każdy
+  indeks asercją `> -1` — brakujący element daje `-1`, a `-1` jest mniejsze od wszystkiego, więc
+  test kolejności nieobecnego kroku jest pieczątką, nie sprawdzeniem.
+- **Rule (co uznać za dowód)**: Zielony strażnik nie jest dowodem, że strażnik gryzie. Dowodem
+  jest mutacja NA KAŻDĄ asercję z osobna — nie na jedną reprezentatywną. W (2) pierwsze dwie
+  mutacje z pięciu wróciły zielone; gdybym puścił tylko trzecią, zamknąłbym fazę z dwiema
+  martwymi asercjami i raportem, że wszystko gryzie. Gdy mutacja wraca zielona, najpierw sprawdź,
+  czy się w ogóle zaaplikowała, a zaraz potem — czy Twoja asercja nie trafia w komentarz.
+- **Rule (nazwa też jest podciągiem)**: Przed asercją na nazwę przekazywaną narzędziu (`--project X`,
+  `--filter`, nazwa skryptu npm) sprawdź, co narzędzie robi z nazwą nieistniejącą. Jeśli kończy
+  się zerem, sama obecność flagi nie dowodzi niczego — przypnij powiązanie z definicją.
+- **Applies to**: implement, impl-review, plan
