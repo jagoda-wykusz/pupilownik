@@ -1,10 +1,10 @@
 ---
 change_id: vendor-build-fonts
 title: Take Google out of the build path so a font request cannot stop a deploy
-status: implemented
+status: archived
 created: 2026-09-12
 updated: 2026-09-12
-archived_at: null
+archived_at: 2026-09-12T19:37:45Z
 ---
 
 ## Notes
