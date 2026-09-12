@@ -47,6 +47,24 @@ export const POST: APIRoute = async (context) => {
     // what a log dump exposes. The client still gets only a generic message, so
     // RLS/constraint internals never leak either way.
     console.error("create_pet_with_instructions failed:", error.code, error.message);
+
+    // Bad INPUT is not a server fault, and answering 500 tells an owner the app broke when in
+    // fact they sent a number the column cannot hold. This mirrors the mapping periods.ts:79-99
+    // already carries; leaving it out here was the same defect one route over.
+    //
+    // 22003 is the ONE code measured reachable: create_pet_with_instructions casts
+    // `(i ->> 'sort_order')::int`, and before the schema gained an upper bound a 1e12 sort_order
+    // produced exactly this 500. It is now belt-and-braces — zod rejects such a value first — and
+    // it is kept for the reason periods.ts keeps its own unreachable pair: the zod bound and this
+    // mapping are one fix in two layers, and the database has no length or range bound of its own
+    // to fall back on (verified: zero columns in this schema carry a length limit).
+    //
+    // 42501 is deliberately NOT mapped. The RPC sets `owner_id = (select auth.uid())` itself, so
+    // an RLS with-check refusal is unreachable through this route — a branch for it would be dead
+    // code dressed as defence.
+    if (error.code === "22003") {
+      return jsonResponse({ error: "Kolejność instrukcji jest poza dozwolonym zakresem" }, 400);
+    }
     return jsonResponse({ error: "Nie udało się zapisać zwierzęcia" }, 500);
   }
 

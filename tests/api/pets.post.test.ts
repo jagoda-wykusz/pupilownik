@@ -145,6 +145,90 @@ describe("POST /api/pets — validated atomic create", () => {
     expect(status).toBe(400);
   });
 
+  // BOUNDS, added by `testing-input-validation` phase 3. Each is a PAIR: the value exactly at the
+  // limit is accepted, one more is refused. A one-sided "too long is rejected" test would keep
+  // passing if someone tightened the bound to 10 — it proves a bound exists, not where it is.
+  // Same shape as periods.post.test.ts:129-156, which pins the 31/32-day span this way.
+  //
+  // These matter more here than they look. The database carries NO length bound at all — verified
+  // against information_schema on 2026-09-12: zero columns in this schema have a length limit, so
+  // `22001` is unreachable and these zod caps are the ONLY bound in the system, not a first line
+  // in front of a second.
+  describe("the declared bounds are where they say they are", () => {
+    const petWith = (overrides: Record<string, unknown>) =>
+      JSON.stringify({ name: "Rex", species: "dog", instructions: [], ...overrides });
+
+    it("accepts a 120-character name and refuses 121", async () => {
+      const ok = await callPost(cookieHeader, owner.userId, petWith({ name: "n".repeat(120) }));
+      expect(ok.status).toBe(201);
+
+      const before = await owner.client.from("pets").select("id");
+      const tooLong = await callPost(cookieHeader, owner.userId, petWith({ name: "n".repeat(121) }));
+      expect(tooLong.status).toBe(400);
+
+      const after = await owner.client.from("pets").select("id");
+      expect(after.data?.length).toBe(before.data?.length ?? 0);
+    });
+
+    it("accepts a 120-character instruction title and refuses 121", async () => {
+      // Found by a slipped mutation rather than by the plan: changing this bound from 120 to 119
+      // broke nothing, which is the definition of an unpinned rule. It is a separate bound from
+      // the pet's `name`, and both are 120, so a single test would not have distinguished them.
+      const titled = (length: number) => [{ title: "t".repeat(length), is_sensitive: false }];
+
+      const ok = await callPost(cookieHeader, owner.userId, petWith({ instructions: titled(120) }));
+      expect(ok.status).toBe(201);
+
+      const tooLong = await callPost(cookieHeader, owner.userId, petWith({ instructions: titled(121) }));
+      expect(tooLong.status).toBe(400);
+    });
+
+    it("accepts a 2000-character instruction body and refuses 2001", async () => {
+      const instruction = (length: number) => [{ title: "t", body: "b".repeat(length), is_sensitive: false }];
+
+      const ok = await callPost(cookieHeader, owner.userId, petWith({ instructions: instruction(2000) }));
+      expect(ok.status).toBe(201);
+
+      const before = await owner.client.from("pets").select("id");
+      const tooLong = await callPost(cookieHeader, owner.userId, petWith({ instructions: instruction(2001) }));
+      expect(tooLong.status).toBe(400);
+
+      const after = await owner.client.from("pets").select("id");
+      expect(after.data?.length).toBe(before.data?.length ?? 0);
+    });
+
+    it("accepts 50 instructions and refuses 51", async () => {
+      const many = (count: number) =>
+        Array.from({ length: count }, (_, index) => ({ title: `t${index}`, is_sensitive: false }));
+
+      const ok = await callPost(cookieHeader, owner.userId, petWith({ instructions: many(50) }));
+      expect(ok.status).toBe(201);
+
+      const before = await owner.client.from("pets").select("id");
+      const tooMany = await callPost(cookieHeader, owner.userId, petWith({ instructions: many(51) }));
+      expect(tooMany.status).toBe(400);
+
+      const after = await owner.client.from("pets").select("id");
+      expect(after.data?.length).toBe(before.data?.length ?? 0);
+    });
+
+    it("accepts the largest sort_order the column can hold and refuses one more", async () => {
+      // The one bound that was MISSING until this change, and the only case here that was a live
+      // defect rather than an unpinned rule. Measured 2026-09-12 before the fix: sort_order 1e12
+      // answered 500 "Nie udało się zapisać zwierzęcia", because create_pet_with_instructions
+      // casts `(i ->> 'sort_order')::int` and Postgres raised 22003 — bad client input reading as
+      // a server fault. 2147483647 created the pet, so the ceiling is exactly the integer type's.
+      const withOrder = (value: number) =>
+        petWith({ instructions: [{ title: "t", is_sensitive: false, sort_order: value }] });
+
+      const ok = await callPost(cookieHeader, owner.userId, withOrder(2147483647));
+      expect(ok.status).toBe(201);
+
+      const tooLarge = await callPost(cookieHeader, owner.userId, withOrder(2147483648));
+      expect(tooLarge.status, "an out-of-range sort_order must not read as a server fault").toBe(400);
+    });
+  });
+
   it("creates the pet + instructions for the owner on a valid payload (201)", async () => {
     const { status, body } = await callPost(
       cookieHeader,

@@ -400,25 +400,25 @@ anyway, with a worse status.
 
 #### Automated
 
-- [x] 2.1 New test passes: `npx vitest run --project integration signout`
-- [x] 2.2 Whole integration project green: `npx vitest run --project integration`
+- [x] 2.1 New test passes: `npx vitest run --project integration signout` — fd2d1e8
+- [x] 2.2 Whole integration project green: `npx vitest run --project integration` — fd2d1e8
 
 #### Manual
 
-- [x] 2.3 Proven to bite: comment out `signOut()`, confirm the cookie assertion fails, restore — two of three tests failed (session and cookie); the uniformity test correctly still passed, since removing signOut does not change the redirect
+- [x] 2.3 Proven to bite: comment out `signOut()`, confirm the cookie assertion fails, restore — two of three tests failed (session and cookie); the uniformity test correctly still passed, since removing signOut does not change the redirect — fd2d1e8
 
 ### Phase 3: `/api/pets` — the bounds, and the one real weak-zod case
 
 #### Automated
 
-- [ ] 3.1 Extended tests pass: `npx vitest run --project integration pets.post`
-- [ ] 3.2 Whole suite green: `npm test`
-- [ ] 3.3 Typecheck and lint: `npm run check` and `npm run lint`
+- [x] 3.1 Extended tests pass: `npx vitest run --project integration pets.post`
+- [x] 3.2 Whole suite green: `npm test`
+- [x] 3.3 Typecheck and lint: `npm run check` and `npm run lint`
 
 #### Manual
 
-- [ ] 3.4 The `sort_order` composition was measured before any fix, and the observed status recorded
-- [ ] 3.5 Each boundary pair proven to bite by moving its bound by one, then restoring
+- [x] 3.4 The `sort_order` composition was measured before any fix, and the observed status recorded — 1e12 answered 500 "Nie udało się zapisać zwierzęcia"; 2147483647 answered 201, so the ceiling is exactly the integer type's
+- [x] 3.5 Each boundary pair proven to bite by moving its bound by one, then restoring — each mutation breaks its OWN named test; a fifth bound (instruction `title`) was found unpinned by a slipped mutation and covered; the 22003 mapping proven reachable by removing the zod bound, which answered 400 with the mapping's own message
 
 ### Phase 4: Prove the guards elsewhere, and make the documents true
 
