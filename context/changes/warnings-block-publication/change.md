@@ -1,7 +1,7 @@
 ---
 change_id: warnings-block-publication
 title: Make a warning stop a deploy, and stop mis-calibrating no-console for server routes
-status: planned
+status: implementing
 created: 2026-09-12
 updated: 2026-09-12
 archived_at: null

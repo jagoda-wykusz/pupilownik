@@ -141,12 +141,12 @@ not chosen. Update the §5 rows if their wording implies warnings are advisory.
 
 #### Automated
 
-- [ ] 1.1 `npm run lint` exits 0 with zero problems
-- [ ] 1.2 `npm run check` exits 0 at the `warning` threshold
-- [ ] 1.3 A planted `console.log` in an endpoint fails lint
-- [ ] 1.4 A planted `console.error` in a client component fails lint
-- [ ] 1.5 The twelve existing calls are unchanged
-- [ ] 1.6 Full gate passes: `npm run ci:gate`
+- [x] 1.1 `npm run lint` exits 0 with zero problems
+- [x] 1.2 `npm run check` exits 0 at the `warning` threshold
+- [x] 1.3 A planted `console.log` in an endpoint fails lint
+- [x] 1.4 A planted `console.error` in a client component fails lint
+- [x] 1.5 The twelve existing calls are unchanged
+- [x] 1.6 Full gate passes: `npm run ci:gate`
 
 ### Phase 2: Prove it bites, and record it
 

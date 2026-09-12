@@ -74,6 +74,34 @@ const scriptsConfig = tseslint.config({
   },
 });
 
+// Server routes. Under `output: "server"` every `.ts` under src/pages/ is an Astro ENDPOINT — it
+// runs on workerd and never reaches a browser. `wrangler.jsonc` has observability enabled and this
+// project has no logging library, so `console.error` here is not debug residue: it IS the log sink,
+// and the call sites know it (src/pages/api/periods.ts carries "Never log inviteToken" directly
+// above one). Twelve such calls were reported as warnings by a rule that never applied to them.
+//
+// NARROWER THAN THE scripts/ BLOCK BELOW, deliberately. That one turns the rule off outright,
+// because a CLI script's output is its interface. An endpoint's output is its HTTP response, not
+// its log — so `console.log` and `console.debug` stay forbidden, and a debugging line left behind
+// still fails the build. Only the two levels that mean "something went wrong" are allowed.
+//
+// Also deliberately NOT extended to src/lib/: those modules are imported by client islands, where
+// the rule protects something real.
+const serverRouteConfig = tseslint.config({
+  files: ["src/pages/**/*.ts"],
+  rules: {
+    // `error`, not `warn`: since `npm run lint` now runs with --max-warnings 0, a `warn` here
+    // would fail the build identically while telling the reader it is advisory.
+    //
+    // Note the asymmetry this creates, measured rather than assumed: a `console.error` in a client
+    // component reports as a WARNING (the base rule at `no-console: "warn"`) and fails only because
+    // of --max-warnings 0, whereas a `console.log` in an endpoint reports as an ERROR and fails on
+    // its own. Drop that flag and client code silently reverts to advisory while endpoints stay
+    // strict — which is why tests/unit/ci-gate-source.test.ts pins it.
+    "no-console": ["error", { allow: ["error", "warn"] }],
+  },
+});
+
 const astroConfig = tseslint.config({
   files: ["**/*.astro"],
   rules: {
@@ -124,5 +152,6 @@ export default tseslint.config(
   ...eslintPluginAstro.configs["flat/jsx-a11y-recommended"],
   astroConfig,
   scriptsConfig,
+  serverRouteConfig,
   eslintPluginPrettier,
 );
