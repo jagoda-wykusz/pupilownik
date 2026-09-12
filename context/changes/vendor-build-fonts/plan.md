@@ -344,18 +344,18 @@ the vendored files are inert once the config stops pointing at them.
 
 #### Automated
 
-- [ ] 1.1 Type checking passes: `npm run check`
-- [ ] 1.2 Linting passes: `npm run lint`
-- [ ] 1.3 Build succeeds: `npm run build`
-- [ ] 1.4 The build emits exactly 4 woff2
-- [ ] 1.5 Total font payload is ~129 KB, down from ~210 KB
-- [ ] 1.6 The render sweep still passes: `npm run test:render`
+- [x] 1.1 Type checking passes: `npm run check`
+- [x] 1.2 Linting passes: `npm run lint`
+- [x] 1.3 Build succeeds: `npm run build`
+- [x] 1.4 The build emits exactly 4 woff2
+- [x] 1.5 Total font payload is ~129 KB, down from ~210 KB
+- [x] 1.6 The render sweep still passes: `npm run test:render`
 
 #### Manual
 
-- [ ] 1.7 Headings and body text look identical to before the change
-- [ ] 1.8 Polish diacritics render in the webfont, not a fallback
-- [ ] 1.9 DevTools Network shows two woff2 on a normal page
+- [x] 1.7 Headings and body text look identical to before the change
+- [x] 1.8 Polish diacritics render in the webfont, not a fallback
+- [x] 1.9 DevTools Network shows two woff2 on a normal page
 
 ### Phase 2: Prove the build no longer needs Google
 
