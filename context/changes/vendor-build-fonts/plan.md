@@ -386,10 +386,10 @@ the vendored files are inert once the config stops pointing at them.
 
 #### Automated
 
-- [x] 4.1 Full gate passes: `npm run ci:gate`
-- [x] 4.2 `npm run check:secrets` still reports clean
+- [x] 4.1 Full gate passes: `npm run ci:gate` — 3d425f1
+- [x] 4.2 `npm run check:secrets` still reports clean — 3d425f1
 
 #### Manual
 
-- [x] 4.3 The OFL files match upstream with the correct per-family copyright lines
-- [x] 4.4 §7 reads correctly to someone who was not part of this session
+- [x] 4.3 The OFL files match upstream with the correct per-family copyright lines — 3d425f1
+- [x] 4.4 §7 reads correctly to someone who was not part of this session — 3d425f1
