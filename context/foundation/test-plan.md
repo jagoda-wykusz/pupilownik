@@ -741,9 +741,34 @@ re-inherit them.
   says local font files must not live there, or Astro's public-dir copy duplicates them alongside the
   pipeline's own output. The correct home is `src/assets/fonts/`.
 
+- **`wrangler.jsonc`'s asset scope: closed as EXPLAINED, not changed.** Follow-up #5 of
+  `ci-quality-gates` (`context/archive/2026-09-11-ci-quality-gates/follow-ups/review-fixes.md:63`)
+  records that the root config still publishes `./dist`, the parent of both halves, and flags it as
+  partially closed. Measured 2026-09-12 and closed here, since the archive is read-only.
+
+  The stake is real — `dist/server/.dev.vars` holds `SUPABASE_URL` and `SUPABASE_KEY` in plaintext,
+  so an asset scope of `./dist` really would serve them. It is nevertheless unreachable, for two
+  independent reasons:
+  1. `npm run build` makes the adapter write `dist/server/wrangler.json` plus a redirect at
+     `.wrangler/deploy/config.json`; wrangler then prints "Using redirected Wrangler configuration"
+     and calls the root file "Original user's configuration". The generated scope is `../client`,
+     and `assertAssetScope()` in `scripts/check-client-bundle.mjs` — inside `ci:gate` — refuses to
+     report clean if it is anything else.
+  2. Remove the redirect so wrangler DOES read the root file, and it fails before reaching
+     `assets`: `main` is a bare package specifier, and wrangler errors with "The entry-point file
+     at @astrojs/cloudflare/entrypoints/server was not found."
+
+  Confirmed against production the same day: `/_astro/fonts/*.woff2` → 200, while `/server/index.js`,
+  `/server/manifest.mjs`, `/_worker.js` and `/client/...` → 404.
+
+  **Not changed deliberately.** Rewriting `directory` to `./dist/client` would look tidier and
+  change nothing, since nothing reads it and anything that did would fail on `main` first. The file
+  now carries a header saying so, because this was raised as a suspicious-looking value twice and
+  would have been raised again.
+
 ## 8. Freshness Ledger
 
-- Strategy (§1–§5) last reviewed: 2026-09-12 (§5's chain string and gate table gained `test:render`, which the island-prop change added to `ci:gate` without updating the inventory, plus the two font guards; §7 gained the build-time third-party entry; §7 gained the island-prop boundary and its three-layer coverage, plus a withdrawn criticism of the prop-type claim; §3 Phase 2b closed narrower than its name — see the note under the phase table; earlier on 2026-09-11: §3 Phases 3 and 4 closed; §5 rewritten against the repo after the CI it described was found not to exist; §2's Risk #4 and #5 wording corrected against measurement — see §7)
+- Strategy (§1–§5) last reviewed: 2026-09-12 (§7 closed ci-quality-gates follow-up #5 as explained-not-changed, with the two reasons the dangerous asset scope is unreachable; §5's chain string and gate table gained `test:render`, which the island-prop change added to `ci:gate` without updating the inventory, plus the two font guards; §7 gained the build-time third-party entry; §7 gained the island-prop boundary and its three-layer coverage, plus a withdrawn criticism of the prop-type claim; §3 Phase 2b closed narrower than its name — see the note under the phase table; earlier on 2026-09-11: §3 Phases 3 and 4 closed; §5 rewritten against the repo after the CI it described was found not to exist; §2's Risk #4 and #5 wording corrected against measurement — see §7)
 - Stack versions last verified: 2026-06-28
 - AI-native tool references last verified: 2026-06-28
 

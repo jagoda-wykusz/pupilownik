@@ -1,3 +1,33 @@
+// WHAT ACTUALLY DEPLOYS IS NOT THIS FILE. Read this before "fixing" anything below.
+//
+// `npm run build` makes @astrojs/cloudflare write `dist/server/wrangler.json` and a redirect at
+// `.wrangler/deploy/config.json` pointing at it. Wrangler then reports, verbatim:
+//
+//   Using redirected Wrangler configuration.
+//    - Configuration being used:      dist\server\wrangler.json
+//    - Original user's configuration: wrangler.jsonc
+//
+// So `main` and `assets` here are superseded on every deploy. The generated file sets
+// `assets.directory` to `../client` — i.e. dist/client only.
+//
+// WHY `"directory": "./dist"` BELOW IS NOT A LEAK, measured 2026-09-12 after this was raised as a
+// follow-up twice. The scope that would be dangerous is exactly this one: `dist/server/` holds
+// `.dev.vars` with SUPABASE_URL and SUPABASE_KEY in plaintext, so publishing `./dist` as static
+// assets would serve them. It cannot happen, for two independent reasons:
+//
+//   1. The adapter's generated config wins on every build, and `scripts/check-client-bundle.mjs`
+//      (`assertAssetScope`, in `npm run ci:gate`) refuses to report clean unless that generated
+//      scope is exactly `../client`. A publish with the wrong scope never gets a green gate.
+//   2. If the redirect file is removed so that wrangler DOES read this file, it fails before it
+//      ever reaches `assets`: `main` is a bare package specifier, and wrangler errors with
+//      "The entry-point file at @astrojs/cloudflare/entrypoints/server was not found."
+//
+// Verified against production the same day: `/_astro/fonts/*.woff2` returns 200, while
+// `/server/index.js`, `/server/manifest.mjs`, `/_worker.js` and `/client/...` all return 404 —
+// assets are scoped to dist/client, the server bundle is not reachable.
+//
+// Keep the values as they are. Changing `directory` to `./dist/client` would look tidier and
+// would be pure noise: nothing reads it, and the day something does, it fails on `main` first.
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "pupilownik",
