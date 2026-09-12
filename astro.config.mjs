@@ -14,13 +14,22 @@ import cloudflare from "@astrojs/cloudflare";
 // arrays does not break the build: it emits @font-face rules with no `unicode-range`, and every
 // page then downloads BOTH subsets instead of the one it needs.
 //
-// The values are Google's declared ranges for its standard latin / latin-ext split, lifted from
-// the build cache (`node_modules/.astro/fonts/**/<Family>-*-data.json`) while it was still warm.
+// The values are Google's declared ranges for its standard latin / latin-ext split, lifted while
+// the Google cache was still warm from `.astro/fonts/google-*/*/google/<Family>-*-data.json` —
+// the DEV cache. Note the path: the BUILD cache (`node_modules/.astro/fonts/`) holds only the
+// binaries, so someone sent there to refresh these arrays finds four bare hashed woff2 and no
+// metadata at all. That cache also expires after a week; see src/assets/fonts/README.md.
 // Both families declare the same two sets, which is why these are shared rather than repeated.
 //
 // Deliberately NOT the coverage `fontace` reports from the files themselves: that is finer-grained
-// (30 ranges vs 19) and overlaps between the two subsets, which would defeat the split. The
-// declared ranges are disjoint by construction — that is the whole point of subsetting.
+// (30 ranges vs 19) and overlaps the two subsets heavily, which would largely defeat the split.
+//
+// The declared ranges are coarse and NEARLY disjoint — not fully, and the difference is worth
+// stating because an earlier version of this comment claimed otherwise. Measured by set
+// intersection: `U+0304`, `U+0308` and `U+0329` appear in BOTH arrays. Those are combining marks
+// that Google ships in both subsets, so a page whose only non-ASCII codepoint is one of them pulls
+// both files. That is upstream's choice, faithfully copied; do not "fix" it by removing them from
+// one array, or that page loses its diacritic.
 const LATIN = /** @type {[string, ...string[]]} */ ([
   "U+0000-00FF",
   "U+0131",

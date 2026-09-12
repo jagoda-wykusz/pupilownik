@@ -220,15 +220,23 @@ system.**
 | build                                         | **publish gate** + GitHub Actions                              | **every deploy; blocks publication**              | broken SSR build                                                          |
 | unit + component                              | **publish gate** + GitHub Actions                              | **every deploy; blocks publication**              | logic regressions                                                         |
 | unit + integration, scoped to the edited file | per-edit agent hook (`.claude/hooks/related-tests.mjs`)        | agent sessions only; skips when the stack is down | regressions on the path just edited                                       |
-| secret-leak scan of `dist/client`             | `npm run check:secrets`, and a test inside `npm test`          | with the suite                                    | a secret literal pasted into a client island                              |
-| env schema shape                              | a test inside `npm test`                                       | with the suite                                    | a `PUBLIC_`/client-context redeclaration that would inline a secret       |
+| secret-leak scan of `dist/client`             | `npm run check:secrets`, and a test inside `npm test`          | **every deploy; blocks publication**              | a secret literal pasted into a client island                              |
+| env schema shape                              | a test inside `npm test`                                       | **every deploy; blocks publication**              | a `PUBLIC_`/client-context redeclaration that would inline a secret       |
 | Supabase advisors (security)                  | `npx supabase db advisors`, by hand                            | recommended on every migration                    | RLS / definer-function issues                                             |
 | integration (RLS + routes)                    | **GitHub Actions only** — the build container has no Docker    | every push and PR, but **cannot block a merge**   | RLS + route regressions                                                   |
-| gate contents themselves                      | `tests/unit/ci-gate-source.test.ts`                            | with the suite                                    | a step quietly removed from either gate                                   |
+| gate contents themselves                      | `tests/unit/ci-gate-source.test.ts`                            | **every deploy; blocks publication**              | a step quietly removed from either gate                                   |
 | island props in rendered pages                | `tests/render/island-props.test.ts` via `npm run test:render`  | **every deploy; blocks publication**              | a server secret reaching the browser inside `<astro-island props>`        |
-| font provider source                          | `tests/unit/font-source.test.ts`                               | with the suite                                    | a Google host re-entering the build path through a config edit            |
-| fonts actually emitted by the build           | `tests/unit/font-assets.test.ts`                               | with the suite                                    | a build that exits 0 having produced no webfonts, or lost `unicode-range` |
+| font provider source                          | `tests/unit/font-source.test.ts`                               | **every deploy; blocks publication**              | a Google host re-entering the build path through a config edit            |
+| fonts actually emitted by the build           | `tests/unit/font-assets.test.ts`                               | **every deploy; blocks publication**              | a build that exits 0 having produced no webfonts, or lost `unicode-range` |
 | e2e on critical flows                         | —                                                              | not present                                       | broken critical user paths                                                |
+
+**Why so many rows now say "blocks publication", corrected 2026-09-12.** Five rows read
+"with the suite", which is true but misleading in the one way this section exists to prevent:
+anything in `tests/unit/`, `tests/component/` or `tests/render/` runs inside `npm run ci:gate`,
+and `ci:gate` IS the Cloudflare build command — so a failure there produces no version and
+nothing deploys. A reader deciding whether the font assertion can stop a bad deploy got the
+wrong answer from that cell. Only `tests/integration/` is genuinely non-blocking, because it
+needs Docker and therefore runs in Actions alone.
 
 The `astro check` in pre-commit replaced `tsc --noEmit` on 2026-09-07 (S-03 phase 3 review:
 `tsc` does not see type errors inside `.astro` templates). Both tables said otherwise until

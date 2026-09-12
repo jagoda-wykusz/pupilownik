@@ -30,9 +30,22 @@ const source = readFileSync(CONFIG_PATH, "utf8");
 /** The config with every block and line comment removed, so assertions see code only.
  *
  *  Block comments first — a `/** ... *\/` run can contain `//` inside it, and removing line
- *  comments first would leave its tail behind. No string literal in this file contains `//`
- *  (the font paths are relative, `./src/assets/...`), so a naive line-comment strip is safe here;
- *  it would not be in a file holding URLs. */
+ *  comments first would leave its tail behind.
+ *
+ *  WHAT ACTUALLY MAKES THE LINE STRIP SAFE, corrected after review said the original reason was
+ *  the wrong one: the pattern is ANCHORED TO LINE START. An inline `//` inside a string — the
+ *  `site: "https://example.com"` that any Astro config with @astrojs/sitemap eventually grows —
+ *  is therefore untouched. It was never the risk.
+ *
+ *  THE REAL GAP, in the other direction: a TRAILING comment is not stripped at all. Write
+ *  `provider: fontProviders.local(), // never fontProviders.google()` and the word survives into
+ *  `code`, turning the guard red on its own rationale — the very failure class this stripper
+ *  exists to prevent, alive in the half it does not cover. Keep "why" comments on their own lines
+ *  in astro.config.mjs.
+ *
+ *  Also not string-aware for BLOCK comments: a future glob like `"src/<star><star>/*.ts"` contains
+ *  a comment-close sequence and would be partly deleted. The stripping control below floors on
+ *  `fonts:` surviving, which catches the catastrophic case but not a surgical one. */
 function codeOnly(text: string): string {
   return text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^[ \t]*\/\/.*$/gm, "");
 }

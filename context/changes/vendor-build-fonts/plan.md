@@ -364,7 +364,7 @@ the vendored files are inert once the config stops pointing at them.
 - [x] 2.1 Cold-cache build with both hosts blocked: exit 0, 0 blocked requests, 4 woff2 — b5d47aa
 - [x] 2.2 The new source guard passes — b5d47aa
 - [x] 2.3 The guard fails when mutated back to `fontProviders.google()` — b5d47aa
-- [x] 2.4 Cache restored and a clean build still emits 4 woff2 (deviation: the stale Google cache was DELETED rather than restored — 3.5 MB of binaries and meta.json nothing references after vendoring; the criterion's intent was verified with a clean build instead) — b5d47aa
+- [x] 2.4 Cache restored and a clean build still emits 4 woff2 (deviation: the stale BUILD cache `node_modules/.astro/fonts/` was DELETED rather than restored — 3.5 MB nothing references after vendoring; the criterion's intent was verified with a clean build instead. Narrowed after impl-review: the DEV cache `.astro/fonts/` was NOT touched and still holds 27 woff2 including 9 italic faces plus a 1,547,684 B meta.json. Gitignored, nothing shipped references it — but it is where the unicode-range source data actually lives) — b5d47aa
 
 #### Manual
 

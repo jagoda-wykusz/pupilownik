@@ -49,6 +49,6 @@ clause first.
 
 Do not edit these files. To take a newer upstream build, re-download through the Google provider
 once, copy the emitted woff2 out of `dist/client/_astro/fonts/`, and refresh the `unicode-range`
-arrays in `astro.config.mjs` from the build cache — they are hand-maintained and never inferred
+arrays in `astro.config.mjs` from the dev cache — they live in `.astro/fonts/google-*/*/google/<Family>-*-data.json`, NOT in `node_modules/.astro/fonts/`, which holds only binaries — and they are hand-maintained and never inferred
 (`astro/dist/assets/fonts/providers/local.js:44`). `tests/unit/font-assets.test.ts` will fail if
 they go missing.

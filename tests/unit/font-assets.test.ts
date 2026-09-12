@@ -33,9 +33,13 @@ const SERVER_DIR = path.join(ROOT, "dist/server");
  *  writes without pinning the exact bytes, which would turn a routine font update into a failure. */
 const MIN_FONT_BYTES = 10_000;
 
-/** One per subset per family: Quicksand latin + latin-ext, Nunito latin + latin-ext. Raising this
- *  when a family or subset is added is deliberate maintenance — it is the moment someone re-reads
- *  what the build now ships. */
+/** One per subset per family: Quicksand latin + latin-ext, Nunito latin + latin-ext.
+ *
+ *  Asserted as an EQUALITY, not a floor, and that is the difference between a comment and a rule.
+ *  A floor makes "adding a family is deliberate maintenance" a wish: nothing forces the re-read,
+ *  and the regression that matters here is a build emitting MORE than expected — Astro's
+ *  `DEFAULTS.styles` silently adds italic faces, which is where 80,760 B of the 210,280 B this
+ *  change removed came from. Raising this number should be a decision someone makes on purpose. */
 const EXPECTED_FONT_FILES = 4;
 
 function walk(dir: string): string[] {
@@ -92,8 +96,8 @@ describe("the build shipped the fonts it claims to", () => {
 
     expect(
       fonts.length,
-      `expected ${EXPECTED_FONT_FILES} woff2 under dist/client, found ${fonts.length}. Zero means the build produced a site with no webfonts and still exited 0 — check the fonts block in astro.config.mjs.`,
-    ).toBeGreaterThanOrEqual(EXPECTED_FONT_FILES);
+      `expected exactly ${EXPECTED_FONT_FILES} woff2 under dist/client, found ${fonts.length}. Zero means the build produced a site with no webfonts and still exited 0. MORE than expected is equally a regression — the italic faces Astro's DEFAULTS.styles pulls in were 80,760 B of the 210,280 B this change removed. Either way, check the fonts block in astro.config.mjs.`,
+    ).toBe(EXPECTED_FONT_FILES);
 
     for (const file of fonts) {
       const bytes = statSync(file).size;
@@ -110,12 +114,25 @@ describe("the build shipped the fonts it claims to", () => {
 
     expect(
       withUrl.length,
-      `found ${withUrl.length} @font-face rule(s) with a url() in dist/server. Zero means the CSS was generated without any faces — the site renders in fallback fonts. Note the rules are NOT in dist/client under \`output: "server"\`.`,
-    ).toBeGreaterThanOrEqual(EXPECTED_FONT_FILES);
+      `found ${withUrl.length} @font-face rule(s) with a url() in dist/server, expected exactly ${EXPECTED_FONT_FILES}. Zero means the CSS was generated without any faces — the site renders in fallback fonts. Note the rules are NOT in dist/client under \`output: "server"\`.`,
+    ).toBe(EXPECTED_FONT_FILES);
 
     for (const rule of withUrl) {
-      for (const match of rule.matchAll(/url\(["']?([^"')]+)["']?\)/g)) {
-        const referenced = match[1];
+      // Tolerant of an escaped quote. This CSS lives inside a JS string in a server chunk, and
+      // Rollup currently emits that string single-quoted, so the CSS double quotes survive bare.
+      // If it ever emits it double-quoted, every `"` becomes `\"` — and the previous pattern
+      // (which required a closing paren after an optional quote) then matched NOTHING, which made
+      // this loop iterate zero times and the assertion below verify nothing at all.
+      const urls = [...rule.matchAll(/url\(\s*\\?["']?([^"'\\)]+)/g)].map((match) => match[1]);
+
+      // The floor that makes the loop mean something. A rule containing the literal `url(` that
+      // yields no extractable URL is an extraction failure, not an absence of URLs.
+      expect(
+        urls.length,
+        `a @font-face contains url( but no URL could be extracted from it — the pattern in this test has stopped matching the emitted CSS, so this assertion was about to pass having checked nothing. Rule: ${rule.slice(0, 120)}`,
+      ).toBeGreaterThan(0);
+
+      for (const referenced of urls) {
         const onDisk = path.join(CLIENT_DIR, referenced.replace(/^\//, ""));
         expect(
           existsSync(onDisk),
@@ -132,6 +149,15 @@ describe("the build shipped the fonts it claims to", () => {
     // and every page then downloads both subsets instead of the one it needs. Nothing else would
     // notice: same exit code, same file count, same rendered text.
     const withUrl = fontFaceRules().filter((rule) => rule.includes("url("));
+
+    // Floored for a reason with a receipt: during phase 3 this very assertion ran GREEN against a
+    // build that emitted zero fonts (`3 failed | 2 passed` — this was one of the two). An empty
+    // collection made the loop body unreachable, so it reported nothing about the exact failure
+    // the file exists to catch. `ci-gate-source.test.ts` floors every index for the same reason.
+    expect(
+      withUrl.length,
+      `no @font-face rules with a url() were found, so this assertion would pass having examined nothing`,
+    ).toBe(EXPECTED_FONT_FILES);
 
     for (const rule of withUrl) {
       const family = /font-family:([^;}]+)/.exec(rule)?.[1]?.trim() ?? "unknown";
