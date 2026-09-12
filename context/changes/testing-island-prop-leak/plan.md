@@ -352,12 +352,12 @@ added.
 
 #### Automated
 
-- [ ] 1.1 Lint passes unchanged on the current tree: `npm run lint`
-- [ ] 1.2 Typecheck passes: `npm run check`
+- [x] 1.1 Lint passes unchanged on the current tree: `npm run lint`
+- [x] 1.2 Typecheck passes: `npm run check`
 
 #### Manual
 
-- [ ] 1.3 Proven to bite: a frontmatter import of `astro:env/server` fails lint naming the file and rule, then removed
+- [x] 1.3 Proven to bite: a frontmatter import of `astro:env/server` fails lint naming the file and rule, then removed — planted in src/pages/dashboard.astro, failed at 2:1 with the rule name and the actionable message, then reverted
 
 ### Phase 2: The render sweep
 

@@ -80,6 +80,35 @@ const astroConfig = tseslint.config({
     "astro/no-set-html-directive": "error",
     "astro/no-unused-css-selector": "warn",
     "astro/prefer-class-list-directive": "warn",
+
+    // A page that holds a secret is one keystroke from shipping it. MEASURED 2026-09-12: importing
+    // SUPABASE_KEY in frontmatter and passing it to a `client:load` island BUILDS FINE, leaves
+    // dist/client clean, passes `npm run check:secrets` — and puts the value verbatim into the HTTP
+    // response inside `<astro-island props="...">`. Astro cannot stop it: the ServerOnlyModule guard
+    // is keyed on which Vite environment resolves the module, and frontmatter resolves in `ssr`.
+    //
+    // So this bans the first step rather than the last. It is deliberately blunt — it forbids the
+    // import even where the frontmatter would only read the value server-side — because no .astro
+    // file in this repo imports it today, so the restriction costs nothing and removes the whole
+    // class. The output-side guard is tests/render/island-props.test.ts, which catches what a source
+    // rule cannot: the same value arriving through a helper, a re-export or a spread.
+    //
+    // NOT covered by the type system, which is worth saying because it nearly is: `astro check`
+    // does reject an undeclared prop and a field missing from the source object (measured, two
+    // errors). It cannot reject a secret handed to a prop already declared `string` — and a secret
+    // is a string. Passing SUPABASE_KEY to SignInForm's `serverError` type-checks today.
+    "no-restricted-imports": [
+      "error",
+      {
+        paths: [
+          {
+            name: "astro:env/server",
+            message:
+              "Do not read server secrets in .astro frontmatter: Astro serializes island props into the HTML response, so one prop away is a disclosure the bundle scan cannot see. Read it in a .ts module and export a derived, non-secret value — src/lib/config-status.ts is the pattern.",
+          },
+        ],
+      },
+    ],
   },
 });
 
