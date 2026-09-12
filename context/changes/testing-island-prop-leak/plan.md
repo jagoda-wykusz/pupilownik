@@ -378,23 +378,23 @@ added.
 
 #### Automated
 
-- [x] 3.1 The whole gate passes: `npm run ci:gate`
-- [x] 3.2 The gate's guard passes with the new step pinned: `npx vitest run --project unit ci-gate-source`
-- [x] 3.3 Whole suite green: `npm test`
+- [x] 3.1 The whole gate passes: `npm run ci:gate` — e81e9eb
+- [x] 3.2 The gate's guard passes with the new step pinned: `npx vitest run --project unit ci-gate-source` — e81e9eb
+- [x] 3.3 Whole suite green: `npm test` — e81e9eb
 
 #### Manual
 
-- [x] 3.4 Proven to bite: removing the render step from `ci:gate` fails the guard, then restored — two mutations: dropping the step failed presence and ordering; keeping the step but deleting the script it calls failed the new linkage assertion
+- [x] 3.4 Proven to bite: removing the render step from `ci:gate` fails the guard, then restored — two mutations: dropping the step failed presence and ordering; keeping the step but deleting the script it calls failed the new linkage assertion — e81e9eb
 - [ ] 3.5 The Actions run is green and its log shows the render step
 
 ### Phase 4: Say what the guards do and do not reach
 
 #### Automated
 
-- [ ] 4.1 Docs prettier-clean: `npx prettier --check scripts/check-client-bundle.mjs context/foundation/test-plan.md`
-- [ ] 4.2 The gate still passes: `npm run ci:gate`
+- [x] 4.1 Docs prettier-clean: `npx prettier --check scripts/check-client-bundle.mjs context/foundation/test-plan.md`
+- [x] 4.2 The gate still passes: `npm run ci:gate`
 
 #### Manual
 
-- [ ] 4.3 No sentence added describes something that does not exist
-- [ ] 4.4 The §7 correction names the real mechanism, checkable against `caretaker-name.ts`
+- [x] 4.3 No sentence added describes something that does not exist — audited: the rule, the sweep, the gate step and the workflow step all verified present. One sentence I wrote DID fail this and was fixed: it cited this change at an archive path it does not have yet
+- [x] 4.4 The §7 correction names the real mechanism, checkable against `caretaker-name.ts` — states both halves: astro check rejects an undeclared prop and an absent field (ts(2339), ts(2322), measured), and cannot reject a secret in a prop declared `string`

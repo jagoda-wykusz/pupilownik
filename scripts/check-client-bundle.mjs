@@ -14,6 +14,19 @@
 // What it CAN catch is the mistake a person makes: a key literal pasted into a client island,
 // typically to "just call Supabase directly from the browser". That is the whole of its value.
 //
+// AND ONE ROUTE THAT SENTENCE ABOVE IS SILENT ABOUT, added 2026-09-12 after measuring it. The
+// `ServerOnlyModule` argument is correct and incomplete: that throw is keyed on which Vite
+// ENVIRONMENT resolves `astro:env/server`, not on where the value then flows. A `.astro`
+// frontmatter import resolves in `ssr`, so it loads fine — and handing the value to a `client:*`
+// island serializes it verbatim into the HTTP response, inside `<astro-island props="...">`.
+// Measured: that build exits 0, `dist/client` stays clean, and this script reports `clean`.
+//
+// It is not a scoping mistake here: under `output: "server"` there is no HTML in `dist/client` at
+// all, so the disclosure lives in a per-request byte stream no artifact retains. Widening this
+// script cannot reach it. Two other guards do — `eslint.config.js` forbids importing
+// `astro:env/server` from a `.astro` file, and `tests/render/island-props.test.ts` renders every
+// page and checks the output. Both run in `npm run ci:gate` alongside this scan.
+//
 // AND BE PRECISE ABOUT *WHICH* SECRETS, because a review found the first version of this header
 // overstating it. Two of the patterns are derived from whatever `.env` the run has — which in
 // every local checkout is the throwaway stack from `npm run db:start`. So the literal and host

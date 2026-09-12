@@ -661,9 +661,41 @@ re-inherit them.
   different risk from #7 — noted here so the asymmetry is not mistaken for an
   oversight by the next reader of those four files.
 
+- **Island props: covered now, and the coverage has a named edge.** A value read from
+  `astro:env/server` in `.astro` frontmatter and passed to a `client:*` island is serialized into
+  the SSR response — not into `dist/client`, which under `output: "server"` holds no HTML at all.
+  Measured 2026-09-12: such a build exits 0, `npm run check:secrets` reports `clean`, and the secret
+  arrives in the browser verbatim inside `<astro-island props="...">`. Astro does not prevent it:
+  `ServerOnlyModule` is keyed on which Vite environment resolves the module, and frontmatter
+  resolves in `ssr`.
+
+  Three layers now stand on that boundary, and they catch different mistakes — worth stating
+  separately, because each is useless against the others' shape:
+
+  | Guard                                        | Catches                                                   | Blind to                                                 |
+  | -------------------------------------------- | --------------------------------------------------------- | -------------------------------------------------------- |
+  | `astro check` (pre-commit + gate)            | an undeclared prop; a field absent from the source object | a secret in a prop already declared `string`             |
+  | `no-restricted-imports` (`eslint.config.js`) | the import itself, in any `.astro` file                   | the value arriving via a helper, a re-export or a spread |
+  | `tests/render/island-props.test.ts`          | the rendered bytes, through any indirection               | islands on branches that need a session                  |
+
+  **The correction this entry exists to carry.** `context/archive/2026-09-11-testing-secret-leak/research.md:82`
+  records `claim_digest` as "guarded by `CaretakerLabel`'s prop type", and `src/lib/caretaker-name.ts:110-118`
+  makes the same claim more precisely. Both are RIGHT, and an earlier reading in
+  `context/changes/testing-island-prop-leak/research.md` first judged them wrong and withdrew it:
+  planting `leakedDigest={claimed.claim_digest}` fails `npm run check` twice over — `ts(2339)`
+  because the field is already absent from the object, `ts(2322)` because the prop is not on the
+  component's `Props`. What a type cannot do is reject a secret handed to a prop whose declared type
+  is `string`, because a secret is a string. Say both halves: a reader who concludes types cover this
+  is wrong, and so is one who concludes they cover nothing.
+
+  **Not tested, deliberately**: islands on gated branches. Without middleware the sweep renders the
+  degraded branch, so `periods/[id].astro` yields 1 island of its 4 and `invite/[token].astro` 1 of 2. Lighting them up needs an injected authenticated `locals`, which needs Docker — turning a
+  3-second gate step into an integration test. The sweep pins per-page island floors instead, so a
+  page that silently stops rendering islands fails rather than passes quietly.
+
 ## 8. Freshness Ledger
 
-- Strategy (§1–§5) last reviewed: 2026-09-12 (§3 Phase 2b closed narrower than its name — see the note under the phase table; earlier on 2026-09-11: §3 Phases 3 and 4 closed; §5 rewritten against the repo after the CI it described was found not to exist; §2's Risk #4 and #5 wording corrected against measurement — see §7)
+- Strategy (§1–§5) last reviewed: 2026-09-12 (§7 gained the island-prop boundary and its three-layer coverage, plus a withdrawn criticism of the prop-type claim; §3 Phase 2b closed narrower than its name — see the note under the phase table; earlier on 2026-09-11: §3 Phases 3 and 4 closed; §5 rewritten against the repo after the CI it described was found not to exist; §2's Risk #4 and #5 wording corrected against measurement — see §7)
 - Stack versions last verified: 2026-06-28
 - AI-native tool references last verified: 2026-06-28
 
