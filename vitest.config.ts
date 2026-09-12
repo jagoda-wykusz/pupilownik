@@ -1,11 +1,17 @@
 import path from "node:path";
 import { configDefaults, defineConfig } from "vitest/config";
 
-// Two projects, split by what they need to run.
+// Three projects, split by what they need to run.
 //
-// `integration` carries the Supabase harness: tests/setup.ts loads .env.test and
-// fails fast unless the local stack is up. `unit` deliberately has no setup file,
-// so pure-logic tests run with Docker down — `npx vitest run --project unit`.
+// `integration` carries the Supabase harness, and since 2026-09-12 that harness lives in two
+// files: tests/env.ts loads .env.test and refuses a non-localhost host (per worker, on import),
+// and tests/global-setup.ts waits for the stack ONCE PER RUN. tests/setup.ts is now only the
+// re-export that ties them together.
+//
+// `unit` has no setup file and needs no Docker. Note what it does need, because the project's
+// old description ("pure logic") stopped being true when the secret scan landed:
+// tests/unit/client-bundle.test.ts requires a `dist/client` build artifact and SUPABASE_URL /
+// SUPABASE_KEY in the environment, and fails rather than skips without them.
 // Astro's Vite config is not reused; the virtual modules the middleware imports
 // resolve through the honest shims aliased below.
 export default defineConfig({
@@ -72,7 +78,7 @@ export default defineConfig({
           // written for, that default is already 1 — so `maxWorkers: 2` would have DOUBLED
           // parallelism against that single Postgres while claiming to cap it. At 1 the setting
           // is a genuine ceiling on any runner size. Measured locally: 6s unconstrained (11
-          // workers), 12s at 2, 37s at 1. The whole CI job is ~10 minutes, so 25 extra seconds
+          // workers), 12s at 2, 37s at 1. The whole CI job measured 5m17s on its first real run, so 25 extra seconds
           // buys determinism cheaply.
           maxWorkers: process.env.CI ? 1 : undefined,
 

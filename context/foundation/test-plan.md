@@ -146,18 +146,22 @@ What actually runs, where, and what stops a bad change.
 
 **Read the "Where" column literally, and read this paragraph before the table.**
 
-**There is a deploy pipeline, and it contains no test.** Cloudflare Workers Builds is connected
-to this repository: a push builds and publishes the project. What it runs is the build command —
-`astro build`. That does not run `npm run lint`, does not run `npm test`, does not run
-`npm run check:secrets`, and does not typecheck `.astro` templates (which is why `astro check`
-was promoted to pre-commit in the first place). So **every push publishes, and nothing between
-the commit and production executes a single assertion in this plan.**
+**There is a deploy pipeline and it now contains the tests. Until 2026-09-12 it did not**, and
+the paragraph below is kept in the past tense rather than deleted, because the reasoning is what
+made the fix worth doing.
 
-That is a worse position than having no pipeline at all, because a pipeline invites the belief
-that something is checking. Until the three commands above are wired into the build step, the
-only thing standing between a broken test and a live deploy is a developer who remembers to run
-it — and the pre-commit hook, which is bypassable with `--no-verify` and absent for anyone who
-has not installed hooks.
+_Before 2026-09-12:_ Cloudflare Workers Builds was connected to this repository and a push built
+and published the project. What it ran was the build command — `astro build`. That did not run
+`npm run lint`, did not run `npm test`, did not run `npm run check:secrets`, and did not typecheck
+`.astro` templates (which is why `astro check` was promoted to pre-commit in the first place). So
+every push published, and nothing between the commit and production executed a single assertion in
+this plan. That was a worse position than having no pipeline at all, because a pipeline invites the
+belief that something is checking.
+
+_Since `ci-quality-gates`:_ the build command is `npm run ci:gate` and a non-zero exit produces no
+version, so a failing lint, typecheck, unit/component test or secret scan stops the deploy. The
+integration half runs in GitHub Actions, which on this plan can report but cannot block. The
+pre-commit hook is unchanged and still bypassable with `--no-verify`; the publish gate is not.
 
 **Correction, recorded because the mistake is instructive.** This section said until 2026-09-11
 that no CI existed at all. That was wrong. It came from reading `infrastructure.md:96` — "Wire
@@ -222,15 +226,15 @@ research and came back substantially faster — a cost table is a measurement wi
 not a constant, and planning a gate around a stale number is how a cheap check gets called
 expensive:
 
-| Check                         | Scope                     | Cost                                        | Layer                                                          |
-| ----------------------------- | ------------------------- | ------------------------------------------- | -------------------------------------------------------------- |
-| `prettier --write <file>`     | one file                  | ~0.3s                                       | per-edit agent hook                                            |
-| `vitest related <file> --run` | one file's import graph   | ~2s                                         | per-edit agent hook, risk areas only                           |
-| `eslint --fix <file>`         | one file                  | 12-22s (type-aware, `projectService: true`) | pre-commit (lint-staged)                                       |
-| `eslint .`                    | whole project             | **28s** (was ~110s on 2026-09-07)           | `npm run lint`, by hand — **not in the deploy path** (see §5)  |
-| `tsc --noEmit`                | whole project             | ~26s                                        | not wired — superseded by `astro check` on 2026-09-07          |
-| `astro check`                 | whole project + templates | **18s** (was ~38s on 2026-09-07)            | **pre-commit** (promoted 2026-09-07, replacing `tsc --noEmit`) |
-| `npm run ci:gate`             | the whole publish chain   | **183s cold / 104s warm**                   | **Workers Builds build command** — blocks publication          |
+| Check                         | Scope                     | Cost                                        | Layer                                                  |
+| ----------------------------- | ------------------------- | ------------------------------------------- | ------------------------------------------------------ |
+| `prettier --write <file>`     | one file                  | ~0.3s                                       | per-edit agent hook                                    |
+| `vitest related <file> --run` | one file's import graph   | ~2s                                         | per-edit agent hook, risk areas only                   |
+| `eslint --fix <file>`         | one file                  | 12-22s (type-aware, `projectService: true`) | pre-commit (lint-staged)                               |
+| `eslint .`                    | whole project             | **28s** (was ~110s on 2026-09-07)           | **publish gate** + GitHub Actions (see §5)             |
+| `tsc --noEmit`                | whole project             | ~26s                                        | not wired — superseded by `astro check` on 2026-09-07  |
+| `astro check`                 | whole project + templates | **18s** (was ~38s on 2026-09-07)            | **pre-commit** (as `npm run check`) **+ publish gate** |
+| `npm run ci:gate`             | the whole publish chain   | **183s cold / 104s warm**                   | **Workers Builds build command** — blocks publication  |
 
 The `ci:gate` row carries two numbers because the gap between them is the whole story: the chain
 costs 183s on a cold Vite cache and 104s when it is warm, and the sum of the steps measured

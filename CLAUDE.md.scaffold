@@ -51,4 +51,6 @@ Full server-side rendering (`output: "server"` in astro.config.mjs). All pages a
 
 ## CI
 
-Build and deploy run via Cloudflare Workers Builds (connected to the GitHub repo) — there is no GitHub Actions workflow. Merges to the production branch auto-deploy; PRs get preview URLs. `SUPABASE_URL` and `SUPABASE_KEY` are set as build-environment variables in the Workers Builds config, plus runtime secrets via `npx wrangler secret put`. Run `npm run lint` and `npm run build` locally before pushing.
+Two gates. **Cloudflare Workers Builds** runs `npm run ci:gate` as its build command — typecheck, lint, build, the `unit` + `component` vitest projects, and the secret scan. A non-zero exit produces no version, so a failure there blocks publication, including on a direct push to `master`. **GitHub Actions** (`.github/workflows/ci.yml`) runs the same checks plus the `integration` project against a real `supabase start`; that suite cannot run in the Cloudflare build container, which has no Docker. Actions is a signal only — this repository is private on GitHub Free, where branch protection is unavailable, so a red run leaves the merge button enabled (measured 2026-09-12).
+
+`SUPABASE_URL` and `SUPABASE_KEY` must be set in **both** places in the Cloudflare dashboard: as **build** variables (the secret scan needs them, and exits 2 without them — which now blocks publication) and as the Worker's **runtime** secrets. Setting only the runtime half is what broke the first gated deploy. Run `npm run ci:gate` locally before pushing; see `README.md` § CI / CD.

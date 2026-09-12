@@ -323,7 +323,7 @@ npm run db:push              # promote to the hosted project (separate from app 
   lies to the type checker.
 - Verify before committing: `npm run db:reset` (exit 0), `npm run check`,
   `npm run lint`, and `npx supabase db advisors --type security`. `npm run ci:gate`
-  runs the first three of those plus the build and the fast test projects — it is what
+  runs the second and third of those plus the build and the fast test projects — it is what
   Cloudflare runs as its build command, so a green gate locally is the same check that
   decides whether a push publishes.
 

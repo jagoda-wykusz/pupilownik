@@ -18,7 +18,7 @@ Astro 6 SSR app (React 19 islands, Tailwind 4, Supabase auth, shadcn/ui) deploye
 - `npx supabase start` — local Supabase stack (requires Docker); see `@README.md`.
 - `npx wrangler deploy` — deploy to Cloudflare Workers.
 
-- `npm test` — vitest, all three projects (39 files / 369 tests). The `integration` project needs the local stack.
+- `npm test` — vitest, all three projects (40 files / 376 tests as of 2026-09-12). The `integration` project needs the local stack.
 - `npm run check` — `astro check`; the same script the pre-commit hook and the publish gate call.
 - `npm run ci:gate` — the publish gate; see below.
 

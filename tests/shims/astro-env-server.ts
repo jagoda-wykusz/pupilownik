@@ -3,7 +3,7 @@
 // file (see vitest.config.ts) so the real `src/lib/supabase.ts` can be imported
 // in pure-Node integration tests.
 //
-// Values come from process.env, populated by tests/setup.ts (which loads
+// Values come from process.env, populated by tests/env.ts (which loads
 // .env.test before any test module evaluates). This is an honest stand-in for
 // Astro's validated env, NOT a mock of auth — the Supabase client built from
 // these values still talks to the real local stack.

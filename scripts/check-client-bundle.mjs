@@ -25,10 +25,21 @@
 // TWO SCOPING DECISIONS, both load-bearing:
 //
 //   1. `dist/client` ONLY. `dist/server/.dev.vars` holds the real values in plaintext by design
-//      — @cloudflare/vite-plugin writes it from .env on every build. It is gitignored and listed
-//      in dist/client/.assetsignore, so it reaches neither git nor the asset bucket. A scan over
-//      `dist/` would therefore FAIL ON A CORRECT BUILD, and the reflex fix would be to weaken
-//      the check.
+//      — @cloudflare/vite-plugin writes it from .env on every build. A scan over `dist/` would
+//      therefore FAIL ON A CORRECT BUILD, and the reflex fix would be to weaken the check.
+//
+//      WHY THAT IS SAFE, corrected 2026-09-12 after a review found this comment giving the wrong
+//      reason. It is NOT `.assetsignore`: that file lands at `dist/client/.assetsignore`, and
+//      wrangler reads it from the root of the assets directory — so it governs `dist/client/**`
+//      and cannot reach `dist/server/**` at all. What actually protects the server half is
+//      DIRECTORY SCOPING: the adapter generates `dist/server/wrangler.json` with
+//      `assets.directory: "../client"`, and that generated config is what `wrangler deploy`
+//      resolves to. The root `wrangler.jsonc` still says `"./dist"` — the parent of both halves —
+//      so a deploy that bypassed the generated config would upload the server directory. Measured
+//      against production on 2026-09-12: `/server/entry.mjs`, `/server/wrangler.json` and
+//      `/server/.dev.vars` all 404 while a real client asset returns 200, so the generated config
+//      is what runs today. `assertAssetScope` below pins it, because a wrong reason in a comment
+//      is what licenses the change that breaks the real one.
 //   2. No `service_role` token. It appears 5+ times as JSDoc prose inside bundled supabase-js.
 //      It is absent from dist/client today only because supabase-js is not client-bundled; the
 //      day an island imports it, that pattern false-positives and the check gets disabled.
@@ -147,7 +158,33 @@ function buildPatterns(env) {
   return { patterns, skipped };
 }
 
+/** The invariant that keeps `dist/server` — plaintext `.dev.vars` included — out of the public
+ *  asset bucket. Checked rather than trusted: it is one field in a generated file, nothing else
+ *  asserts it, and getting it wrong publishes the worker's source and its environment file. */
+function assertAssetScope() {
+  const generated = "dist/server/wrangler.json";
+  if (!existsSync(generated)) {
+    // Nothing to check before a build; the client-dir check below already fails that case.
+    return;
+  }
+  let directory;
+  try {
+    directory = JSON.parse(readFileSync(generated, "utf8"))?.assets?.directory;
+  } catch {
+    console.error(`check-client-bundle: ${generated} is not readable JSON — cannot verify the asset scope.`);
+    process.exit(2);
+  }
+  if (directory !== "../client") {
+    console.error(
+      `check-client-bundle: ${generated} publishes assets from "${directory}", not "../client". ` +
+        `That scope includes dist/server, which holds .dev.vars in plaintext. Refusing to report clean.`,
+    );
+    process.exit(2);
+  }
+}
+
 function main() {
+  assertAssetScope();
   if (!existsSync(CLIENT_DIR)) {
     console.error(`check-client-bundle: ${CLIENT_DIR} does not exist. Run \`npm run build\` first.`);
     process.exit(2);

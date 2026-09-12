@@ -20,8 +20,13 @@ on:
   push:
   pull_request:
 
-# One run per ref. A push onto a branch with an open PR would otherwise hold two ~10-minute runs
-# open for the same commit, and the older one is never the interesting result.
+# One run per ref, so successive pushes to the same branch do not queue up behind each other.
+#
+# BE PRECISE ABOUT WHAT THIS DOES NOT DO, because the first version of this comment claimed more:
+# a push and a pull_request event for the same commit carry DIFFERENT refs (`refs/heads/<branch>`
+# vs `refs/pull/<n>/merge`), so they land in different groups and both run. That is intended — the
+# PR run tests the merge result, the push run tests the branch tip — but it is two runs per commit
+# on a branch with an open PR, not one. At ~5 minutes each that is far inside the free tier.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -32,9 +37,9 @@ permissions:
 jobs:
   suite:
     runs-on: ubuntu-latest
-    # Well above the ~9-12 minute expectation, and deliberately not tight: a job killed by its own
-    # timeout reports nothing useful, and the failure mode worth catching here is a hung stack,
-    # which the readiness probes already bound with their own message.
+    # Measured at 5m17s on the first real run (2026-09-12); 25 minutes is deliberately not tight,
+    # because a job killed by its own timeout reports nothing useful, and the failure mode worth
+    # catching here is a hung stack, which the readiness probes already bound with their own message.
     timeout-minutes: 25
 
     env:
@@ -71,12 +76,28 @@ jobs:
       # the CLI version pinned today, but upstream is deprecating that, so read them rather than
       # hardcoding them. `-o env` prints API_URL / ANON_KEY / SERVICE_ROLE_KEY as quoted KEY=VALUE.
       - name: Export the stack's URL and keys
+        # `set -euo pipefail` and an explicit emptiness check, because the obvious form of this
+        # step passes silently twice over: GitHub's default shell is `bash -e`, NOT pipefail, so a
+        # failing `supabase status` still exits 0 through `tr`; and `echo "$(grep ... )"` returns
+        # echo's status, so a grep that matches nothing writes `SUPABASE_KEY=` and reports success.
+        # That matters here more than usual — the comment above notes upstream is deprecating
+        # these key names, and a rename would otherwise turn this step green and empty.
         run: |
+          set -euo pipefail
           npx supabase status -o env | tr -d '"' > /tmp/supabase.env
+          url=$(grep '^API_URL=' /tmp/supabase.env | cut -d= -f2-)
+          anon=$(grep '^ANON_KEY=' /tmp/supabase.env | cut -d= -f2-)
+          service=$(grep '^SERVICE_ROLE_KEY=' /tmp/supabase.env | cut -d= -f2-)
+          for pair in "API_URL:$url" "ANON_KEY:$anon" "SERVICE_ROLE_KEY:$service"; do
+            if [ -z "${pair#*:}" ]; then
+              echo "::error::supabase status produced no value for ${pair%%:*} — the key names may have changed upstream" >&2
+              exit 1
+            fi
+          done
           {
-            echo "SUPABASE_URL=$(grep '^API_URL=' /tmp/supabase.env | cut -d= -f2-)"
-            echo "SUPABASE_KEY=$(grep '^ANON_KEY=' /tmp/supabase.env | cut -d= -f2-)"
-            echo "SUPABASE_SERVICE_KEY=$(grep '^SERVICE_ROLE_KEY=' /tmp/supabase.env | cut -d= -f2-)"
+            echo "SUPABASE_URL=$url"
+            echo "SUPABASE_KEY=$anon"
+            echo "SUPABASE_SERVICE_KEY=$service"
           } >> "$GITHUB_ENV"
 
       # tests/env.ts reads .env.test as a FILE before consulting process.env, and throws if it is
