@@ -119,9 +119,11 @@ carries an in-SQL comment that `claimed_by_name` and `claim_digest` must never a
 
 ### 3. Three ways to close it, all priced
 
-**A — `no-restricted-imports` scoped to `**/\*.astro`.** Verified: **no `.astro`file imports`astro:env/server`today**, so the rule passes clean immediately and forbids the necessary first
-step of the measured leak. About six lines in`eslint.config.js`, already inside `npm run ci:gate`via`npm run lint`. Blunt — it bans the import even for legitimate server-only frontmatter use —
-which costs nothing in this codebase today.
+**A — a `no-restricted-imports` rule for `.astro` files.** Verified: no `.astro` file imports
+`astro:env/server` today, so the rule passes clean immediately and forbids the necessary first step
+of the measured leak. About six lines in `eslint.config.js`, already inside `npm run ci:gate` via
+`npm run lint`. Blunt — it bans the import even for legitimate server-only frontmatter use — which
+costs nothing in this codebase today.
 
 **B — a rendered-output sweep via Astro's Container API.** Verified by running it:
 `experimental_AstroContainer` exists in astro 6.3.1 (`package.json` exports `./container`), and a

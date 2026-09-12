@@ -55,7 +55,7 @@ From `research.md`, all measured rather than argued:
 - `tests/unit/ci-gate-source.test.ts:55-60,68-71,98` — what the gate's guard pins, and what it does not
 - `vitest.config.ts` — aliases `astro:env/server` to a shim, which is why the render sweep needs its own config
 - `scripts/check-client-bundle.mjs` header — cites `ServerOnlyModule` as the reason a framework leak cannot happen
-- `src/lib/caretaker-name.ts:120-125,171-177` — the digest dropped by construction, the fact the archived claim mis-explains
+- `src/lib/caretaker-name.ts:110-125,171-177` — the digest dropped by construction AND absent from the output type, which `astro check` enforces (measured)
 
 ## What We're NOT Doing
 
