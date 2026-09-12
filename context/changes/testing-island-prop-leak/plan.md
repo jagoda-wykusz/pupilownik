@@ -363,28 +363,28 @@ added.
 
 #### Automated
 
-- [x] 2.1 The sweep passes: `npm run test:render`
-- [x] 2.2 It renders every page under `src/pages/**` — 11 on disk, 11 floors, asserted by a control
-- [x] 2.3 Existing suites unaffected: `npm test`
-- [x] 2.4 Typecheck and lint: `npm run check`, `npm run lint`
+- [x] 2.1 The sweep passes: `npm run test:render` — 66ce31c
+- [x] 2.2 It renders every page under `src/pages/**` — 11 on disk, 11 floors, asserted by a control — 66ce31c
+- [x] 2.3 Existing suites unaffected: `npm test` — 66ce31c
+- [x] 2.4 Typecheck and lint: `npm run check`, `npm run lint` — 66ce31c
 
 #### Manual
 
-- [x] 2.5 Proven to bite: a fixture routing the secret through an alias fails the sweep, then removed — through a DECLARED `string` prop, the shape `astro check` cannot see; both the resolved-value and the shape assertion fired, and the lint rule caught the same fixture independently
-- [x] 2.6 The island floor proven live: raising one above what the page renders fails, then restored — 1 → 4 on periods/[id].astro failed with "expected 1 to be greater than or equal to 4"; 1 → 0 passes, since it is a floor and not an equality
-- [x] 2.7 The failure message names the page and which half tripped
+- [x] 2.5 Proven to bite: a fixture routing the secret through an alias fails the sweep, then removed — through a DECLARED `string` prop, the shape `astro check` cannot see; both the resolved-value and the shape assertion fired, and the lint rule caught the same fixture independently — 66ce31c
+- [x] 2.6 The island floor proven live: raising one above what the page renders fails, then restored — 1 → 4 on periods/[id].astro failed with "expected 1 to be greater than or equal to 4"; 1 → 0 passes, since it is a floor and not an equality — 66ce31c
+- [x] 2.7 The failure message names the page and which half tripped — 66ce31c
 
 ### Phase 3: Wire both into the publish gate
 
 #### Automated
 
-- [ ] 3.1 The whole gate passes: `npm run ci:gate`
-- [ ] 3.2 The gate's guard passes with the new step pinned: `npx vitest run --project unit ci-gate-source`
-- [ ] 3.3 Whole suite green: `npm test`
+- [x] 3.1 The whole gate passes: `npm run ci:gate`
+- [x] 3.2 The gate's guard passes with the new step pinned: `npx vitest run --project unit ci-gate-source`
+- [x] 3.3 Whole suite green: `npm test`
 
 #### Manual
 
-- [ ] 3.4 Proven to bite: removing the render step from `ci:gate` fails the guard, then restored
+- [x] 3.4 Proven to bite: removing the render step from `ci:gate` fails the guard, then restored — two mutations: dropping the step failed presence and ordering; keeping the step but deleting the script it calls failed the new linkage assertion
 - [ ] 3.5 The Actions run is green and its log shows the render step
 
 ### Phase 4: Say what the guards do and do not reach

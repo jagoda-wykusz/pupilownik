@@ -125,6 +125,12 @@ jobs:
       - name: Test
         run: npx vitest run
 
+      # Renders every page and checks what actually ships. Its own config, because the default one
+      # aliases `astro:env/server` to a shim and has no Astro plugin — see vitest.render.config.ts.
+      # Needs no database, so its position here is free; it sits by the other test step on purpose.
+      - name: Render every page and check for leaked secrets
+        run: npm run test:render
+
       # Guards the production host here, via SECRET_SCAN_HOSTS above. In the Cloudflare build the
       # same command guards it through the real build variables instead.
       - name: Scan the client bundle for secrets

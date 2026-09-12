@@ -35,6 +35,10 @@ const vitestConfig = read("vitest.config.ts");
 /** `npm run check` as its OWN step, not the prefix of `npm run check:secrets`. */
 const CHECK_STEP = /npm run check(?![:\w])/;
 
+/** Anchored for the same reason: `npm run test:render` contains `npm run test`, so a future
+ *  assertion on the shorter name would be satisfied by this longer one. */
+const RENDER_STEP = /npm run test:render(?![:\w])/;
+
 describe("the publish gate is still the chain it claims to be", () => {
   it("was actually parsed, so the assertions below are not vacuous", () => {
     // GUARDS THE GUARD. Rename `ci:gate`, or move the workflow, and every `toContain` below would
@@ -57,6 +61,7 @@ describe("the publish gate is still the chain it claims to be", () => {
     expect(gate, "build missing from the publish gate").toContain("npm run build");
     expect(gate, "the unit project is not in the publish gate").toContain("--project unit");
     expect(gate, "the component project is not in the publish gate").toContain("--project component");
+    expect(gate, "the render sweep is not in the publish gate").toMatch(RENDER_STEP);
     expect(gate, "the secret scan is not in the publish gate").toContain("npm run check:secrets");
   });
 
@@ -69,6 +74,7 @@ describe("the publish gate is still the chain it claims to be", () => {
     const lint = gate.indexOf("npm run lint");
     const build = gate.indexOf("npm run build");
     const tests = gate.indexOf("--project unit");
+    const render = RENDER_STEP.exec(gate)?.index ?? -1;
     const scan = gate.indexOf("npm run check:secrets");
 
     // A MISSING step yields -1, and -1 is less than everything — so an ordering assertion on a
@@ -79,6 +85,7 @@ describe("the publish gate is still the chain it claims to be", () => {
       ["lint", lint],
       ["build", build],
       ["tests", tests],
+      ["render sweep", render],
       ["secret scan", scan],
     ] as const) {
       expect(index, `${name} is absent from the publish gate, so its position proves nothing`).toBeGreaterThan(-1);
@@ -87,7 +94,27 @@ describe("the publish gate is still the chain it claims to be", () => {
     expect(check, "typecheck must run before lint — astro check regenerates .astro/").toBeLessThan(lint);
     expect(lint, "lint must run before the build").toBeLessThan(build);
     expect(build, "the build must precede the tests — client-bundle.test.ts scans dist/client").toBeLessThan(tests);
-    expect(tests, "the secret scan comes last").toBeLessThan(scan);
+    expect(tests, "the render sweep follows the fast test projects").toBeLessThan(render);
+    expect(render, "the secret scan comes last").toBeLessThan(scan);
+  });
+
+  it("runs the render sweep through its own config", () => {
+    // Added when the sweep joined the chain. MEASURED FIRST, and it is why this assertion exists at
+    // all: adding a step to `ci:gate` does NOT fail the assertions above — they pin the presence and
+    // order of the steps they know about, not that no others exist. So a new link in the gate is
+    // unguarded until someone writes it down here, which is a thing worth knowing before assuming
+    // this file notices growth on its own.
+    //
+    // Two halves. The script has to exist, or the gate names something npm cannot run. And it has to
+    // point at vitest.render.config.ts, because the default config has no Astro plugin and cannot
+    // even parse the pages the sweep renders — pointing it at the wrong config fails as a LOAD
+    // error, which reads like a broken test rather than a broken chain.
+    const renderScript = packageJson.scripts["test:render"] ?? "";
+
+    expect(renderScript, "scripts['test:render'] is missing, but the gate calls it").not.toBe("");
+    expect(renderScript, "the render sweep must run under vitest.render.config.ts").toContain(
+      "vitest.render.config.ts",
+    );
   });
 
   it("names vitest projects that actually exist", () => {
