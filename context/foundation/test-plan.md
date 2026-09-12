@@ -230,6 +230,13 @@ expensive:
 | `eslint .`                    | whole project             | **28s** (was ~110s on 2026-09-07)           | `npm run lint`, by hand — **not in the deploy path** (see §5)  |
 | `tsc --noEmit`                | whole project             | ~26s                                        | not wired — superseded by `astro check` on 2026-09-07          |
 | `astro check`                 | whole project + templates | **18s** (was ~38s on 2026-09-07)            | **pre-commit** (promoted 2026-09-07, replacing `tsc --noEmit`) |
+| `npm run ci:gate`             | the whole publish chain   | **183s cold / 104s warm**                   | **Workers Builds build command** — blocks publication          |
+
+The `ci:gate` row carries two numbers because the gap between them is the whole story: the chain
+costs 183s on a cold Vite cache and 104s when it is warm, and the sum of the steps measured
+individually (99s) matches the warm figure — so the five `npm run` spawns cost nothing and the
+difference is entirely cache. **Cloudflare builds cold** (its build cache is opt-in and off), so
+183s is the number that describes the deploy path; 104s describes a developer re-running it.
 
 Two consequences worth knowing before changing the wiring:
 

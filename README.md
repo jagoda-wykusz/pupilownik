@@ -184,7 +184,7 @@ The publish gate is `npm run ci:gate`, defined in `package.json` rather than typ
 Run the same gate locally before pushing:
 
 ```bash
-npm run ci:gate       # exactly what Cloudflare runs; ~1-2 min
+npm run ci:gate       # exactly what Cloudflare runs; ~3 min cold, ~1.5 min warm
 npm test              # adds the integration project (needs `npm run db:start`)
 ```
 
