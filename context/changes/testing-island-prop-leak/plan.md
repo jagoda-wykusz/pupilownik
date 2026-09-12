@@ -18,8 +18,10 @@ From `research.md`, all measured rather than argued:
 - `ServerOnlyModule` does not fire: `env/vite-plugin-env.js:64-69` is keyed on which Vite
   environment resolves `astro:env/server`, not on where the value flows. Frontmatter resolves in
   `ssr`.
-- Astro serializes **every** prop it is handed, declared by the component or not
-  (`serialize.js:33-48`, `hydration.js:64`). A prop type is not a boundary.
+- Astro serializes **every** prop it is handed at runtime, declared or not (`serialize.js:33-48`,
+  `hydration.js:64`). A prop type is a **build-time** partial boundary: measured, `astro check`
+  rejects an undeclared prop and a field absent from the source object, but it cannot reject a secret
+  passed to a prop already declared `string` — which is the shape that leaks.
 - **No page does this today.** All 11 `client:load` sites inventoried; no prop derives from
   `astro:env/server`. The only importers reduce the secrets to a boolean and to a Supabase client.
 - Astro's Container API renders all 11 pages in ~3 s with no build, no dev server and no Docker,
@@ -279,11 +281,18 @@ Do not widen the scan's scope.
 **Intent**: Record the boundary, the new guards, and the correction.
 
 **Contract**: a §7 entry describing the island-prop route, what each of the two new layers covers,
-and the degraded-branch limitation of the sweep. Plus the correction: the archived claim that
-`claim_digest` is "guarded by `CaretakerLabel`'s prop type" names the wrong mechanism — prop types
-are erased and undeclared props serialize anyway; the protection is that `groupCaretakers` builds an
-object without the field. The archive itself is not edited. Update §2's Risk #6 row if its wording
-implies the bundle scan covers the whole risk.
+and the degraded-branch limitation of the sweep.
+
+It must also state the type system's real share, because this change re-measured it and the first
+reading was wrong in the project's own notes: `astro check` DOES reject an undeclared prop and a
+field absent from the source object (two errors, measured), so the existing `CaretakerLabel`
+discipline is an enforced guard, not a review convention. What it cannot reject is a secret passed to
+a prop already declared `string` — which is exactly the leak this change guards. Say both halves;
+the entry is worth nothing if it leaves a reader thinking types cover this, and it is actively
+misleading if it leaves them thinking types cover nothing.
+
+The archive itself is not edited. Update §2's Risk #6 row if its wording implies the bundle scan
+covers the whole risk.
 
 ### Success Criteria
 

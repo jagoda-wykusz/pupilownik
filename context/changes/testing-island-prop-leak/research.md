@@ -9,6 +9,7 @@ tags: [research, codebase, risk-6, astro-islands, ssr, secret-leak, container-ap
 status: complete
 last_updated: 2026-09-12
 last_updated_by: jagoda.wykusz
+last_updated_note: "Withdrew a criticism of an archived claim after measuring astro check"
 ---
 
 # Research: the island-prop route out of the server
@@ -57,13 +58,24 @@ authorial discipline, and three places prove the team sees it — `claim_digest`
 and `revoked_at` are each deliberately stopped before a prop. Nothing checks that the next person
 sees it too.
 
-**One existing claim is wrong in a way worth correcting.** `context/archive/2026-09-11-testing-secret-leak/research.md:82`
-records `claim_digest` as "guarded by `CaretakerLabel`'s prop type". Prop types are erased at build
-and Astro serializes every prop it is handed whether or not the component declares it. The safety is
-real but the mechanism is different: `groupCaretakers` uses the digest as an internal Map key and
-**constructs** a `CaretakerLabel` with only `label` and `ordinal`, so the field never exists on the
-object that crosses. A wrong reason outlives the right protection — if someone adds a field to that
-interface for a good reason, the recorded rationale says the type will catch it, and it will not.
+**A claim I first judged wrong turns out to be right, and the correction matters more than the
+original criticism.** `context/archive/2026-09-11-testing-secret-leak/research.md:82` records
+`claim_digest` as "guarded by `CaretakerLabel`'s prop type", and four comments in `src/` say the same
+thing more precisely — `src/lib/caretaker-name.ts:110-118` calls it turning "a leak into a type error
+instead of a review catch".
+
+**Measured: it does.** Planting `leakedDigest={claimed.claim_digest}` on the island in
+`src/pages/periods/[id].astro` fails `npm run check` on two independent grounds —
+`ts(2339)` because `groupCaretakers` already dropped the field from the object, and `ts(2322)`
+because the prop is not on the component's `Props`. `astro check` runs in both the pre-commit hook
+and the publish gate, so that is a real, enforced guard.
+
+**What the type does NOT cover is the whole of this research.** It stops a value that is absent from
+the source object or a prop the component never declared. It cannot stop a secret handed to a prop
+the component **does** declare, because a secret is a `string` and so is the prop — the measured leak
+used `probeValue: string`, and passing `SUPABASE_KEY` to `SignInForm`'s `serverError` would type-check
+today. Nor does it survive an `any`, a cast, or a spread of a wider object. So the boundary is
+type-guarded on one path for one shape, and unguarded for the shape that actually leaks.
 
 ## Detailed Findings
 
@@ -171,14 +183,22 @@ make such an assertion independent of which key is loaded.
 - **`output: "server"` is what moves the target.** With a static build the secret would land in HTML
   inside `dist/client` and the existing scan would catch it. SSR moves the disclosure to a byte
   stream no artifact retains — which is why `dist/client` contains zero HTML files.
-- **A prop type is not a boundary.** Erased at build, and serialization ignores declarations. Where
-  this codebase is safe, it is safe because a transformation builds a new object — a runtime fact,
-  not a type-level one.
+- **A prop type is a partial boundary, enforced at build rather than at runtime.** `astro check`
+  rejects an undeclared prop and a field absent from the source object — measured. It cannot reject a
+  secret passed to a prop whose declared type is `string`, which is the shape that leaks, and it is
+  bypassed by `any`, a cast, or a spread. Astro's runtime ignores declarations entirely
+  (`serialize.js:33-48`), so nothing catches those at request time.
 
 ## Historical Context (from prior changes)
 
 - `context/archive/2026-09-11-testing-secret-leak/research.md:82` — the "guarded by the prop type"
-  sentence, correct in conclusion and wrong in mechanism.
+  sentence. Re-measured and upheld: `astro check` does reject the mistake it describes. This document
+  first judged it wrong and that judgement is withdrawn; the gap is narrower than "the type does not
+  guard" and sharper — the type cannot see a secret passed to a `string` prop.
+- `src/lib/caretaker-name.ts:110-118`, `src/components/periods/ReleaseSlotButton.tsx:22-24`,
+  `src/pages/periods/[id].astro:45-49`, `src/pages/invite/[token].astro:448-456` — four places where
+  this codebase already reasons about island-prop serialization correctly, including the one
+  deliberate exception (the invite token, which the reader already holds).
 - `context/archive/2026-09-11-ci-quality-gates/follow-ups/review-fixes.md` §1 — where this change came
   from, including the two closing paths it proposed.
 - `context/foundation/test-plan.md` §2 Risk #6, §5, §6.6 — all three describe the reach as "a secret
