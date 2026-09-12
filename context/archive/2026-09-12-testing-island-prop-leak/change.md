@@ -1,10 +1,10 @@
 ---
 change_id: testing-island-prop-leak
 title: Catch a server-only value reaching a client island prop, where the bundle scan cannot look
-status: implemented
+status: archived
 created: 2026-09-12
 updated: 2026-09-12
-archived_at: null
+archived_at: 2026-09-12T16:59:48Z
 ---
 
 ## Notes
