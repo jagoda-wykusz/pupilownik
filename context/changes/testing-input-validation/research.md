@@ -9,6 +9,7 @@ tags: [research, codebase, input-validation, zod, api-routes, rls, risk-7]
 status: complete
 last_updated: 2026-09-12
 last_updated_by: jagoda.wykusz
+last_updated_note: "Verified the database half against the running catalogue"
 ---
 
 # Research: what the API handlers actually trust
@@ -213,3 +214,61 @@ that removes it proves anything.
 5. **Does `z.guid()` accept the same set as Postgres's `uuid_in`?** Postgres also accepts braces and
    the hyphenless 32-hex form; if zod rejects those, the handler answers 400 where the database would
    have answered 404 — a divergence a test could easily mis-attribute.
+
+## Follow-up Research 2026-09-12T13:05Z — the database half, verified
+
+Docker came up, so everything marked FROM SQL above was re-measured against the running catalogue.
+**Every claim held**, which is worth recording as plainly as a refutation would be. What changed is
+that four of them are now facts rather than hypotheses, and two produced consequences the SQL
+reading did not imply.
+
+### Verified as stated
+
+| Claim                                                                    | Method                                              | Result                                                                                                                                                                                                     |
+| ------------------------------------------------------------------------ | --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| No length bound anywhere                                                 | `information_schema.columns`                        | **0** columns with `character_maximum_length`; ten unbounded `text` columns. `22001` is unreachable; zod is the only bound in the system.                                                                  |
+| `care_slots_claim_complete` is the triple form                           | `pg_get_constraintdef`                              | `((claimed_by_name IS NULL) = (claimed_at IS NULL)) AND ((claimed_by_name IS NULL) = (claim_digest IS NULL))`                                                                                              |
+| Function grant posture                                                   | `has_function_privilege`                            | The three `DEFINER` functions serving the invite path are `anon`-executable; all six owner functions are `authenticated`-only; `handle_new_user` is revoked from everyone. Matches the migrations exactly. |
+| `details` suppressed under RLS, populated for a `postgres`-owned definer | role-switched `DO` block, `GET STACKED DIAGNOSTICS` | as `authenticated`: `sqlstate=23514 detail=[]`; as `postgres`: the full `Failing row contains (…)`. `periods.ts:64-77` is right.                                                                           |
+
+### Question 1, resolved: a non-uuid raises 22P02, it does not match nothing
+
+```
+'abc'::uuid              -> SQLSTATE 22P02
+GET /rest/v1/care_periods?id=eq.abc  ->  HTTP 400  {"code":"22P02", "details":null, …}
+```
+
+So the `z.guid()` guards on `revoke`, `token` and `release` **are load-bearing, not decorative**.
+Removing one does not open a security hole — RLS still decides authorization — but it converts a
+clean handler `400 "Validation failed"` into a PostgREST error, which `revoke.ts:92` maps to **500**.
+That is a concrete, mutation-provable claim for the plan: delete the guard, send `not-a-uuid`, expect
+the status to change from 400 to 500.
+
+### Question 2, resolved: dates are not 22P02
+
+`'abc'::date` → **22007**; `'2026-13-40'::date` → **22008**; an invalid enum → 22P02. My own brief
+said "22P02 for a malformed uuid/date" and was wrong about the date half. Worth carrying because a
+test that greps for `22P02` on a date field would pass for the wrong reason, or never fire.
+
+### Question 5, resolved, with a consequence for test design
+
+`z.guid()` and Postgres's `uuid` parser do **not** accept the same set:
+
+| Value                                    | `z.guid()`  | Postgres    |
+| ---------------------------------------- | ----------- | ----------- |
+| `550e8400-e29b-41d4-a716-446655440000`   | accepts     | accepts     |
+| `{550e8400-e29b-41d4-a716-446655440000}` | **rejects** | **accepts** |
+| `550e8400e29b41d4a716446655440000`       | **rejects** | **accepts** |
+| uppercase canonical                      | accepts     | accepts     |
+
+zod is strictly stricter. The consequence is a trap for this change's own tests: **a value that is
+"malformed" for zod is not necessarily malformed for the database.** A test that sends
+`{550e8400-…}` and observes 400 has proven the existence of the zod layer and nothing about the
+database behind it. Any mutation meant to show the database catching what the handler missed must
+use a value both parsers reject — `not-a-uuid` does; braces do not.
+
+### What this leaves for the plan
+
+Nothing in the database half blocks the work. The open decision is unchanged and is question 4 above:
+whether the 500 on the two auth routes gets fixed as part of this change or only pinned by a test
+that documents it.
