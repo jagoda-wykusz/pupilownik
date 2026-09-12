@@ -344,31 +344,31 @@ the vendored files are inert once the config stops pointing at them.
 
 #### Automated
 
-- [x] 1.1 Type checking passes: `npm run check`
-- [x] 1.2 Linting passes: `npm run lint`
-- [x] 1.3 Build succeeds: `npm run build`
-- [x] 1.4 The build emits exactly 4 woff2
-- [x] 1.5 Total font payload is ~129 KB, down from ~210 KB
-- [x] 1.6 The render sweep still passes: `npm run test:render`
+- [x] 1.1 Type checking passes: `npm run check` — 235e053
+- [x] 1.2 Linting passes: `npm run lint` — 235e053
+- [x] 1.3 Build succeeds: `npm run build` — 235e053
+- [x] 1.4 The build emits exactly 4 woff2 — 235e053
+- [x] 1.5 Total font payload is ~129 KB, down from ~210 KB — 235e053
+- [x] 1.6 The render sweep still passes: `npm run test:render` — 235e053
 
 #### Manual
 
-- [x] 1.7 Headings and body text look identical to before the change
-- [x] 1.8 Polish diacritics render in the webfont, not a fallback
-- [x] 1.9 DevTools Network shows two woff2 on a normal page
+- [x] 1.7 Headings and body text look identical to before the change — 235e053
+- [x] 1.8 Polish diacritics render in the webfont, not a fallback — 235e053
+- [x] 1.9 DevTools Network shows two woff2 on a normal page — 235e053
 
 ### Phase 2: Prove the build no longer needs Google
 
 #### Automated
 
-- [ ] 2.1 Cold-cache build with both hosts blocked: exit 0, 0 blocked requests, 4 woff2
-- [ ] 2.2 The new source guard passes
-- [ ] 2.3 The guard fails when mutated back to `fontProviders.google()`
-- [ ] 2.4 Cache restored and a clean build still emits 4 woff2
+- [x] 2.1 Cold-cache build with both hosts blocked: exit 0, 0 blocked requests, 4 woff2
+- [x] 2.2 The new source guard passes
+- [x] 2.3 The guard fails when mutated back to `fontProviders.google()`
+- [x] 2.4 Cache restored and a clean build still emits 4 woff2 (deviation: the stale Google cache was DELETED rather than restored — 3.5 MB of binaries and meta.json nothing references after vendoring; the criterion's intent was verified with a clean build instead)
 
 #### Manual
 
-- [ ] 2.5 The probe output is recorded in the phase commit message
+- [x] 2.5 The probe output is recorded in the phase commit message
 
 ### Phase 3: Fail the build when it produces no fonts
 
