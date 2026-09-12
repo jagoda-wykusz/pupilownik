@@ -186,3 +186,29 @@ than one copy of React`, co czyta się jak zdublowana zależność, a nie jak ca
   `--filter`, nazwa skryptu npm) sprawdź, co narzędzie robi z nazwą nieistniejącą. Jeśli kończy
   się zerem, sama obecność flagi nie dowodzi niczego — przypnij powiązanie z definicją.
 - **Applies to**: implement, impl-review, plan
+
+## Tryb awarii należy do ścieżki wywołania, nie do zależności
+
+- **Context**: Każde badanie albo review, które nazywa ryzyko przez dostawcę — „zależymy od Google
+  Fonts", „build ciągnie coś z GitHuba", „to woła zewnętrzne API". Nazwa dostawcy brzmi jak
+  wystarczająco precyzyjna jednostka ryzyka i nią nie jest.
+- **Problem**: W `vendor-build-fonts` follow-up F9 stwierdzał, że fetcher fontów „rzuca `AstroError`
+  bez gałęzi zapasowej, więc jeden 429 to nieudany deploy". Zdanie było poprawne — dla JEDNEJ z dwóch
+  ścieżek. Ten sam podsystem, ten sam dostawca, dwa hosty: binarki (`fonts.gstatic.com`) idą przez
+  `CachedFontFetcher`, który rzuca przy pierwszej porażce bez ponowień → exit 1, brak deployu.
+  Metadane CSS (`fonts.googleapis.com`) idą przez unifont, który Astro konstruuje z
+  `throwOnError: false` → ostrzeżenie, pusta lista rodzin, **exit 0 i strona opublikowana w fontach
+  systemowych**. Pierwszy pomiar zablokował oba hosty naraz, więc metadane padły pierwsze i binarna
+  ścieżka nigdy się nie wykonała — wyszedł zielony build i wniosek, że premisa follow-upu jest
+  obalona. Dopiero rozdzielenie hostów pokazało, że obie tezy są prawdziwe, o różnych rzeczach.
+  Cichsza z nich była groźniejsza i nie miała rzecznika.
+- **Rule**: Zanim zapiszesz ryzyko, policz ścieżki wywołania do dostawcy i zmierz KAŻDĄ osobno.
+  Blokuj hosty pojedynczo, nie zbiorczo — blokada zbiorcza mierzy tę ścieżkę, która zawodzi
+  najwcześniej, i ukrywa wszystkie pozostałe. Jeżeli którakolwiek ścieżka zawodzi cicho (kod 0,
+  degradacja zamiast błędu), to ONA jest tematem zmiany, nie ta głośna: głośna sama się zgłasza,
+  cicha publikuje.
+- **Rule (osobno, bo dotyczy bramek)**: Bramka, która sprawdza typy, lint, testy i sekrety, nadal
+  nie sprawdza, czy build wyprodukował to, co miał wyprodukować. Build kończący się zerem z zerową
+  liczbą fontów przeszedł w tym repo wszystkie sześć kroków `ci:gate`. Przy każdej zależności
+  produkującej artefakt dopisz asercję NA ARTEFAKT — reszta bramki mierzy proces, nie wynik.
+- **Applies to**: research, frame, plan, implement, impl-review

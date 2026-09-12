@@ -210,22 +210,25 @@ the one this project keeps relearning from the other direction: **an instruction
 inventory look identical in prose, and the only way to tell them apart is to observe the
 system.**
 
-| Gate                                          | Where it runs                                                  | Enforced?                                         | Catches                                                             |
-| --------------------------------------------- | -------------------------------------------------------------- | ------------------------------------------------- | ------------------------------------------------------------------- |
-| format (prettier, edited file)                | per-edit agent hook (`.claude/hooks/format-edited-file.mjs`)   | agent sessions only                               | formatting drift; a file the formatter cannot parse                 |
-| format (prettier, staged json/css/md)         | pre-commit, lint-staged                                        | every commit                                      | formatting drift in non-code files                                  |
-| lint (staged files)                           | pre-commit, lint-staged → `eslint --fix` on `*.{ts,tsx,astro}` | every commit                                      | syntactic drift                                                     |
-| lint (whole project)                          | **publish gate** + GitHub Actions                              | **every deploy; blocks publication**              | drift in files no commit touched                                    |
-| typecheck                                     | pre-commit → `npm run check`; **publish gate**; Actions        | every commit **and every deploy**                 | type drift, including inside `.astro` templates                     |
-| build                                         | **publish gate** + GitHub Actions                              | **every deploy; blocks publication**              | broken SSR build                                                    |
-| unit + component                              | **publish gate** + GitHub Actions                              | **every deploy; blocks publication**              | logic regressions                                                   |
-| unit + integration, scoped to the edited file | per-edit agent hook (`.claude/hooks/related-tests.mjs`)        | agent sessions only; skips when the stack is down | regressions on the path just edited                                 |
-| secret-leak scan of `dist/client`             | `npm run check:secrets`, and a test inside `npm test`          | with the suite                                    | a secret literal pasted into a client island                        |
-| env schema shape                              | a test inside `npm test`                                       | with the suite                                    | a `PUBLIC_`/client-context redeclaration that would inline a secret |
-| Supabase advisors (security)                  | `npx supabase db advisors`, by hand                            | recommended on every migration                    | RLS / definer-function issues                                       |
-| integration (RLS + routes)                    | **GitHub Actions only** — the build container has no Docker    | every push and PR, but **cannot block a merge**   | RLS + route regressions                                             |
-| gate contents themselves                      | `tests/unit/ci-gate-source.test.ts`                            | with the suite                                    | a step quietly removed from either gate                             |
-| e2e on critical flows                         | —                                                              | not present                                       | broken critical user paths                                          |
+| Gate                                          | Where it runs                                                  | Enforced?                                         | Catches                                                                   |
+| --------------------------------------------- | -------------------------------------------------------------- | ------------------------------------------------- | ------------------------------------------------------------------------- |
+| format (prettier, edited file)                | per-edit agent hook (`.claude/hooks/format-edited-file.mjs`)   | agent sessions only                               | formatting drift; a file the formatter cannot parse                       |
+| format (prettier, staged json/css/md)         | pre-commit, lint-staged                                        | every commit                                      | formatting drift in non-code files                                        |
+| lint (staged files)                           | pre-commit, lint-staged → `eslint --fix` on `*.{ts,tsx,astro}` | every commit                                      | syntactic drift                                                           |
+| lint (whole project)                          | **publish gate** + GitHub Actions                              | **every deploy; blocks publication**              | drift in files no commit touched                                          |
+| typecheck                                     | pre-commit → `npm run check`; **publish gate**; Actions        | every commit **and every deploy**                 | type drift, including inside `.astro` templates                           |
+| build                                         | **publish gate** + GitHub Actions                              | **every deploy; blocks publication**              | broken SSR build                                                          |
+| unit + component                              | **publish gate** + GitHub Actions                              | **every deploy; blocks publication**              | logic regressions                                                         |
+| unit + integration, scoped to the edited file | per-edit agent hook (`.claude/hooks/related-tests.mjs`)        | agent sessions only; skips when the stack is down | regressions on the path just edited                                       |
+| secret-leak scan of `dist/client`             | `npm run check:secrets`, and a test inside `npm test`          | with the suite                                    | a secret literal pasted into a client island                              |
+| env schema shape                              | a test inside `npm test`                                       | with the suite                                    | a `PUBLIC_`/client-context redeclaration that would inline a secret       |
+| Supabase advisors (security)                  | `npx supabase db advisors`, by hand                            | recommended on every migration                    | RLS / definer-function issues                                             |
+| integration (RLS + routes)                    | **GitHub Actions only** — the build container has no Docker    | every push and PR, but **cannot block a merge**   | RLS + route regressions                                                   |
+| gate contents themselves                      | `tests/unit/ci-gate-source.test.ts`                            | with the suite                                    | a step quietly removed from either gate                                   |
+| island props in rendered pages                | `tests/render/island-props.test.ts` via `npm run test:render`  | **every deploy; blocks publication**              | a server secret reaching the browser inside `<astro-island props>`        |
+| font provider source                          | `tests/unit/font-source.test.ts`                               | with the suite                                    | a Google host re-entering the build path through a config edit            |
+| fonts actually emitted by the build           | `tests/unit/font-assets.test.ts`                               | with the suite                                    | a build that exits 0 having produced no webfonts, or lost `unicode-range` |
+| e2e on critical flows                         | —                                                              | not present                                       | broken critical user paths                                                |
 
 The `astro check` in pre-commit replaced `tsc --noEmit` on 2026-09-07 (S-03 phase 3 review:
 `tsc` does not see type errors inside `.astro` templates). Both tables said otherwise until
@@ -243,7 +246,7 @@ the paragraph that stood here predicted it almost correctly and got one thing wr
 
 The build command is now `npm run ci:gate`, defined in `package.json` — not typed into the
 dashboard, so its contents are in git history where review can see them. The chain is
-`check → lint → build → --project unit --project component → check:secrets`, and the order is
+`check → lint → build → --project unit --project component → test:render → check:secrets`, and the order is
 load-bearing twice over: `astro check` regenerates `.astro/` that type-aware ESLint needs, and
 the build must precede the TESTS, not merely the scan — `tests/unit/client-bundle.test.ts` fails
 rather than skips without `dist/client`. That is the correction: the paragraph that stood here
@@ -693,9 +696,46 @@ re-inherit them.
   3-second gate step into an integration test. The sweep pins per-page island floors instead, so a
   page that silently stops rendering islands fails rather than passes quietly.
 
+- **Build-time third parties: one is gone, the others are named rather than tested.** Measured
+  2026-09-12 (`vendor-build-fonts`), and the measurement is the point — F9 of the CI-gate review
+  said the font fetcher "throws `AstroError` with no fallback, so a transient 429 is a failed
+  deploy". That was right about one of TWO code paths, and silent about the one that mattered more:
+
+  | Blocked host           | What it carries    | Exit  | Result                                       |
+  | ---------------------- | ------------------ | ----- | -------------------------------------------- |
+  | `fonts.gstatic.com`    | the woff2 binaries | **1** | `CannotFetchFontFile`, no retry, no deploy   |
+  | `fonts.googleapis.com` | the CSS metadata   | **0** | zero `@font-face`, published in system fonts |
+
+  The second path goes through unifont, which Astro constructs with `throwOnError: false`; a failure
+  there is a warning and an empty family list. So the same outage, on the same vendor, in the same
+  subsystem, either kills the deploy or ships a silently degraded site depending on which host is
+  unreachable. **Naming "Google Fonts" as the risk was too coarse to plan against** — the useful unit
+  is the call path, not the dependency.
+
+  Both are now unreachable-by-construction: the files are vendored into `src/assets/fonts/` and
+  `tests/unit/font-source.test.ts` pins that no Google provider or host returns to the config.
+
+  **What this exposed about the gate, and it generalises past fonts.** A build that produced zero
+  webfonts passed `check`, `lint`, both test projects, the render sweep and `check:secrets`. Nothing
+  asserted that the build produced what it is supposed to produce. `tests/unit/font-assets.test.ts`
+  now does, for fonts — and it is the first instance of that assertion class in this repo, not the
+  last one that will be needed.
+
+  **Not tested, deliberately**: the other two build-time network dependencies. `npm ci` reaches the
+  registry, and the `supabase` devDependency's postinstall downloads a Go binary from GitHub Releases
+  on every cold Cloudflare build — a binary that container can never run, because it has no Docker.
+  Removing fonts removed the one with the worst failure modes, not the only one. Recorded in
+  `context/changes/vendor-build-fonts/research.md` so the remaining two are a decision rather than an
+  oversight.
+
+  **A correction to carry**: `context/archive/2026-09-11-ci-quality-gates/follow-ups/review-fixes.md:32-42`
+  proposes vendoring into `public/`. That is wrong — `astro/dist/assets/fonts/providers/local.d.ts:11-13`
+  says local font files must not live there, or Astro's public-dir copy duplicates them alongside the
+  pipeline's own output. The correct home is `src/assets/fonts/`.
+
 ## 8. Freshness Ledger
 
-- Strategy (§1–§5) last reviewed: 2026-09-12 (§7 gained the island-prop boundary and its three-layer coverage, plus a withdrawn criticism of the prop-type claim; §3 Phase 2b closed narrower than its name — see the note under the phase table; earlier on 2026-09-11: §3 Phases 3 and 4 closed; §5 rewritten against the repo after the CI it described was found not to exist; §2's Risk #4 and #5 wording corrected against measurement — see §7)
+- Strategy (§1–§5) last reviewed: 2026-09-12 (§5's chain string and gate table gained `test:render`, which the island-prop change added to `ci:gate` without updating the inventory, plus the two font guards; §7 gained the build-time third-party entry; §7 gained the island-prop boundary and its three-layer coverage, plus a withdrawn criticism of the prop-type claim; §3 Phase 2b closed narrower than its name — see the note under the phase table; earlier on 2026-09-11: §3 Phases 3 and 4 closed; §5 rewritten against the repo after the CI it described was found not to exist; §2's Risk #4 and #5 wording corrected against measurement — see §7)
 - Stack versions last verified: 2026-06-28
 - AI-native tool references last verified: 2026-06-28
 

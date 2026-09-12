@@ -374,22 +374,22 @@ the vendored files are inert once the config stops pointing at them.
 
 #### Automated
 
-- [x] 3.1 The new test passes against a good build
-- [x] 3.2 The new test fails against a fontless build
-- [x] 3.3 Full gate passes: `npm run ci:gate`
+- [x] 3.1 The new test passes against a good build — ea20333
+- [x] 3.2 The new test fails against a fontless build — ea20333
+- [x] 3.3 Full gate passes: `npm run ci:gate` — ea20333
 
 #### Manual
 
-- [x] 3.4 The failure message names what was missing and where to look
+- [x] 3.4 The failure message names what was missing and where to look — ea20333
 
 ### Phase 4: Licensing and documentation
 
 #### Automated
 
-- [ ] 4.1 Full gate passes: `npm run ci:gate`
-- [ ] 4.2 `npm run check:secrets` still reports clean
+- [x] 4.1 Full gate passes: `npm run ci:gate`
+- [x] 4.2 `npm run check:secrets` still reports clean
 
 #### Manual
 
-- [ ] 4.3 The OFL files match upstream with the correct per-family copyright lines
-- [ ] 4.4 §7 reads correctly to someone who was not part of this session
+- [x] 4.3 The OFL files match upstream with the correct per-family copyright lines
+- [x] 4.4 §7 reads correctly to someone who was not part of this session
