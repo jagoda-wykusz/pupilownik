@@ -55,7 +55,12 @@ export default defineConfig({
           // `tests/component/**` is excluded explicitly even though its files are .tsx and the
           // include pattern is .ts: the two only fail to overlap by file extension, which is
           // not a boundary anyone should have to notice when adding a test.
-          exclude: [...configDefaults.exclude, "tests/unit/**", "tests/component/**"],
+          // `tests/render/**` is excluded for a harder reason than the other two: those files
+          // import `.astro` pages, which this config has no plugin to compile, so `npm test` fails
+          // to LOAD them rather than failing an assertion. They run under vitest.render.config.ts,
+          // which carries the real Astro config. Measured: without this line `npm test` reports
+          // "1 failed | 43 passed" with 409 tests green — a load error, not a test failure.
+          exclude: [...configDefaults.exclude, "tests/unit/**", "tests/component/**", "tests/render/**"],
           setupFiles: ["./tests/setup.ts"],
           // Runs ONCE per run, in the main process, before any file is loaded — see
           // tests/global-setup.ts for why the readiness probes had to leave setupFiles.

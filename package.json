@@ -21,6 +21,7 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "test": "vitest run",
+    "test:render": "vitest run --config vitest.render.config.ts",
     "test:watch": "vitest"
   },
   "dependencies": {

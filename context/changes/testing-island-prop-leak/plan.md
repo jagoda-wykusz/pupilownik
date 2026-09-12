@@ -352,27 +352,27 @@ added.
 
 #### Automated
 
-- [x] 1.1 Lint passes unchanged on the current tree: `npm run lint`
-- [x] 1.2 Typecheck passes: `npm run check`
+- [x] 1.1 Lint passes unchanged on the current tree: `npm run lint` — c55fcf5
+- [x] 1.2 Typecheck passes: `npm run check` — c55fcf5
 
 #### Manual
 
-- [x] 1.3 Proven to bite: a frontmatter import of `astro:env/server` fails lint naming the file and rule, then removed — planted in src/pages/dashboard.astro, failed at 2:1 with the rule name and the actionable message, then reverted
+- [x] 1.3 Proven to bite: a frontmatter import of `astro:env/server` fails lint naming the file and rule, then removed — planted in src/pages/dashboard.astro, failed at 2:1 with the rule name and the actionable message, then reverted — c55fcf5
 
 ### Phase 2: The render sweep
 
 #### Automated
 
-- [ ] 2.1 The sweep passes: `npm run test:render`
-- [ ] 2.2 It renders every page under `src/pages/**`
-- [ ] 2.3 Existing suites unaffected: `npm test`
-- [ ] 2.4 Typecheck and lint: `npm run check`, `npm run lint`
+- [x] 2.1 The sweep passes: `npm run test:render`
+- [x] 2.2 It renders every page under `src/pages/**` — 11 on disk, 11 floors, asserted by a control
+- [x] 2.3 Existing suites unaffected: `npm test`
+- [x] 2.4 Typecheck and lint: `npm run check`, `npm run lint`
 
 #### Manual
 
-- [ ] 2.5 Proven to bite: a fixture routing the secret through an alias fails the sweep, then removed
-- [ ] 2.6 The island floor proven live: raising one above what the page renders fails, then restored
-- [ ] 2.7 The failure message names the page and which half tripped
+- [x] 2.5 Proven to bite: a fixture routing the secret through an alias fails the sweep, then removed — through a DECLARED `string` prop, the shape `astro check` cannot see; both the resolved-value and the shape assertion fired, and the lint rule caught the same fixture independently
+- [x] 2.6 The island floor proven live: raising one above what the page renders fails, then restored — 1 → 4 on periods/[id].astro failed with "expected 1 to be greater than or equal to 4"; 1 → 0 passes, since it is a floor and not an equality
+- [x] 2.7 The failure message names the page and which half tripped
 
 ### Phase 3: Wire both into the publish gate
 
