@@ -24,6 +24,16 @@ import { beforeAll, describe, expect, it } from "vitest";
 // two errors. What it cannot reject is a secret handed to a prop already declared `string`, because
 // a secret IS a string. Passing SUPABASE_KEY to SignInForm's `serverError` type-checks today.
 //
+// WHICH KEY THIS GUARDS DEPENDS ON WHERE IT RUNS, and that asymmetry is free value rather than a
+// problem. Locally and in GitHub Actions the Vite mode is `test`, so `.env.test` supplies a
+// throwaway local key — the resolved-value half then proves the mechanism and the shape half does
+// the real guarding. In the Cloudflare build there is no `.env` or `.env.test` at all (neither is
+// tracked; only the two `.example` files are), so the only source is the build variables, i.e. the
+// PRODUCTION key. Inferred rather than measured directly: the "has a secret to look for" control
+// passed in that build, so a key was present, and build variables are the only place it could have
+// come from. Same shape as SECRET_SCAN_HOSTS in scripts/check-client-bundle.mjs, without the
+// configuration.
+//
 // THE API IS EXPERIMENTAL. `experimental_AstroContainer` is exactly that; an Astro minor can change
 // it. If this file breaks after an upgrade, that is the first thing to check — not a leak.
 

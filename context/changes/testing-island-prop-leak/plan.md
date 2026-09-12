@@ -385,7 +385,7 @@ added.
 #### Manual
 
 - [x] 3.4 Proven to bite: removing the render step from `ci:gate` fails the guard, then restored — two mutations: dropping the step failed presence and ordering; keeping the step but deleting the script it calls failed the new linkage assertion — e81e9eb
-- [ ] 3.5 The Actions run is green and its log shows the render step
+- [x] 3.5 The Actions run is green and its log shows the render step — e81e9eb; the Cloudflare build ran it too and published, so the sweep is live in both places
 
 ### Phase 4: Say what the guards do and do not reach
 
