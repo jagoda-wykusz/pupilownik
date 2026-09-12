@@ -411,25 +411,25 @@ anyway, with a worse status.
 
 #### Automated
 
-- [x] 3.1 Extended tests pass: `npx vitest run --project integration pets.post`
-- [x] 3.2 Whole suite green: `npm test`
-- [x] 3.3 Typecheck and lint: `npm run check` and `npm run lint`
+- [x] 3.1 Extended tests pass: `npx vitest run --project integration pets.post` — d90454e
+- [x] 3.2 Whole suite green: `npm test` — d90454e
+- [x] 3.3 Typecheck and lint: `npm run check` and `npm run lint` — d90454e
 
 #### Manual
 
-- [x] 3.4 The `sort_order` composition was measured before any fix, and the observed status recorded — 1e12 answered 500 "Nie udało się zapisać zwierzęcia"; 2147483647 answered 201, so the ceiling is exactly the integer type's
-- [x] 3.5 Each boundary pair proven to bite by moving its bound by one, then restoring — each mutation breaks its OWN named test; a fifth bound (instruction `title`) was found unpinned by a slipped mutation and covered; the 22003 mapping proven reachable by removing the zod bound, which answered 400 with the mapping's own message
+- [x] 3.4 The `sort_order` composition was measured before any fix, and the observed status recorded — 1e12 answered 500 "Nie udało się zapisać zwierzęcia"; 2147483647 answered 201, so the ceiling is exactly the integer type's — d90454e
+- [x] 3.5 Each boundary pair proven to bite by moving its bound by one, then restoring — each mutation breaks its OWN named test; a fifth bound (instruction `title`) was found unpinned by a slipped mutation and covered; the 22003 mapping proven reachable by removing the zod bound, which answered 400 with the mapping's own message — d90454e
 
 ### Phase 4: Prove the guards elsewhere, and make the documents true
 
 #### Automated
 
-- [ ] 4.1 Whole suite green after the mutation is reverted: `npm test`
-- [ ] 4.2 Publish gate green: `npm run ci:gate`
-- [ ] 4.3 Docs prettier-clean: `npx prettier --check context/foundation/test-plan.md`
+- [x] 4.1 Whole suite green after the mutation is reverted: `npm test`
+- [x] 4.2 Publish gate green: `npm run ci:gate`
+- [x] 4.3 Docs prettier-clean: `npx prettier --check context/foundation/test-plan.md`
 
 #### Manual
 
-- [ ] 4.4 The mutation was run and its observed status recorded, not predicted
-- [ ] 4.5 §3's phase-2b row and its explanation agree with what the change did
-- [ ] 4.6 No claim added to §5 or §7 describes something that does not exist
+- [x] 4.4 The mutation was run and its observed status recorded, not predicted — with the guard: 400 "Validation failed"; without it: 500 "Nie udało się odwołać wyjazdu". Guard restored, diff clean.
+- [x] 4.5 §3's phase-2b row and its explanation agree with what the change did — the paragraph lists the four things the phase actually did, each with its measurement, and names what it deliberately skipped
+- [x] 4.6 No claim added to §5 or §7 describes something that does not exist — §5 needed no change (the new tests add no gate); both §7 entries state what was measured and when

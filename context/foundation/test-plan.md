@@ -73,17 +73,51 @@ Each row is a discrete rollout phase that will open its own change folder
 via `/10x-new`. Status moves left-to-right through the values below; the
 orchestrator updates Status as artifacts appear on disk.
 
-| #   | Phase name                             | Goal (one line)                                                                                                     | Risks covered | Test types                                    | Status      | Change folder                                           |
-| --- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ------------- | --------------------------------------------- | ----------- | ------------------------------------------------------- |
-| 1   | Bootstrap runner + RLS owner-isolation | Prove an owner cannot read/modify another's rows; establish the reusable RLS-test harness every future table copies | #1            | vitest setup + integration vs local Supabase  | complete    | context/archive/2026-06-28-testing-rls-owner-isolation/ |
-| 2a  | Auth gating                            | Protected routes gate unauthenticated access; auth/session flows behave; an invalid session cannot reach owner data | #2            | integration (routes + middleware)             | complete    | context/archive/2026-07-12-testing-auth-gating/         |
-| 2b  | Input validation                       | API handlers reject malformed/forbidden input server-side (zod), not just the client                                | #7            | unit / integration on API handlers            | not started | —                                                       |
-| 3   | Secret-leak assertions                 | No secret reaches `dist/client`, no upstream error or config state reaches a caller                                 | #6            | build-artifact scan + unit + integration      | complete    | context/archive/2026-09-11-testing-secret-leak/         |
-| 4   | Domain guardrails (gated)              | Instruction visibility scoping, link-only access enforcement, atomic slot claim                                     | #3, #4, #5    | unit + integration + component, no new runner | complete    | context/archive/2026-09-11-testing-domain-guardrails/   |
+| #   | Phase name                             | Goal (one line)                                                                                                     | Risks covered | Test types                                    | Status   | Change folder                                           |
+| --- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ------------- | --------------------------------------------- | -------- | ------------------------------------------------------- |
+| 1   | Bootstrap runner + RLS owner-isolation | Prove an owner cannot read/modify another's rows; establish the reusable RLS-test harness every future table copies | #1            | vitest setup + integration vs local Supabase  | complete | context/archive/2026-06-28-testing-rls-owner-isolation/ |
+| 2a  | Auth gating                            | Protected routes gate unauthenticated access; auth/session flows behave; an invalid session cannot reach owner data | #2            | integration (routes + middleware)             | complete | context/archive/2026-07-12-testing-auth-gating/         |
+| 2b  | Input validation                       | API handlers reject malformed/forbidden input server-side (zod), not just the client                                | #7            | unit / integration on API handlers            | complete | context/changes/testing-input-validation/               |
+| 3   | Secret-leak assertions                 | No secret reaches `dist/client`, no upstream error or config state reaches a caller                                 | #6            | build-artifact scan + unit + integration      | complete | context/archive/2026-09-11-testing-secret-leak/         |
+| 4   | Domain guardrails (gated)              | Instruction visibility scoping, link-only access enforcement, atomic slot claim                                     | #3, #4, #5    | unit + integration + component, no new runner | complete | context/archive/2026-09-11-testing-domain-guardrails/   |
 
 Phase 2 was split into **2a (auth gating, #2)** and **2b (input validation, #7)**
 when the gating work shipped in `context/changes/testing-auth-gating/` — Risk #2
-landed there; Risk #7 remains its own pending change.
+landed there.
+
+**Phase 2b closed 2026-09-12, and it closed NARROWER than its name, on purpose.**
+The research pass refuted most of the phase's premise: seven of the nine API
+routes already validated correctly, and the classic "weak zod" defect — a handler
+that parses and then reads around the parsed result — existed nowhere in the
+codebase, including on the one two-parameter route that invites it. So the phase
+did not sweep all nine routes. It did four things instead, each answering
+something measured:
+
+1. **Fixed a live defect the research found.** `/api/auth/signin` and
+   `/api/auth/signup` answered **500** to any body that was not form-encoded,
+   because `await context.request.formData()` was unwrapped and `formData()`
+   rejects rather than returning empty. Reachable pre-auth by anyone. Both now
+   answer the same generic redirect as every other failure, and fifteen
+   assertions pin it — in the `unit` project, since the throw never reached
+   Supabase.
+2. **Gave `/api/auth/signout` its first coverage.** It had none. What is asserted
+   is not the 302 but that the caller's cookie STOPS AUTHENTICATING, measured
+   first because a session cookie carries a JWT that could have stayed valid.
+3. **Closed a genuine weak-zod case.** `sort_order` was bounded below and not
+   above while its column is `integer`; a `1e12` value answered 500. Bounded in
+   the schema at the type's ceiling and mapped in `pets.ts` — the mapping
+   `periods.ts` already carried. Five bounds on `/api/pets` are now pinned by
+   boundary pairs, one of which (instruction `title`) was found unpinned by a
+   mutation that slipped onto the wrong anchor.
+4. **Proved the `z.guid()` guards are load-bearing.** Measured by mutation:
+   removing the guard from `revoke.ts` and sending `not-a-uuid` turns a clean
+   `400 "Validation failed"` into `500` — PostgREST raises `22P02` and the route
+   maps any database error to 500.
+
+What it deliberately did NOT do is add tests to `periods`, `revoke`, `token`,
+`release` or `invite/claim`: the coverage census in that change's `research.md`
+found them already covered, and `tests/api/invite-claim.test.ts:506-531` alone
+pins five bad-input shapes. See `context/changes/testing-input-validation/`.
 
 Phase 4 was blocked until slices S-01..S-03 existed — `/10x-research` cannot
 ground code that has not been written. **Unblocked 2026-09-11**: S-01..S-06 have
@@ -598,9 +632,30 @@ re-inherit them.
   the hosted project. The fix swallows all of them regardless, which is why it did not depend on
   getting this right — but the record should.
 
+- **`/api/auth/signout`'s silent no-op when the Supabase client is unavailable.**
+  `src/pages/api/auth/signout.ts:6-8` skips the sign-out entirely when
+  `createClient` returns null and still redirects to `/`, so a caller cannot tell
+  a completed sign-out from one that never happened. `tests/api/signout.test.ts`
+  says so in its header and does not assert it: reaching that branch needs a
+  null-returning mock, and that file exists to talk to the real client. Recorded
+  here rather than fixed because the branch is only reachable with missing
+  configuration, which the deploy gate now refuses independently
+  (`npm run check:secrets` exits 2 without `SUPABASE_URL`/`SUPABASE_KEY`). If the
+  configuration guarantee ever weakens, this becomes worth failing loudly.
+
+- **CSRF on `/api/pets` and `/api/periods`, which send `application/json`.**
+  Measured 2026-09-12: Astro's `checkOrigin` skips JSON bodies, so a form POST
+  with no `Origin` is refused 403 before the handler while a JSON POST reaches
+  it. Those two routes therefore have no explicit origin check and rely on the
+  session cookie's `SameSite=Lax` alone, unlike `invite/claim.ts:54` and
+  `revoke.ts:62`, which carry one. This is a recorded trade-off
+  (`context/archive/2026-09-09-close-care-period/plan.md:72-75`), and it is a
+  different risk from #7 — noted here so the asymmetry is not mistaken for an
+  oversight by the next reader of those four files.
+
 ## 8. Freshness Ledger
 
-- Strategy (§1–§5) last reviewed: 2026-09-11 (§3 Phases 3 and 4 closed; §5 rewritten against the repo after the CI it described was found not to exist; §2's Risk #4 and #5 wording corrected against measurement — see §7)
+- Strategy (§1–§5) last reviewed: 2026-09-12 (§3 Phase 2b closed narrower than its name — see the note under the phase table; earlier on 2026-09-11: §3 Phases 3 and 4 closed; §5 rewritten against the repo after the CI it described was found not to exist; §2's Risk #4 and #5 wording corrected against measurement — see §7)
 - Stack versions last verified: 2026-06-28
 - AI-native tool references last verified: 2026-06-28
 
