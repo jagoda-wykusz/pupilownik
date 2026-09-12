@@ -1,7 +1,7 @@
 ---
 change_id: testing-input-validation
 title: Prove API handlers reject bad input server-side, not just in the client
-status: implementing
+status: implemented
 created: 2026-09-12
 updated: 2026-09-12
 archived_at: null

@@ -424,12 +424,12 @@ anyway, with a worse status.
 
 #### Automated
 
-- [x] 4.1 Whole suite green after the mutation is reverted: `npm test`
-- [x] 4.2 Publish gate green: `npm run ci:gate`
-- [x] 4.3 Docs prettier-clean: `npx prettier --check context/foundation/test-plan.md`
+- [x] 4.1 Whole suite green after the mutation is reverted: `npm test` — 39baee6
+- [x] 4.2 Publish gate green: `npm run ci:gate` — 39baee6
+- [x] 4.3 Docs prettier-clean: `npx prettier --check context/foundation/test-plan.md` — 39baee6
 
 #### Manual
 
-- [x] 4.4 The mutation was run and its observed status recorded, not predicted — with the guard: 400 "Validation failed"; without it: 500 "Nie udało się odwołać wyjazdu". Guard restored, diff clean.
-- [x] 4.5 §3's phase-2b row and its explanation agree with what the change did — the paragraph lists the four things the phase actually did, each with its measurement, and names what it deliberately skipped
-- [x] 4.6 No claim added to §5 or §7 describes something that does not exist — §5 needed no change (the new tests add no gate); both §7 entries state what was measured and when
+- [x] 4.4 The mutation was run and its observed status recorded, not predicted — with the guard: 400 "Validation failed"; without it: 500 "Nie udało się odwołać wyjazdu". Guard restored, diff clean. — 39baee6
+- [x] 4.5 §3's phase-2b row and its explanation agree with what the change did — the paragraph lists the four things the phase actually did, each with its measurement, and names what it deliberately skipped — 39baee6
+- [x] 4.6 No claim added to §5 or §7 describes something that does not exist — §5 needed no change (the new tests add no gate); both §7 entries state what was measured and when — 39baee6
