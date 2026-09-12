@@ -387,25 +387,25 @@ anyway, with a worse status.
 
 #### Automated
 
-- [x] 1.1 New tests pass: `npx vitest run --project unit auth-body-shape`
-- [x] 1.2 Whole unit project green: `npx vitest run --project unit`
-- [x] 1.3 Existing disclosure assertions still pass: `npx vitest run --project integration auth-error-disclosure`
-- [x] 1.4 Typecheck and lint: `npm run check` and `npm run lint`
+- [x] 1.1 New tests pass: `npx vitest run --project unit auth-body-shape` — 3fe8416
+- [x] 1.2 Whole unit project green: `npx vitest run --project unit` — 3fe8416
+- [x] 1.3 Existing disclosure assertions still pass: `npx vitest run --project integration auth-error-disclosure` — 3fe8416
+- [x] 1.4 Typecheck and lint: `npm run check` and `npm run lint` — 3fe8416
 
 #### Manual
 
-- [x] 1.5 Proven to bite: revert the `try` in one route, confirm failure names the content type, restore — run on BOTH routes; signup.ts failed exactly its own six sign-up assertions while the nine sign-in ones passed, so the two routes are covered independently
+- [x] 1.5 Proven to bite: revert the `try` in one route, confirm failure names the content type, restore — run on BOTH routes; signup.ts failed exactly its own six sign-up assertions while the nine sign-in ones passed, so the two routes are covered independently — 3fe8416
 
 ### Phase 2: First coverage for `/api/auth/signout`
 
 #### Automated
 
-- [ ] 2.1 New test passes: `npx vitest run --project integration signout`
-- [ ] 2.2 Whole integration project green: `npx vitest run --project integration`
+- [x] 2.1 New test passes: `npx vitest run --project integration signout`
+- [x] 2.2 Whole integration project green: `npx vitest run --project integration`
 
 #### Manual
 
-- [ ] 2.3 Proven to bite: comment out `signOut()`, confirm the cookie assertion fails, restore
+- [x] 2.3 Proven to bite: comment out `signOut()`, confirm the cookie assertion fails, restore — two of three tests failed (session and cookie); the uniformity test correctly still passed, since removing signOut does not change the redirect
 
 ### Phase 3: `/api/pets` — the bounds, and the one real weak-zod case
 
