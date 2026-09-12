@@ -17,6 +17,10 @@ import { getTestEnv } from "../setup";
 // Measured 2026-09-12 against the local stack: getUser() with the caller's cookie returns the user
 // before the call and `Auth session missing!` after it.
 //
+// `whoAmI` below uses getUser() and that choice is load-bearing: it makes a ROUND TRIP, so it sees
+// the server-side revocation. Swapping it for a local-verification call such as getClaims() would
+// invert this file silently, because the access token stays cryptographically valid until expiry.
+//
 // NOT ASSERTED HERE, deliberately: src/pages/api/auth/signout.ts:6-8 skips the sign-out entirely
 // when createClient returns null and still redirects to `/`, so a caller cannot tell a completed
 // sign-out from one that never happened. Reaching that branch needs a null-returning client, which
@@ -122,13 +126,26 @@ describe("signing out ends the session, not just the page", () => {
     }
   });
 
-  it("answers a caller who has no session the same way", async () => {
-    // The route has no auth gate, by design. It must therefore not become an oracle for whether a
-    // session existed — the answer is the same redirect either way.
+  it("answers a caller who has no session with the same redirect, and says what does differ", async () => {
+    // The route has no auth gate by design, so the REDIRECT must not become an oracle for whether a
+    // session existed. Note honestly what this half can and cannot catch: `signout.ts` has exactly
+    // one exit today, so nothing in the current code can violate it — it is a guard against a
+    // future second exit (a 404 for "no session", say), not a statement about today.
+    //
+    // The second half is the part that pins something measured. The response is NOT identical in
+    // every respect, and pretending otherwise would be the more comfortable lie: with a session the
+    // adapter clears one `sb-` cookie, without one it writes nothing. Measured 2026-09-12:
+    // ["sb-127-auth-token"] versus []. That difference is inherent — you cannot clear a cookie the
+    // caller never sent — and a caller learns from it only that the cookie they themselves supplied
+    // was valid, which they could discover by using it. Asserted so that a change to it is a
+    // decision rather than a drift.
     const withSession = await callSignout((await createAuthenticatedOwner()).cookieHeader);
     const withoutSession = await callSignout("");
 
     expect(withoutSession.response.status).toBe(withSession.response.status);
     expect(withoutSession.response.headers.get("Location")).toBe(withSession.response.headers.get("Location"));
+
+    expect([...withSession.cookies.store.keys()].length, "a live session should have been cleared").toBeGreaterThan(0);
+    expect([...withoutSession.cookies.store.keys()], "nothing to clear, so nothing should be written").toEqual([]);
   });
 });

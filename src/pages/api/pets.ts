@@ -56,14 +56,24 @@ export const POST: APIRoute = async (context) => {
     // `(i ->> 'sort_order')::int`, and before the schema gained an upper bound a 1e12 sort_order
     // produced exactly this 500. It is now belt-and-braces — zod rejects such a value first — and
     // it is kept for the reason periods.ts keeps its own unreachable pair: the zod bound and this
-    // mapping are one fix in two layers, and the database has no length or range bound of its own
-    // to fall back on (verified: zero columns in this schema carry a length limit).
+    // mapping are one fix in two layers, and the two tables this route writes carry no
+    // length or range bound of their own to fall back on (verified against information_schema: no
+    // column in `pets` or `care_instructions` has a length limit. `care_periods.caretaker_note` does
+    // carry a CHECK — a different table, and 23514 rather than 22001).
     //
     // 42501 is deliberately NOT mapped. The RPC sets `owner_id = (select auth.uid())` itself, so
     // an RLS with-check refusal is unreachable through this route — a branch for it would be dead
     // code dressed as defence.
     if (error.code === "22003") {
       return jsonResponse({ error: "Kolejność instrukcji jest poza dozwolonym zakresem" }, 400);
+    }
+    // 22P05 / 22021 — a NUL character inside a string. Postgres refuses it while parsing the jsonb
+    // argument, before the function body runs. Found by the full-plan review and MEASURED: a NUL in
+    // an instruction title answered 500 here until src/lib/schemas/pet.ts gained `textField`, which
+    // now rejects it first. Same two-layer shape as 22003 above, and kept for the same reason — the
+    // database has no character-class guard of its own on these columns.
+    if (["22P05", "22021"].includes(error.code)) {
+      return jsonResponse({ error: "Tekst zawiera niedozwolony znak" }, 400);
     }
     return jsonResponse({ error: "Nie udało się zapisać zwierzęcia" }, 500);
   }

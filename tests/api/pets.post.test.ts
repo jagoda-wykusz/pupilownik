@@ -179,8 +179,12 @@ describe("POST /api/pets — validated atomic create", () => {
       const ok = await callPost(cookieHeader, owner.userId, petWith({ instructions: titled(120) }));
       expect(ok.status).toBe(201);
 
+      const before = await owner.client.from("pets").select("id", { count: "exact", head: true });
       const tooLong = await callPost(cookieHeader, owner.userId, petWith({ instructions: titled(121) }));
       expect(tooLong.status).toBe(400);
+
+      const after = await owner.client.from("pets").select("id", { count: "exact", head: true });
+      expect(after.count).toBe(before.count);
     });
 
     it("accepts a 2000-character instruction body and refuses 2001", async () => {
@@ -224,8 +228,23 @@ describe("POST /api/pets — validated atomic create", () => {
       const ok = await callPost(cookieHeader, owner.userId, withOrder(2147483647));
       expect(ok.status).toBe(201);
 
+      const before = await owner.client.from("pets").select("id", { count: "exact", head: true });
       const tooLarge = await callPost(cookieHeader, owner.userId, withOrder(2147483648));
       expect(tooLarge.status, "an out-of-range sort_order must not read as a server fault").toBe(400);
+
+      // WHICH LAYER, not just which status — and this assertion is the whole difference between a
+      // pair that bites in both directions and one that only bites when the bound is TIGHTENED.
+      // Without it, deleting `.max(2147483647)` from the schema leaves this test green: the value
+      // then reaches Postgres, raises 22003, and pets.ts maps it to 400 as well. Both layers answer
+      // 400, so only the message distinguishes them. Found by the full-plan review, after the
+      // loosening mutation came back green and was read as a virtue rather than a dead assertion.
+      expect(
+        (tooLarge.body as { error?: string }).error,
+        "the schema should refuse this before the database sees it",
+      ).toBe("Validation failed");
+
+      const after = await owner.client.from("pets").select("id", { count: "exact", head: true });
+      expect(after.count).toBe(before.count);
     });
   });
 

@@ -97,9 +97,12 @@ something measured:
    `/api/auth/signup` answered **500** to any body that was not form-encoded,
    because `await context.request.formData()` was unwrapped and `formData()`
    rejects rather than returning empty. Reachable pre-auth by anyone. Both now
-   answer the same generic redirect as every other failure, and fifteen
+   answer the same generic redirect as every other failure, and **twelve**
    assertions pin it — in the `unit` project, since the throw never reached
-   Supabase.
+   Supabase. (The file holds fifteen cases; the other three pin a different
+   property, the `as string` pass-through. Corrected after the full-plan review
+   counted them — an inventory sentence in this document is exactly the kind
+   §7 keeps catching.)
 2. **Gave `/api/auth/signout` its first coverage.** It had none. What is asserted
    is not the 302 but that the caller's cookie STOPS AUTHENTICATING, measured
    first because a session cookie carries a JWT that could have stayed valid.
@@ -638,10 +641,15 @@ re-inherit them.
   a completed sign-out from one that never happened. `tests/api/signout.test.ts`
   says so in its header and does not assert it: reaching that branch needs a
   null-returning mock, and that file exists to talk to the real client. Recorded
-  here rather than fixed because the branch is only reachable with missing
-  configuration, which the deploy gate now refuses independently
-  (`npm run check:secrets` exits 2 without `SUPABASE_URL`/`SUPABASE_KEY`). If the
-  configuration guarantee ever weakens, this becomes worth failing loudly.
+  here rather than fixed because the branch needs missing runtime configuration,
+  which nothing in the app can currently produce. Be precise about the evidence,
+  because the first draft of this entry overstated it: `npm run check:secrets`
+  does exit 2 without `SUPABASE_URL`/`SUPABASE_KEY`, but it is a BUILD-time
+  secret scan with a documented opt-out (`SECRET_SCAN_ALLOW_MISSING_ENV=1`), and
+  it says nothing about whether the deployed worker has its runtime bindings —
+  which is what `createClient() === null` actually depends on. So the argument
+  for leaving it is that the branch is unreachable in practice and its failure is
+  benign, not that a gate prevents it.
 
 - **CSRF on `/api/pets` and `/api/periods`, which send `application/json`.**
   Measured 2026-09-12: Astro's `checkOrigin` skips JSON bodies, so a form POST
