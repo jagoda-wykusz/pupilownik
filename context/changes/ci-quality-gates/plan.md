@@ -527,6 +527,11 @@ everyone afterwards.
 ## Progress
 
 > Convention: `- [ ]` pending, `- [x]` done. Append ` — <commit sha>` when a step lands. Do not rename step titles. See `references/progress-format.md`.
+>
+> On the MANUAL rows of phase 5, the SHA means something narrower and it is worth saying so: those criteria were
+> satisfied by an observation — a dashboard field changed, a publication blocked and then restored, a merge button
+> still enabled under red checks — not by a code change. The SHA names the commit that RECORDED the observation,
+> not one that caused it. The observation itself is written out in the row.
 
 ### Phase 1: Compose the gate in `package.json`
 
@@ -587,8 +592,8 @@ everyone afterwards.
 
 #### Manual
 
-- [x] 5.3 `npm run ci:gate` run once under Node 22.23.2 (the version `.nvmrc` now pins) before the dashboard is touched — satisfied by evidence rather than as written: the machine has no Node version manager, so no local 22.23.2 run was possible, but the green Actions run of 2026-09-12 executed typecheck, lint, build, all three vitest projects and the secret scan on 22.23.2 via `node-version-file`. The "before the dashboard is touched" ordering was overtaken by events — the build command had already been switched.
-- [x] 5.4 Build command changed to `npm run ci:gate` in the Cloudflare dashboard — done by the user on 2026-09-12, ahead of this phase
-- [x] 5.5 A failing commit on `master` blocks the deploy; live site unchanged; fix restores it — 2026-09-12, and on a real failure rather than the planted lint error this criterion anticipated. The first push under the new build command failed at `check:secrets` (`no usable value for SUPABASE_URL, SUPABASE_KEY` — both were set as the Worker's RUNTIME variables, never as build variables), no version was produced, and the live site stayed on the previous one. Adding the two build variables turned the next build green and publication resumed. Both halves of the criterion observed without having to simulate either.
-- [x] 5.6 The same commit's Actions run is red while the PR merge button stays enabled — observed 2026-09-12 on `ci/prove-actions-cannot-block`, a throwaway branch carrying one deliberately failing test: every check red, merge button active. The claim README and AGENTS.md make as fact is now a measurement rather than a quote from GitHub's documentation. Branch deleted; the failing test never reached master.
-- [x] 5.7 No claim in the rewritten README or §5 describes something that does not yet exist — audited claim by claim 2026-09-12. Every load-bearing sentence is backed by something observed today, except one: "the Cloudflare build container has no Docker" rests on Cloudflare's own documentation, because the only way to refute it is to try running Supabase there. Named rather than smoothed over.
+- [x] 5.3 `npm run ci:gate` run once under Node 22.23.2 (the version `.nvmrc` now pins) before the dashboard is touched — satisfied by evidence rather than as written: the machine has no Node version manager, so no local 22.23.2 run was possible, but the green Actions run of 2026-09-12 executed typecheck, lint, build, all three vitest projects and the secret scan on 22.23.2 via `node-version-file`. The "before the dashboard is touched" ordering was overtaken by events — the build command had already been switched. — 139bbf4
+- [x] 5.4 Build command changed to `npm run ci:gate` in the Cloudflare dashboard — done by the user on 2026-09-12, ahead of this phase — 139bbf4
+- [x] 5.5 A failing commit on `master` blocks the deploy; live site unchanged; fix restores it — 2026-09-12, and on a real failure rather than the planted lint error this criterion anticipated. The first push under the new build command failed at `check:secrets` (`no usable value for SUPABASE_URL, SUPABASE_KEY` — both were set as the Worker's RUNTIME variables, never as build variables), no version was produced, and the live site stayed on the previous one. Adding the two build variables turned the next build green and publication resumed. Both halves of the criterion observed without having to simulate either. — 459af16
+- [x] 5.6 The same commit's Actions run is red while the PR merge button stays enabled — observed 2026-09-12 on `ci/prove-actions-cannot-block`, a throwaway branch carrying one deliberately failing test: every check red, merge button active. The claim README and AGENTS.md make as fact is now a measurement rather than a quote from GitHub's documentation. Branch deleted; the failing test never reached master. — 345dfda
+- [x] 5.7 No claim in the rewritten README or §5 describes something that does not yet exist — audited claim by claim 2026-09-12. Every load-bearing sentence is backed by something observed today, except one: "the Cloudflare build container has no Docker" rests on Cloudflare's own documentation, because the only way to refute it is to try running Supabase there. Named rather than smoothed over. — 345dfda
