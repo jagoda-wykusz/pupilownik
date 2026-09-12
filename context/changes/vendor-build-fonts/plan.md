@@ -361,26 +361,26 @@ the vendored files are inert once the config stops pointing at them.
 
 #### Automated
 
-- [x] 2.1 Cold-cache build with both hosts blocked: exit 0, 0 blocked requests, 4 woff2
-- [x] 2.2 The new source guard passes
-- [x] 2.3 The guard fails when mutated back to `fontProviders.google()`
-- [x] 2.4 Cache restored and a clean build still emits 4 woff2 (deviation: the stale Google cache was DELETED rather than restored — 3.5 MB of binaries and meta.json nothing references after vendoring; the criterion's intent was verified with a clean build instead)
+- [x] 2.1 Cold-cache build with both hosts blocked: exit 0, 0 blocked requests, 4 woff2 — b5d47aa
+- [x] 2.2 The new source guard passes — b5d47aa
+- [x] 2.3 The guard fails when mutated back to `fontProviders.google()` — b5d47aa
+- [x] 2.4 Cache restored and a clean build still emits 4 woff2 (deviation: the stale Google cache was DELETED rather than restored — 3.5 MB of binaries and meta.json nothing references after vendoring; the criterion's intent was verified with a clean build instead) — b5d47aa
 
 #### Manual
 
-- [x] 2.5 The probe output is recorded in the phase commit message
+- [x] 2.5 The probe output is recorded in the phase commit message — b5d47aa
 
 ### Phase 3: Fail the build when it produces no fonts
 
 #### Automated
 
-- [ ] 3.1 The new test passes against a good build
-- [ ] 3.2 The new test fails against a fontless build
-- [ ] 3.3 Full gate passes: `npm run ci:gate`
+- [x] 3.1 The new test passes against a good build
+- [x] 3.2 The new test fails against a fontless build
+- [x] 3.3 Full gate passes: `npm run ci:gate`
 
 #### Manual
 
-- [ ] 3.4 The failure message names what was missing and where to look
+- [x] 3.4 The failure message names what was missing and where to look
 
 ### Phase 4: Licensing and documentation
 
