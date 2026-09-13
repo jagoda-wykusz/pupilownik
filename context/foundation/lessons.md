@@ -242,3 +242,39 @@ than one copy of React`, co czyta się jak zdublowana zależność, a nie jak ca
   najpierw, ile wpisów w `package-lock.json` ma `"optional": true`. W tym repo 131, w tym binarki
   platformowe `workerd`, `esbuild` i `sharp`, bez których build nie ruszy.
 - **Applies to**: plan, implement, impl-review, research
+
+## Degradacja bez logu to nie degradacja, tylko martwe pole
+
+- **Context**: Każda gałąź, która łapie błąd zewnętrznego wywołania (RPC, fetch, klient bazy)
+  i **degraduje** zamiast paść — w szczególności we frontmatterze `.astro`, gdzie kusi, żeby
+  po prostu ustawić flagę albo przypisać `null` i renderować dalej. Dotyczy też każdej decyzji
+  „to nie jest awaria strony, pokażmy uboższy widok".
+- **Problem**: W `invite-page-silent-failures` okazało się, że `src/pages/invite/[token].astro`
+  połykał **oba** swoje błędy RPC, a grep `console.` po wszystkich plikach `.astro` w repo zwracał
+  **zero**. Gorsza z gałęzi odrzucała `error` w ternary: opiekun, który JUŻ zajął termin, przy
+  awarii `get_claimed_details` dostawał stronę sprzed claimu ze statusem 200 (`claimed = null` →
+  `hasClaims: false`, a `tests/unit/invite-view.test.ts:34-40` przypina, że to daje
+  `kind: "period", status: 200`), jego wskazówki
+  znikały — i nie dowiadywał się o tym ani on, ani serwer. Osiem z dziewięciu routów obok robiło
+  to poprawnie, więc nie był to brak wiedzy, tylko **dziura w konwencji**: zarówno zapis
+  obserwowalności w §7 test-planu, jak i poluzowanie `no-console` w `eslint.config.js` były
+  zakresowane na `src/pages/**/*.ts`. Pliki `.astro` nie miały ani precedensu, ani **pozwolenia**,
+  żeby logować — `console.error` na stronie wywracał `--max-warnings 0`, czyli bramkę publikacji.
+  Cicha degradacja była więc ścieżką najmniejszego oporu, wymuszoną przez narzędzia.
+- **Problem (jak poznaliśmy tę liczbę)**: audyt otwierający tę zmianę zapisał „warstwa API jest
+  czysta", zbadawszy sześć wymienionych routów plus `signin`/`signup` — i **nie otworzył
+  `auth/signout.ts`**, który nie inspekcjonuje wyniku `signOut()` w ogóle. Wyszło to dopiero przy
+  weryfikacji ostatniej fazy, z policzenia plików. Zdanie o CZYSTOŚCI całej warstwy jest
+  twierdzeniem o każdym pliku w niej; wolno je napisać dopiero po wyliczeniu tych plików, a nie po
+  sprawdzeniu tych, które przyszły do głowy.
+- **Rule**: Degradacja jest decyzją i wymaga zapisania DWÓCH rzeczy, nie jednej: co zobaczy
+  użytkownik ORAZ co zapamięta serwer. Gałąź, która połyka błąd i nic nie loguje, nie jest
+  degradacją — jest martwym polem, bo nie zostawia po sobie żadnego śladu, po którym dałoby się
+  ją kiedykolwiek zdiagnozować. Zanim wybierzesz „degradujemy po cichu", sprawdź, czy w tym typie
+  pliku wolno Ci w ogóle sięgnąć po sink logów.
+- **Rule (co znaczy opór narzędzia)**: Jeśli oczywista poprawka odbija się od reguły lintu
+  zakresowanej na **sąsiedni typ pliku**, to sygnał, że dziurę ma konwencja, a nie poprawka.
+  Rozszerz zakres na tym samym uzasadnieniu, które już w nim stoi, albo zapisz wprost, dlaczego
+  ten typ pliku ma być wyjątkiem. Nie obchodź reguły punktowym `eslint-disable` — następny plik
+  powtórzy obejście zamiast odziedziczyć regułę.
+- **Applies to**: plan, implement, impl-review, frame

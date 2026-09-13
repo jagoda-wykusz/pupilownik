@@ -833,6 +833,30 @@ re-inherit them.
   not its log, so a `console.log` left behind after debugging still fails. Deliberately NOT extended
   to `src/lib/**`, which client islands import.
 
+  **That allowlist grew on 2026-09-13, and the paragraph above is left in the past tense because the
+  reasoning is what carried over rather than the scope.** It now reads
+  `files: ["src/pages/**/*.ts", "src/pages/**/*.astro"]` — server-rendered pages joined on the same
+  argument, not a new one: `.astro` frontmatter runs on the server and its `console` output reaches
+  the identical Workers sink an endpoint's does. `allow` is unchanged, so `console.log` still fails
+  in a page, and `src/lib/**` is still out.
+
+  What forced it was measurable rather than stylistic. `src/pages/invite/[token].astro` swallowed
+  BOTH of its RPC errors, and a grep for `console.` across every `.astro` file in the repo returned
+  **zero** — the base rule plus `--max-warnings 0` meant the obvious fix could not be committed. The
+  worse of the two branches discarded `error` in a ternary, so a caretaker who HAD claimed was
+  served the pre-claim page at status 200 with their instructions gone and nothing recorded
+  anywhere. Both branches now log `error.code` and `error.message`, pinned by three cases in
+  `tests/unit/invite-source.test.ts` — one per branch, plus one that no log line may carry the invite
+  token or the capability secret, carrying its own call-count control so it cannot pass vacuously.
+  No rendered byte changed — verified by diffing the dead-link page across the change, whose only
+  difference was dev-only `data-astro-source-loc`, measured absent from `dist/` with a control grep.
+
+  One property this did NOT gain: nothing mechanical stops the next `.astro` page from swallowing an
+  error silently. The rule lives in `context/foundation/lessons.md`, read at the start of
+  `/10x-plan`, `/10x-implement` and `/10x-impl-review` — a design-time gate, not a commit-time one. A
+  regex sweep over `.astro` sources was considered and rejected as exactly the brittle
+  source-assertion shape §7 already records this project getting wrong.
+
   Both thresholds then went up: `eslint . --max-warnings 0` and
   `astro check --minimumFailingSeverity warning`. Measured before choosing — `warning` exits 0
   today, `hint` exits 1 on five `ts(6387)` deprecations in `eslint.config.js`. `hint` was rejected

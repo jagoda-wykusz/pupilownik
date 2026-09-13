@@ -25,6 +25,12 @@ returns success) was run before this change opened. It is recorded in `change.md
 | `res.json().catch(() => null)` ×2                                              | benign — parsing a body that may not be JSON; the status is handled separately               |
 | **`src/pages/invite/[token].astro` ×2**                                        | **the finding**                                                                              |
 
+> **Corrected during Phase 2.** This table's first row reads as a claim about the whole API layer,
+> but the sweep behind it opened the six routes it names plus `signin`/`signup` and never opened
+> `auth/signout.ts` — which does not inspect `signOut()`'s result at all. The table is left as
+> written because it is the record of what was believed at planning time; the correction, and why
+> the fix is deliberately out of this change's scope, is in `change.md`.
+
 The two branches:
 
 - **`:87-93`** — `get_period_by_token` fails → `loadError = true`. The visitor gets an error card,
@@ -308,28 +314,28 @@ None. No schema change, no data migration, no change to any response.
 
 #### Automated
 
-- [x] 1.1 The new assertions FAIL against unmodified `[token].astro`, naming the missing log call
-- [x] 1.2 `npx vitest run --project unit` passes after the fix
-- [x] 1.3 `npm run lint` passes with `--max-warnings 0`
-- [x] 1.4 `npm run check` passes
-- [x] 1.5 `npx vitest run` — full suite unaffected
-- [x] 1.6 Deliberate break: removing either `console.error` reddens exactly its own assertion; reverted
-- [x] 1.7 `git diff` shows no change below the frontmatter fence
+- [x] 1.1 The new assertions FAIL against unmodified `[token].astro`, naming the missing log call — 2c406f0
+- [x] 1.2 `npx vitest run --project unit` passes after the fix — 2c406f0
+- [x] 1.3 `npm run lint` passes with `--max-warnings 0` — 2c406f0
+- [x] 1.4 `npm run check` passes — 2c406f0
+- [x] 1.5 `npx vitest run` — full suite unaffected — 2c406f0
+- [x] 1.6 Deliberate break: removing either `console.error` reddens exactly its own assertion; reverted — 2c406f0
+- [x] 1.7 `git diff` shows no change below the frontmatter fence — 2c406f0
 
 #### Manual
 
-- [x] 1.8 Neither log line can interpolate `token` or `claimSecret`
-- [x] 1.9 The rendered page is unchanged in all three visitor states
+- [x] 1.8 Neither log line can interpolate `token` or `claimSecret` — 2c406f0
+- [x] 1.9 The rendered page is unchanged in all three visitor states — 2c406f0
 
 ### Phase 2: Reconcile the documents and record the rule
 
 #### Automated
 
-- [ ] 2.1 `npm run check:links` passes
-- [ ] 2.2 `npm run ci:gate` passes with the dev server killed first
-- [ ] 2.3 `npx vitest run` passes
+- [x] 2.1 `npm run check:links` passes
+- [x] 2.2 `npm run ci:gate` passes with the dev server killed first
+- [x] 2.3 `npx vitest run` passes
 
 #### Manual
 
-- [ ] 2.4 Every new sentence in `test-plan.md` was read against `eslint.config.js` when written
-- [ ] 2.5 The `lessons.md` entry states what was measured
+- [x] 2.4 Every new sentence in `test-plan.md` was read against `eslint.config.js` when written
+- [x] 2.5 The `lessons.md` entry states what was measured
