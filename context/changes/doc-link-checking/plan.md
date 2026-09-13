@@ -149,11 +149,11 @@ next person who wants to "simplify" the exclusions knows which real string each 
 
 #### Automated
 
-- [x] 2.1 `npm run ci:gate` passes with the new step
-- [x] 2.2 The new pin assertions pass
-- [x] 2.3 Every new assertion fails when its target is removed
-- [x] 2.4 The gate fails when a dead link is planted
+- [x] 2.1 `npm run ci:gate` passes with the new step — df723c9
+- [x] 2.2 The new pin assertions pass — df723c9
+- [x] 2.3 Every new assertion fails when its target is removed — df723c9
+- [x] 2.4 The gate fails when a dead link is planted — df723c9
 
 #### Manual
 
-- [x] 2.5 §7 reads correctly to someone who was not part of this session
+- [x] 2.5 §7 reads correctly to someone who was not part of this session — df723c9
