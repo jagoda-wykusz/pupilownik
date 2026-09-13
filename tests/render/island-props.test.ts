@@ -73,7 +73,6 @@ const ISLAND_FLOOR: Record<string, number> = {
   "/src/pages/auth/signin.astro": 2,
   "/src/pages/auth/signup.astro": 2,
   "/src/pages/dashboard.astro": 0,
-  "/src/pages/index.astro": 0,
   "/src/pages/invite/[token].astro": 1,
   "/src/pages/periods/[id].astro": 1,
   "/src/pages/periods/index.astro": 1,

@@ -1,6 +1,6 @@
 ---
 import Layout from "@/layouts/Layout.astro";
-import ThemeToggle from "@/components/ThemeToggle";
+import AppBar from "@/components/AppBar.astro";
 import RegenerateLinkButton from "@/components/periods/RegenerateLinkButton";
 import RevokePeriodButton from "@/components/periods/RevokePeriodButton";
 import ReleaseSlotButton from "@/components/periods/ReleaseSlotButton";
@@ -147,10 +147,9 @@ const claimedByDay = new Map(
 <Layout title={period?.title ?? "Wyjazd"}>
   <div class="bg-background min-h-screen px-5 py-8">
     <div class="mx-auto w-full max-w-2xl">
-      <div class="mb-6 flex items-center justify-between gap-4">
+      <AppBar theme={theme}>
         <a href="/periods" class="text-primary text-[13px] font-bold hover:underline">← Moje wyjazdy</a>
-        <ThemeToggle initialTheme={theme} client:load />
-      </div>
+      </AppBar>
 
       {
         loadError && (

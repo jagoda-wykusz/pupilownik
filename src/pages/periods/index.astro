@@ -1,6 +1,6 @@
 ---
 import Layout from "@/layouts/Layout.astro";
-import ThemeToggle from "@/components/ThemeToggle";
+import AppBar from "@/components/AppBar.astro";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/Chip";
 import { createClient } from "@/lib/supabase";
@@ -73,10 +73,9 @@ if (supabase) {
 <Layout title="Moje wyjazdy">
   <div class="bg-background min-h-screen px-5 py-8">
     <div class="mx-auto w-full max-w-2xl">
-      <div class="mb-6 flex items-center justify-between gap-4">
+      <AppBar theme={theme}>
         <h1 class="font-heading text-foreground text-[30px] leading-[1.15] font-bold">Moje wyjazdy</h1>
-        <ThemeToggle initialTheme={theme} client:load />
-      </div>
+      </AppBar>
 
       {
         loadError && (

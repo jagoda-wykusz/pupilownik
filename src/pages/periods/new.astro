@@ -1,6 +1,6 @@
 ---
 import Layout from "@/layouts/Layout.astro";
-import ThemeToggle from "@/components/ThemeToggle";
+import AppBar from "@/components/AppBar.astro";
 import ScreenHeading from "@/components/ui/ScreenHeading.astro";
 import NewPeriodForm from "@/components/periods/NewPeriodForm";
 import { createClient } from "@/lib/supabase";
@@ -34,10 +34,9 @@ if (supabase) {
 <Layout title="Nowy wyjazd">
   <div class="bg-background min-h-screen px-5 py-8">
     <div class="mx-auto w-full max-w-md">
-      <div class="mb-6 flex items-center justify-between gap-4">
+      <AppBar theme={theme}>
         <a href="/periods" class="text-primary text-[13px] font-bold hover:underline">← Moje wyjazdy</a>
-        <ThemeToggle initialTheme={theme} client:load />
-      </div>
+      </AppBar>
 
       <ScreenHeading
         title="Nowy wyjazd"

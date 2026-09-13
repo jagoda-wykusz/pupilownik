@@ -1,5 +1,6 @@
 ---
 import Layout from "@/layouts/Layout.astro";
+import AppBar from "@/components/AppBar.astro";
 import { createClient } from "@/lib/supabase";
 import { SPECIES_LABEL, type Species } from "@/lib/pet-format";
 
@@ -49,6 +50,8 @@ if (supabase) {
 <Layout title="Moje zwierzęta">
   <div class="bg-cosmic min-h-screen p-4">
     <div class="mx-auto max-w-3xl py-10 text-white">
+      <AppBar />
+
       <div class="mb-6 flex items-center justify-between">
         <h1 class="bg-gradient-to-r from-blue-200 to-purple-200 bg-clip-text text-3xl font-bold text-transparent">
           Moje zwierzęta

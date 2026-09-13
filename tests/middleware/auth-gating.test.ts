@@ -61,10 +61,20 @@ describe("auth gating (middleware)", () => {
   });
 
   it("those headers are scoped to /invite and not sprayed across the app", async () => {
-    const { response } = await runMiddleware({ pathname: "/" });
+    const { response } = await runMiddleware({ pathname: "/auth/signin" });
 
     expect(response.headers.get("Referrer-Policy")).toBeNull();
     expect(response.headers.get("Cache-Control")).toBeNull();
+  });
+
+  // "/" is not a page — it resolves to the trip list. An unauthenticated visitor takes the
+  // second hop to the sign-in panel, which is what the PROTECTED_ROUTES case above pins.
+  it("/ redirects to the trip list without rendering a landing page", async () => {
+    const { response, nextCalled } = await runMiddleware({ pathname: "/" });
+
+    expect(response.status).toBe(302);
+    expect(response.headers.get("Location")).toBe("/periods");
+    expect(nextCalled).toBe(false);
   });
 
   it("present-but-invalid session cookie → still redirects to signin", async () => {

@@ -27,6 +27,11 @@ function isInviteRoute(pathname: string): boolean {
   return pathname === INVITE_PREFIX || pathname.startsWith(`${INVITE_PREFIX}/`);
 }
 
+// The root is not a page of its own: the product starts at the owner's trip list. An
+// unauthenticated visitor falls through to the gate below and lands on the sign-in panel,
+// so "/" resolves to the right screen for both states without a landing page to maintain.
+const HOME_ROUTE = "/periods";
+
 export const onRequest = defineMiddleware(async (context, next) => {
   const supabase = createClient(context.request.headers, context.cookies);
 
@@ -37,6 +42,10 @@ export const onRequest = defineMiddleware(async (context, next) => {
     context.locals.user = user ?? null;
   } else {
     context.locals.user = null;
+  }
+
+  if (context.url.pathname === "/") {
+    return context.redirect(HOME_ROUTE);
   }
 
   if (PROTECTED_ROUTES.some((route) => context.url.pathname.startsWith(route))) {

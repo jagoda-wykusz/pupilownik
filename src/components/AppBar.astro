@@ -1,0 +1,55 @@
+---
+import ThemeToggle from "@/components/ThemeToggle";
+import type { Theme } from "@/lib/theme";
+
+// The bar every signed-in screen opens with. It exists because sign-out had exactly one
+// door — a button on /dashboard — while the screens an owner actually lives on (/periods,
+// /pets) had none, so leaving the app meant navigating to a page with nothing else on it.
+//
+// The left half is a slot rather than a prop: each screen already opens with either its
+// own <h1> or a back link, and those are not interchangeable. The bar owns the right half
+// (identity and the way out) and nothing else.
+//
+// `theme` is optional on purpose. Passing it lights up the theme switch; the screens still
+// on the older palette omit it, because a control that visibly does nothing is worse than
+// no control. Those screens still get the sign-out button, which is the point of the bar.
+
+interface Props {
+  theme?: Theme | "";
+}
+
+const { theme } = Astro.props;
+const { user } = Astro.locals;
+
+// Shared with ThemeToggle's own button so the two read as one control group.
+const CONTROL_CLASS =
+  "border-input bg-card text-foreground hover:bg-accent focus-visible:ring-ring/50 inline-flex h-9 items-center justify-center rounded-lg border-[1.5px] transition-colors outline-none focus-visible:ring-[3px]";
+---
+
+<header class="mb-6 flex items-center justify-between gap-4">
+  <slot />
+
+  <div class="flex shrink-0 items-center gap-2">
+    {
+      /* The email is the only confirmation of WHICH account is signed in, and it is the
+        first thing to drop on a narrow screen — the sign-out button beside it stays. */
+    }
+    {
+      user?.email && (
+        <span class="text-muted-foreground hidden max-w-[16rem] truncate text-[13px] sm:inline">{user.email}</span>
+      )
+    }
+
+    {theme !== undefined && <ThemeToggle initialTheme={theme} client:load />}
+
+    {
+      user && (
+        <form method="POST" action="/api/auth/signout">
+          <button type="submit" class:list={[CONTROL_CLASS, "px-3 text-[13px] font-bold"]}>
+            Wyloguj
+          </button>
+        </form>
+      )
+    }
+  </div>
+</header>

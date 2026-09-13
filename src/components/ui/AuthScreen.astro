@@ -8,9 +8,9 @@
 // --background, collapsing the gradient rather than softening an edge that mode
 // exists to keep hard).
 //
-// The theme toggle lives here rather than in Topbar: Topbar is imported only by
-// the landing page, so a toggle there would be unreachable from the very screens
-// this slice reskins.
+// The theme toggle lives here rather than in the signed-in AppBar: these screens
+// are the ones a visitor without a session sees, and AppBar never renders for
+// them — a toggle there would be unreachable from exactly the screens that need it.
 import ThemeToggle from "@/components/ThemeToggle";
 import { resolveTheme, THEME_COOKIE } from "@/lib/theme";
 
