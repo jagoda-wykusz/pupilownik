@@ -1,7 +1,7 @@
 ---
 change_id: ledger-line-drift
 title: Restore the freshness ledger to its schema and pin the shape
-status: planned
+status: implementing
 created: 2026-09-13
 updated: 2026-09-13
 archived_at: null

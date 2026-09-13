@@ -913,9 +913,15 @@ re-inherit them.
 
 ## 8. Freshness Ledger
 
-- Strategy (§1–§5) last reviewed: 2026-09-13 (§5 and its chain string gained `check:links`, and §7 records why that checker's exclusions are its design; §7 gained the install-time dependency entry, closing the second of three build-time third parties, and five stale `context/changes/` links were repointed at their archive paths; §5's lint and typecheck rows now say they catch warnings, and §7 records why follow-up #3's choice was false; §7 closed ci-quality-gates follow-up #5 as explained-not-changed, with the two reasons the dangerous asset scope is unreachable; §5's chain string and gate table gained `test:render`, which the island-prop change added to `ci:gate` without updating the inventory, plus the two font guards; §7 gained the build-time third-party entry; §7 gained the island-prop boundary and its three-layer coverage, plus a withdrawn criticism of the prop-type claim; §3 Phase 2b closed narrower than its name — see the note under the phase table; earlier on 2026-09-11: §3 Phases 3 and 4 closed; §5 rewritten against the repo after the CI it described was found not to exist; §2's Risk #4 and #5 wording corrected against measurement — see §7)
+- Strategy (§1–§5) last reviewed: 2026-09-13
 - Stack versions last verified: 2026-06-28
 - AI-native tool references last verified: 2026-06-28
+
+These three are DATES, not a changelog. The first one reached 1167 characters and eleven
+semicolon-separated clauses before anyone noticed, because each change appended one more — the
+schema in `/10x-test-plan` has always specified a bare date, and living outside this repo it was
+never read by anyone editing this file. What changed and why belongs in §7; this section answers
+only "is the guide stale". `tests/unit/test-plan-shape.test.ts` now enforces the shape.
 
 Refresh (`/10x-test-plan --refresh`) when:
 
