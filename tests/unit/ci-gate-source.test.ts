@@ -281,7 +281,7 @@ describe("the publish gate is still the chain it claims to be", () => {
     // Moving it back is a one-word edit that restores a silent deploy-blocking dependency, which
     // is exactly the shape this file exists to pin.
     //
-    // NOT `--omit=optional` anywhere: measured, the lockfile carries 131 optional entries
+    // NOT `--omit=optional` anywhere: measured, the lockfile carries 152 optional entries (21 of them added by this very change)
     // including `@cloudflare/workerd-linux-64`, so omitting them would strip the platform
     // binaries the build itself needs.
     const manifest = JSON.parse(read("package.json")) as {
@@ -313,10 +313,27 @@ describe("the publish gate is still the chain it claims to be", () => {
     // The other half of the trade. Optional means npm DROPS the package on failure, and Actions is
     // the only place the integration suite runs — without this check `npx supabase start` would
     // quietly fetch a copy from the registry instead of failing.
+    // POSITION, not just presence, and the difference is the whole value of the step. Both
+    // reviewers caught that the original assertion matched the line ANYWHERE: move the guard below
+    // `npx supabase start` and it stays green while the guard is worthless, because `start` would
+    // already have fetched from the registry — the precise outcome it exists to prevent.
+    // `continue-on-error: true` on the step would neuter it the same way.
+    const guard = workflow.search(/^\s*-?\s*run:\s*npx --no-install supabase --version\s*$/m);
+    const start = workflow.search(/^\s*-?\s*run:\s*npx supabase start\s*$/m);
+
+    // Floored for the reason spelled out further up this file: `search` returns -1 when absent, and
+    // -1 is less than everything, so an ordering check on a missing step is a rubber stamp.
     expect(
-      workflow,
+      guard,
       "Actions no longer verifies the CLI installed; a dropped optional dependency would be silently refetched",
-    ).toMatch(/^\s*-?\s*run:\s*npx --no-install supabase --version\s*$/m);
+    ).toBeGreaterThan(-1);
+    expect(start, "the workflow no longer starts the stack, so the guard's position proves nothing").toBeGreaterThan(
+      -1,
+    );
+    expect(
+      guard,
+      "the presence check no longer precedes `supabase start` — npx would fetch before it ran",
+    ).toBeLessThan(start);
   });
 
   it("names vitest projects that actually exist", () => {

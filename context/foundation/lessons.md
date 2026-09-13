@@ -228,11 +228,16 @@ than one copy of React`, co czyta się jak zdublowana zależność, a nie jak ca
 - **Rule**: Dodając zależność z hookiem instalacyjnym, sprawdź JAK ZAWODZI, zanim sprawdzisz, co
   robi. Otwórz skrypt i poszukaj `catch`. Jeśli go nie ma, porażka jest fatalna dla `npm ci` — a to
   znaczy fatalna dla deployu, w miejscu, którego żadna bramka nie widzi. `optionalDependencies` jest
-  tu właściwym narzędziem: npm traktuje porażkę opcjonalnej zależności jako nieśmiertelną (zmierzone
+  tu właściwym narzędziem: npm traktuje porażkę opcjonalnej zależności jako NIEFATALNĄ (zmierzone
   dla `npm ci`, nie tylko `npm install`).
 - **Rule (co za to płacisz)**: Przy porażce npm USUWA opcjonalną paczkę w całości, zamiast zostawić
-  zepsutą. Zawsze zapytaj, kto jej używa i czy zauważy brak. Tu Actions by nie zauważył — `npx`
-  po cichu dociągnąłby CLI z rejestru — więc trzeba było dołożyć `npx --no-install`.
+  zepsutą — i robi to CAŁKOWICIE CICHO. Zmierzone: pełne wyjście `npm ci` w takim przypadku to
+  `up to date in 675ms`, bez ostrzeżenia i bez wzmianki o usuniętej paczce. Zawsze zapytaj, kto jej
+  używa i czy zauważy brak. Actions by nie zauważył — `npx` po cichu dociągnąłby CLI z rejestru —
+  więc trzeba było dołożyć `npx --no-install`. **Lokalna maszyna deweloperska nie dostała
+  odpowiednika i nie ma gdzie go dołożyć**: sześć skryptów `db:*` woła gołe `supabase`, więc awaria
+  przenosi się z czasu instalacji na czas użycia i objawia jako `supabase: not found` godziny
+  później. Odpowiedz na to pytanie dla KAŻDEGO konsumenta, nie tylko dla tego, który ma bramkę.
 - **Rule (nie sięgaj po `--omit=optional`)**: Kusi, żeby przy okazji oszczędzić transfer. Zmierz
   najpierw, ile wpisów w `package-lock.json` ma `"optional": true`. W tym repo 131, w tym binarki
   platformowe `workerd`, `esbuild` i `sharp`, bez których build nie ruszy.

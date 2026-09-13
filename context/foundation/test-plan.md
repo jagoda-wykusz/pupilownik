@@ -824,10 +824,24 @@ re-inherit them.
   | `optionalDependencies` | **exit 0**                          | **no — npm drops it**      |
 
   **`--omit=optional` was ruled out by measurement, not preference**, and the next person should not
-  re-derive this: the lockfile carries 131 optional entries including `@cloudflare/workerd-linux-64`,
+  re-derive this: the lockfile carries 152 optional entries (21 of them added by this very change) including `@cloudflare/workerd-linux-64`,
   `@esbuild/*` and `@img/sharp-*`. Omitting optional dependencies would strip the platform binaries
   the build itself needs. The 98 MB download therefore stays — waste, not a hazard, once the failure
   mode is gone. That was a deliberate scope decision, not an oversight.
+
+  **THE OTHER TRADE, found in review and not noticed when the move was made.**
+  `optionalDependencies` is a PRODUCTION section, not a development one. Measured against the commit
+  before: 21 lockfile entries flipped from `"dev": true` to `"optional": true` — the CLI plus 20
+  transitives — and a package in `optionalDependencies` survives `npm ci --omit=dev` where a
+  devDependency does not.
+
+  Nothing here runs an omit-dev install today, so the impact is zero. But the change INVERTS under a
+  state this repo has already recorded as a likely mistake: F10 of the CI-gate review names
+  `NODE_ENV=production` in the Cloudflare dashboard as "a common reflex". In that state the OLD
+  placement skipped `supabase` outright — no download, no postinstall, so omit-dev was itself a
+  complete fix for the original bug — while the NEW one downloads 98 MB for a binary that container
+  still cannot run. The gate would already be broken there for other reasons, so this is cost rather
+  than a new outage; it is written here so it is a known cost rather than a surprise.
 
   **The trade it creates, and why Actions needed a new step.** On failure npm drops the package
   entirely rather than leaving a broken one. On Cloudflare that is exactly right — nothing there can

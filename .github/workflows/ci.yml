@@ -85,7 +85,7 @@ jobs:
       # npx fail instead of fetch, turning a silent skip into a named failure.
       - name: Verify the Supabase CLI actually installed
         run: npx --no-install supabase --version
-      #
+
       # `supabase start` applies supabase/migrations/ (19 files) and supabase/seed.sql itself, so
       # there is no separate migration step. No `db:reset` either: no integration test depends on
       # seeded identities — every fixture is self-created through tests/helpers/auth.ts.
