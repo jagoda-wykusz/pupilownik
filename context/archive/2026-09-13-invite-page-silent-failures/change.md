@@ -1,10 +1,10 @@
 ---
 change_id: invite-page-silent-failures
 title: The caretaker page swallows both of its RPC errors without logging either
-status: impl_reviewed
+status: archived
 created: 2026-09-13
 updated: 2026-09-13
-archived_at: null
+archived_at: 2026-09-13T17:37:25Z
 ---
 
 ## Notes
