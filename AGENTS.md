@@ -8,6 +8,10 @@ Astro 6 SSR app (React 19 islands, Tailwind 4, Supabase auth, shadcn/ui) deploye
 - `SUPABASE_URL` / `SUPABASE_KEY` are server-only secrets declared in `astro.config.mjs` `env.schema`; read them via `astro:env/server`, never expose to the client. Never commit `.env` or `.dev.vars`.
 - Enable RLS on every new Supabase table with granular per-operation, per-role policies.
 - React islands carry no Next.js directives (`"use client"` etc.).
+- **Never write inside `context/archive/`.** Archived changes are immutable records of what was
+  decided and measured at the time. If a resolved target path starts with `context/archive/`, stop
+  and say: "This change is archived. Open a new change with `/10x-new` instead." To revisit archived
+  work, open a new change and cite the archived folder — do not edit it, and do not unarchive.
 
 ## Build, Test, and Development Commands
 
