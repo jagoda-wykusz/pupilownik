@@ -90,12 +90,12 @@ rather than move it.
 
 #### Automated
 
-- [x] 1.1 §8 holds three bullets, each a bare date under 80 characters
-- [x] 1.2 The new test passes
-- [x] 1.3 It fails when a parenthetical is appended
-- [x] 1.4 It fails when a bullet prefix is renamed
-- [x] 1.5 `npm run ci:gate` passes
+- [x] 1.1 §8 holds three bullets, each a bare date under 80 characters — a19653b
+- [x] 1.2 The new test passes — a19653b
+- [x] 1.3 It fails when a parenthetical is appended — a19653b
+- [x] 1.4 It fails when a bullet prefix is renamed — a19653b
+- [x] 1.5 `npm run ci:gate` passes — a19653b
 
 #### Manual
 
-- [x] 1.6 The explanatory sentence reads as a rule
+- [x] 1.6 The explanatory sentence reads as a rule — a19653b
