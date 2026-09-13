@@ -152,6 +152,24 @@ describe("the publish gate is still the chain it claims to be", () => {
     expect(lintScript, "`npm run lint` tolerates warnings — a rule at `warn` severity cannot block a deploy").toMatch(
       MAX_WARNINGS,
     );
+
+    // THE FLAG IS NOT THE INVOCATION, added after review measured three strings that carry the flag
+    // and still tolerate warnings. The pattern above inspects a string; eslint runs a command line.
+    //
+    //   `--max-warnings 0 --max-warnings 10` -> eslint takes the LAST one. Measured: exit 0.
+    //   `--max-warnings 0 || true`           -> the script swallows the exit code.
+    //   `eslint src/pages --max-warnings 0`  -> flag intact, scope silently narrowed, and §5's
+    //                                           "drift in files no commit touched" depends on `.`.
+    expect(lintScript, "a second --max-warnings overrides the first; eslint takes the last one").not.toMatch(
+      /--max-warnings[\s\S]*--max-warnings/,
+    );
+    expect(lintScript, "the lint script swallows its own exit code, so the threshold cannot fail it").not.toMatch(
+      /(\|\||;|&&\s*true)/,
+    );
+    expect(
+      lintScript,
+      "lint no longer targets the whole project — narrowing it hides drift in untouched files",
+    ).toMatch(/eslint\s+\.(\s|$)/);
     expect(
       checkScript,
       "`npm run check` exits on errors only — a warning-severity diagnostic cannot block a deploy",
@@ -159,19 +177,54 @@ describe("the publish gate is still the chain it claims to be", () => {
   });
 
   it("routes both gates through those scripts by name, so one definition covers both", () => {
-    // The flags above live in package.json. They reach the publish gate and GitHub Actions only
-    // because BOTH invoke the npm scripts rather than calling `eslint` or `astro check` directly.
-    // Inline either tool in the workflow and that copy silently loses the threshold while this
-    // file keeps passing.
+    // The flags live in package.json. They reach the publish gate and GitHub Actions ONLY because
+    // both invoke the npm scripts instead of calling the tools directly; an inline `eslint` in the
+    // workflow silently loses the threshold while package.json still looks correct.
+    //
+    // REWRITTEN AFTER REVIEW, because the first version guarded one spelling and was satisfiable by
+    // a comment — the exact pair of holes lessons.md records. It asserted `/run:\s*npx?\s+eslint/`,
+    // which requires the command on the SAME LINE as `run:`; a `run: |` block scalar walked past it,
+    // and ci.yml already uses one. Its positive half was `toContain("npm run lint")` against raw
+    // YAML — and YAML has comments, so swapping the real step for `pnpm eslint .` while leaving a
+    // comment that mentions `npm run lint` passed all four assertions.
+    //
+    // Order matters in the stripper below and both steps are load-bearing. Comments come out first:
+    // ci.yml:112-113 legitimately discusses `astro check` and ESLint in prose, so asserting over the
+    // raw text would fail on the explanation rather than on a command. `npm run …` lines come out
+    // second: those are the CORRECT invocations, and leaving them in would make the negative
+    // assertions fail on the thing they are supposed to require.
+    const commands = workflow
+      .split("\n")
+      .map((line) => line.replace(/(^|\s)#.*$/, ""))
+      .filter((line) => !/npm run [\w:]+/.test(line))
+      .join("\n");
+
+    // GUARDS THE GUARD, both directions. A stripper that emptied the string would make every
+    // negative below vacuously true, and one that removed nothing would make them fire on prose.
+    expect(commands.length, "stripping removed the whole workflow").toBeGreaterThan(200);
+    expect(
+      commands,
+      "the comment mentioning `astro check` survived stripping — the negatives below would fire on prose",
+    ).not.toContain("regenerates .astro/");
+    expect(commands, "a `run:` step survived stripping, so there is something left to inspect").toContain("run:");
+
+    // Anchored to a real step, not to the substring appearing anywhere. `\s*$` is what keeps
+    // `npm run check` from being satisfied by the `npm run check:secrets` step.
+    expect(workflow, "Actions does not run lint through the npm script").toMatch(/^\s*-?\s*run:\s*npm run lint\s*$/m);
+    expect(workflow, "Actions does not run the typecheck through the npm script").toMatch(
+      /^\s*-?\s*run:\s*npm run check\s*$/m,
+    );
     expect(gate, "lint missing from the publish gate").toContain("npm run lint");
     expect(gate, "typecheck missing from the publish gate").toMatch(CHECK_STEP);
-    expect(workflow, "Actions does not run lint through the npm script").toContain("npm run lint");
-    expect(workflow, "Actions does not run the typecheck through the npm script").toMatch(CHECK_STEP);
-    expect(workflow, "Actions calls eslint directly, bypassing the script's threshold").not.toMatch(
-      /run:\s*npx?\s+eslint/,
+
+    // Token match over what is left, so every invocation form is covered: `run: |` blocks,
+    // `npx --yes eslint`, `./node_modules/.bin/eslint`, `pnpm eslint`, a bare PATH-resolved
+    // `eslint`, and `astro   check` with any spacing.
+    expect(commands, "the workflow invokes eslint directly somewhere, bypassing the script's threshold").not.toMatch(
+      /\beslint\b/,
     );
-    expect(workflow, "Actions calls astro check directly, bypassing the script's threshold").not.toMatch(
-      /run:\s*npx?\s+astro check/,
+    expect(commands, "the workflow invokes astro check directly, bypassing the script's threshold").not.toMatch(
+      /\bastro\s+check\b/,
     );
   });
 

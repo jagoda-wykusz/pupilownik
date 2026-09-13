@@ -80,13 +80,28 @@ const scriptsConfig = tseslint.config({
 // and the call sites know it (src/pages/api/periods.ts carries "Never log inviteToken" directly
 // above one). Twelve such calls were reported as warnings by a rule that never applied to them.
 //
-// NARROWER THAN THE scripts/ BLOCK BELOW, deliberately. That one turns the rule off outright,
+// NARROWER THAN THE scripts/ BLOCK ABOVE, deliberately. That one turns the rule off outright,
 // because a CLI script's output is its interface. An endpoint's output is its HTTP response, not
 // its log — so `console.log` and `console.debug` stay forbidden, and a debugging line left behind
 // still fails the build. Only the two levels that mean "something went wrong" are allowed.
 //
 // Also deliberately NOT extended to src/lib/: those modules are imported by client islands, where
 // the rule protects something real.
+//
+// TWO ASSUMPTIONS THIS GLOB RESTS ON, both flagged in review and both true today rather than
+// guaranteed:
+//
+//   1. Every `.ts` under src/pages/ is an endpoint. That holds for this repo (all nine are, and
+//      nothing outside tests/ imports them) but not for Astro in general: an `_`-prefixed file is
+//      excluded from routing and is a normal place for a helper — which WOULD match this glob,
+//      inherit the allowance, and could legitimately be imported by a client island. If such a file
+//      ever appears, narrow this to `src/pages/**/[!_]*.ts` rather than trusting the comment.
+//   2. The rule pins the LEVEL, not the PAYLOAD. `console.error(error)` or
+//      `console.error(await request.text())` passes it cleanly, and Workers retains logs. What
+//      keeps the twelve existing sites safe is a discipline documented at the call sites — they log
+//      `error.code, error.message` and never the whole error, because a `postgres`-owned SECURITY
+//      DEFINER function does receive the failing row in `details` (see src/pages/api/periods.ts and
+//      src/pages/invite/claim.ts). Nothing mechanical enforces that.
 const serverRouteConfig = tseslint.config({
   files: ["src/pages/**/*.ts"],
   rules: {
