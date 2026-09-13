@@ -144,8 +144,8 @@ which names this item as outstanding.
 
 #### Automated
 
-- [x] 2.1 Full gate passes: `npm run ci:gate`
+- [x] 2.1 Full gate passes: `npm run ci:gate` — 6b88038
 
 #### Manual
 
-- [x] 2.2 §7 reads correctly to someone who was not part of this session
+- [x] 2.2 §7 reads correctly to someone who was not part of this session — 6b88038
