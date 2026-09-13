@@ -917,11 +917,8 @@ re-inherit them.
 - Stack versions last verified: 2026-06-28
 - AI-native tool references last verified: 2026-06-28
 
-These three are DATES, not a changelog. The first one reached 1167 characters and eleven
-semicolon-separated clauses before anyone noticed, because each change appended one more — the
-schema in `/10x-test-plan` has always specified a bare date, and living outside this repo it was
-never read by anyone editing this file. What changed and why belongs in §7; this section answers
-only "is the guide stale". `tests/unit/test-plan-shape.test.ts` now enforces the shape.
+These three are DATES, not a changelog: what changed and why belongs in §7, and
+`tests/unit/test-plan-shape.test.ts` enforces the shape.
 
 Refresh (`/10x-test-plan --refresh`) when:
 
