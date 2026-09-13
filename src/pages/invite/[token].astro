@@ -90,6 +90,13 @@ if (supabase) {
     // A transport/permission failure is NOT the same as an unresolved token. Surfacing it
     // as "link nieaktywny" would tell the visitor to ask for a new link that would work
     // no better (S-01 impl-review F5, applied to the caretaker side).
+    //
+    // The visitor's answer stays exactly that. What changed on 2026-09-13 is that the SERVER
+    // now says so too: this branch used to set the flag and record nothing, so a persistent
+    // RPC failure was invisible to everyone. `code` and `message` only — never the whole error
+    // (a `postgres`-owned SECURITY DEFINER function receives the failing row in `details`) and
+    // never `token`, which is a bearer credential.
+    console.error("get_period_by_token failed:", error.code, error.message);
     loadError = true;
   } else {
     // The function returns NULL for unknown, malformed and revoked tokens alike — see the
@@ -141,7 +148,22 @@ if (supabase && claimSecret) {
   });
   // A failure here is NOT a page failure: the public half already loaded, and showing the
   // error page would hide a trip the visitor can legitimately see. Degrade to pre-claim.
-  claimed = error ? null : (data as ClaimedDetails | RevokedClaim | null);
+  //
+  // THE DEGRADATION IS UNCHANGED; ITS SILENCE IS NOT. Until 2026-09-13 this was a ternary that
+  // discarded `error` outright — no log, no signal of any kind. That made it the worst failure on
+  // this page: a caretaker who HAS claimed gets served the pre-claim view at status 200, their
+  // instructions simply gone, and nobody on either side of the screen learns anything. The `if`
+  // exists only because a ternary has no statement position to log from.
+  //
+  // Same discipline as every other call site: `code` and `message`, never the whole error (a
+  // `postgres`-owned SECURITY DEFINER function receives the failing row in `details`), and never
+  // `claimSecret`, which is the caretaker's bearer credential.
+  if (error) {
+    console.error("get_claimed_details failed:", error.code, error.message);
+    claimed = null;
+  } else {
+    claimed = data as ClaimedDetails | RevokedClaim | null;
+  }
 }
 
 // The reveal answer, split into the two things the page does with it. The split lives in

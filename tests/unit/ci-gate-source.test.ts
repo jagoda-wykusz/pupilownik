@@ -135,10 +135,11 @@ describe("the publish gate is still the chain it claims to be", () => {
     // nothing to publication.
     //
     // THE FLAG CARRIES MORE THAN ITS NAME SUGGESTS, measured rather than assumed. `no-console` is
-    // `error` only for `src/pages/**/*.ts`; everywhere else it is still `warn`. So a console.error
-    // in a client island fails ONLY because of --max-warnings 0. Drop that flag and client code
-    // silently reverts to advisory while endpoints stay strict — the opposite of what a reader
-    // would guess from the eslint config alone.
+    // `error` only for `src/pages/**` — endpoints (`*.ts`) and, since 2026-09-13, server-rendered
+    // pages (`*.astro`); everywhere else it is still `warn`. So a console.error in a client island
+    // fails ONLY because of --max-warnings 0. Drop that flag and client code silently reverts to
+    // advisory while pages and endpoints stay strict — the opposite of what a reader would guess
+    // from the eslint config alone.
     // No `?? ""` here, and the reason is a type that lies: `scripts` is `Record<string, string>`,
     // so dot access is typed `string` and TS would call the fallback unnecessary — while at RUNTIME
     // a deleted script is `undefined`. `toBeTruthy()` catches both that and an empty string, which

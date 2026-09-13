@@ -102,8 +102,21 @@ const scriptsConfig = tseslint.config({
 //      `error.code, error.message` and never the whole error, because a `postgres`-owned SECURITY
 //      DEFINER function does receive the failing row in `details` (see src/pages/api/periods.ts and
 //      src/pages/invite/claim.ts). Nothing mechanical enforces that.
+// Named for endpoints because that is all it covered until 2026-09-13, when `.astro` pages joined
+// on the same argument rather than a new one. A page's frontmatter runs SERVER-side and its
+// `console` output goes to the identical Workers sink an endpoint's does — `wrangler.jsonc` enables
+// observability and this project has no logging library by decision, so `console.error` IS the log
+// sink on both. What the block keeps out is unchanged: `console.log` still fails everywhere here,
+// because a page's output is its HTTP response, not its log.
+//
+// The trigger was measurable: `src/pages/invite/[token].astro` swallowed BOTH of its RPC errors,
+// and a grep for `console.` across every `.astro` file in the repo returned zero. The base rule
+// plus `--max-warnings 0` meant the obvious fix could not be committed.
+//
+// STILL EXCLUDED, deliberately: `src/lib/**`, which client islands import. That exclusion is about
+// which bundle the code can reach, and adding server-rendered pages does not weaken it.
 const serverRouteConfig = tseslint.config({
-  files: ["src/pages/**/*.ts"],
+  files: ["src/pages/**/*.ts", "src/pages/**/*.astro"],
   rules: {
     // `error`, not `warn`: since `npm run lint` now runs with --max-warnings 0, a `warn` here
     // would fail the build identically while telling the reader it is advisory.

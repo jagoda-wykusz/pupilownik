@@ -111,3 +111,60 @@ describe("invite/[token].astro — the instruction tier boundary", () => {
     expect(frontmatter).not.toContain("new Map(");
   });
 });
+
+// The page's two RPC failure branches — the observability half of the same file.
+//
+// Separate describe from the tier boundary above because the concern is different: that block
+// proves the page asks the composition for what it may RENDER; this one proves the page says
+// something when a read fails. They share a subject and nothing else.
+//
+// WHY A SOURCE CHECK IS THE RIGHT LEVEL HERE, and it is a narrower claim than it looks. The defect
+// these cases exist for is an OBSERVABILITY gap, not a wrong output: both branches already produce
+// the correct rendered result. `get_claimed_details` answers NULL for every miss rather than
+// erroring, so forcing a genuine failure needs grant manipulation or a transport fault — a new
+// pattern in this repo for a branch with no behaviour of its own. If either branch ever grows
+// behaviour, this should be revisited at the integration level.
+describe("invite/[token].astro — the two RPC failure branches", () => {
+  const pageSource = readFileSync(PAGE, "utf8");
+  const frontmatter = stripFrontmatterComments(pageSource.slice(0, pageSource.length - templateOf(pageSource).length));
+
+  /** Every `console.error(...)` call in the frontmatter, as its raw argument list.
+   *
+   *  Comments are already stripped, so a rationale sentence naming a forbidden identifier cannot
+   *  land in here — the mistake `stripFrontmatterComments` exists to prevent. */
+  function logCalls(): string[] {
+    return [...frontmatter.matchAll(/console\.error\(([\s\S]*?)\);/g)].map((match) => match[1]);
+  }
+
+  it("says something when the read door fails", () => {
+    // Anchored to the CALL plus the function name, not to a bare identifier: `get_period_by_token`
+    // appears in the rpc invocation a few lines above, so a substring check would pass without any
+    // logging at all.
+    expect(frontmatter).toMatch(/console\.error\(\s*"get_period_by_token failed:"/);
+  });
+
+  it("says something when the reveal door fails", () => {
+    // The one that matters most. A failure here downgrades a caretaker who HAS claimed to the
+    // pre-claim page at status 200 — their instructions vanish and, before this assertion existed,
+    // nothing anywhere recorded it.
+    expect(frontmatter).toMatch(/console\.error\(\s*"get_claimed_details failed:"/);
+  });
+
+  it("never puts a bearer credential in a log line", () => {
+    const calls = logCalls();
+
+    // The control, and it is load-bearing: with no `console.error` at all, the loop below iterates
+    // zero times and the case passes having checked nothing.
+    expect(calls.length, "no console.error calls found — the assertions below would be vacuous").toBeGreaterThanOrEqual(
+      2,
+    );
+
+    for (const args of calls) {
+      // `token` and `claimSecret` are both in scope in this frontmatter. src/lib/invite-token.ts
+      // states the invite token "must never be logged"; the capability secret is the same class of
+      // value. Interpolating either turns a bearer credential into a log entry.
+      expect(args, "a log line interpolates the invite token").not.toMatch(/\btoken\b/);
+      expect(args, "a log line interpolates the capability secret").not.toMatch(/\bclaimSecret\b/);
+    }
+  });
+});
