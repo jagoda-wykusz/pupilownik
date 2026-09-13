@@ -22,6 +22,7 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "test": "vitest run",
+    "test:e2e": "playwright test",
     "test:render": "vitest run --config vitest.render.config.ts",
     "test:watch": "vitest"
   },
@@ -54,6 +55,7 @@
   "devDependencies": {
     "@eslint/compat": "^2.0.3",
     "@eslint/js": "^9.29.0",
+    "@playwright/test": "^1.63.0",
     "@testing-library/react": "^16.3.3",
     "@testing-library/user-event": "^14.6.7",
     "eslint": "^9.29.0",

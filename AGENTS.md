@@ -24,6 +24,10 @@ Astro 6 SSR app (React 19 islands, Tailwind 4, Supabase auth, shadcn/ui) deploye
 
 Vitest runs three projects: `unit` (pure logic, no setup file), `component` (happy-dom) and `integration` (needs `npx supabase start`). Run one with `npx vitest run --project <name>` — but verify any change to `vitest.config.ts` with the whole suite, because a single project cannot exhibit a cross-project config conflict and one of those shipped to master already.
 
+- `npm run test:e2e` — Playwright, `tests/e2e/*.spec.ts`. Needs the local Supabase stack AND a dev server; it attaches to one you already have running. **Deliberately NOT part of `npm run ci:gate`** — the Cloudflare build container has no Docker, so the stack cannot start there.
+
+**Before writing or changing any E2E test, read `@docs/reference/e2e-rules.md`.** It carries the rules that are specific to this repo and are not derivable from general Playwright practice — chiefly: the base URL must stay on loopback (`localhost` in practice — `astro dev` binds only to `[::1]`) because the caretaker capability cookie is `Secure` and a LAN IP makes the browser drop it silently; and "the sensitive text is absent before a claim" must never be a load-bearing assertion, because `test-plan.md` §7 measured that it stays green even when the page is broken. The generic rules (role-based locators, no `waitForTimeout`, independence + cleanup) live in `@CLAUDE.md`, which is a CLI-managed fence — never write project-specific rules there, a `10x-cli get` replaces its whole contents.
+
 ## Coding Style & Conventions
 
 - Node v22.23.2 (`.nvmrc`); TypeScript strict (`astro/tsconfigs/strict`). Import via the `@/*` → `./src/*` alias.

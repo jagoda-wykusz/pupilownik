@@ -22,6 +22,13 @@ pnpm-debug.log*
 .dev.vars
 .wrangler/
 
+# playwright — session state and run output.
+# playwright/.auth/ holds a live session cookie jar AND owner-credentials.json (a throwaway
+# local account's password). Neither may ever be committed.
+playwright/.auth/
+test-results/
+playwright-report/
+
 # macOS-specific files
 .DS_Store
 
