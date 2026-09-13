@@ -1,7 +1,7 @@
 ---
 change_id: invite-page-silent-failures
 title: The caretaker page swallows both of its RPC errors without logging either
-status: implementing
+status: implemented
 created: 2026-09-13
 updated: 2026-09-13
 archived_at: null
@@ -10,6 +10,10 @@ archived_at: null
 ## Notes
 
 Dwa połknięte błędy w src/pages/invite/[token].astro, oba bez żadnego logowania: :92 loadError=true (użytkownik widzi kartę błędu, serwer nie dowiaduje się nic) oraz :144 claimed = error ? null — opiekun, który się zapisał, cicho traci wskazówki i widzi stronę sprzed claimu przy statusie 200. Zero console.\* w jakimkolwiek pliku .astro, a konwencja obserwowalności z test-plan.md:825 jest zakresowana na src/pages/\*\*/\*.ts, więc ma dziurę dokładnie tam. Warstwa API jest czysta — wszystkie 6 routów loguje i propaguje. Do rozstrzygnięcia w planie: czy awaria reveal ma zostać cichą degradacją (+ logowanie), czy stać się widoczna — przy zachowaniu właściwości uniform-failure, która jest przypięta testami.
+
+> **Zdanie „Warstwa API jest czysta — wszystkie 6 routów" powyżej jest nieprawdziwe** i zostaje
+> jako ślad tego, w co wierzyłem otwierając zmianę. Patrz §Korekta audytu niżej: `auth/signout.ts`
+> nigdy nie został otwarty.
 
 ### Audyt przeprowadzony przed otwarciem zmiany (2026-09-13)
 

@@ -331,11 +331,11 @@ None. No schema change, no data migration, no change to any response.
 
 #### Automated
 
-- [x] 2.1 `npm run check:links` passes
-- [x] 2.2 `npm run ci:gate` passes with the dev server killed first
-- [x] 2.3 `npx vitest run` passes
+- [x] 2.1 `npm run check:links` passes — fa7910c
+- [x] 2.2 `npm run ci:gate` passes with the dev server killed first — fa7910c
+- [x] 2.3 `npx vitest run` passes — fa7910c
 
 #### Manual
 
-- [x] 2.4 Every new sentence in `test-plan.md` was read against `eslint.config.js` when written
-- [x] 2.5 The `lessons.md` entry states what was measured
+- [x] 2.4 Every new sentence in `test-plan.md` was read against `eslint.config.js` when written — fa7910c
+- [x] 2.5 The `lessons.md` entry states what was measured — fa7910c
