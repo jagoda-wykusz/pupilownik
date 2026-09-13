@@ -326,11 +326,11 @@ None. No schema change, no data migration, no change to any response status or t
 
 #### Automated
 
-- [x] 2.1 `npm run check:links` passes
-- [x] 2.2 `npx vitest run` passes, `test-plan-shape` included
-- [x] 2.3 `npm run ci:gate` passes with the dev server killed first
+- [x] 2.1 `npm run check:links` passes — 603143a
+- [x] 2.2 `npx vitest run` passes, `test-plan-shape` included — 603143a
+- [x] 2.3 `npm run ci:gate` passes with the dev server killed first — 603143a
 
 #### Manual
 
-- [x] 2.4 The new risk row records likelihood as unmeasured, and why
-- [x] 2.5 Every new sentence in §7 was read against the code when written
+- [x] 2.4 The new risk row records likelihood as unmeasured, and why — 603143a
+- [x] 2.5 Every new sentence in §7 was read against the code when written — 603143a
