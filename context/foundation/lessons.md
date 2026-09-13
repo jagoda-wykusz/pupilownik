@@ -278,3 +278,34 @@ than one copy of React`, co czyta się jak zdublowana zależność, a nie jak ca
   ten typ pliku ma być wyjątkiem. Nie obchodź reguły punktowym `eslint-disable` — następny plik
   powtórzy obejście zamiast odziedziczyć regułę.
 - **Applies to**: plan, implement, impl-review, frame
+
+## Czerwony, którego nie spowodowałeś, nadal jest twój do zapisania
+
+- **Context**: Każdy przebieg pełnego suite'u, w którym pada test spoza zakresu zmiany — inny
+  moduł, inna tabela, inna warstwa. Dotyczy też sytuacji odwrotnej: testu, który pada w suite, a
+  w izolacji przechodzi.
+- **Problem**: W trakcie `signout-swallows-failure` `tests/rls/release-reveal.test.ts` padł raz
+  na trzy pełne przebiegi, a potem był zielony. Nic w tej zmianie nie dotykało release'u,
+  reveala ani ich tabel, więc rozpoznanie „nie moje, pre-existing" było poprawne — i na tym
+  stanęło. Nie zapisałem tego nigdzie. Wyszło dopiero w impl-review jako F10, czyli po
+  zamknięciu implementacji, z jedynym śladem w postaci zdania w rozmowie, która zaraz potem
+  została skompaktowana.
+- **Problem (co dał dopiero pomiar)**: dopiero na etapie triage zmierzyłem to porządnie —
+  `vitest run tests/rls/release-reveal.test.ts`, pięć przebiegów z rzędu, 4/4 za każdym razem.
+  To zmieniło opis z „test bywa czerwony" na „coś w interakcji z resztą suite'u: stan w
+  Supabase, kolejność albo timing", czyli z obserwacji w hipotezę, którą da się sprawdzić.
+  Jeden przebieg w izolacji tego nie daje; pięć daje. **Zielony w izolacji nie jest
+  zaprzeczeniem czerwonego w suite — jest drugą połową opisu.**
+- **Rule**: „Nie moje" i „nie do zapisania" to dwie różne rzeczy. Test, który padł raz i
+  przeszedł przy powtórce, zapisz w miejscu, które przeżyje sesję — z liczbą przebiegów w suite
+  i liczbą w izolacji — nawet jeśli ustaliłeś, że jest starszy niż twoja zmiana. Bez tego
+  następna osoba zobaczy ten sam czerwony jako pierwszy raz i też go przepuści, bo „przeszło za
+  drugim razem".
+- **Rule (dlaczego to nie jest porządkowanie)**: flake uczy czytać wynik przez powtórzenie
+  zamiast przez lekturę. Dokładnie tym kanałem prawdziwa regresja przechodzi niezauważona —
+  ktoś odpala ponownie, robi się zielono, i nikt nie pyta, czy to był ten sam powód. Zapis nie
+  naprawia testu; odbiera „przeszło przy powtórce" status odpowiedzi.
+- **Rule (czego zapis NIE ma udawać)**: notatka o flaku to nie diagnoza. Napisz wprost, że
+  przyczyna jest **nieznana**, i nie zamykaj sprawy zdaniem, które brzmi jak wyjaśnienie.
+  Diagnoza interakcji na poziomie suite'u to własna zmiana, nie przypis do cudzej.
+- **Applies to**: implement, tdd, impl-review, archive
