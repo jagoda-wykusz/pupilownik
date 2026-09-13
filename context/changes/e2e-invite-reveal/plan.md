@@ -539,30 +539,30 @@ None. No schema change, no production code change, no data migration.
 
 #### Automated
 
-- [x] 2.1 `npm run test:e2e` passes
-- [x] 2.2 Run twice back-to-back — all tests pass both times
-- [x] 2.3 Mutation A: reveal test FAILS, outsider test still passes; reverted
-- [x] 2.4 Mutation B: island-props test FAILS, reveal test still passes; reverted
-- [x] 2.5 `git status` clean of both mutations before commit
-- [x] 2.6 `npm run check`, `npm run lint` pass
-- [x] 2.7 `npx vitest run` — existing suite unaffected
+- [x] 2.1 `npm run test:e2e` passes — 2bfa98c
+- [x] 2.2 Run twice back-to-back — all tests pass both times — 2bfa98c
+- [x] 2.3 Mutation A: reveal test FAILS, outsider test still passes; reverted — 2bfa98c
+- [x] 2.4 Mutation B: island-props test FAILS, reveal test still passes; reverted — 2bfa98c
+- [x] 2.5 `git status` clean of both mutations before commit — 2bfa98c
+- [x] 2.6 `npm run check`, `npm run lint` pass — 2bfa98c
+- [x] 2.7 `npx vitest run` — existing suite unaffected — 2bfa98c
 
 #### Manual
 
-- [x] 2.8 Each mutation's failure message names the thing it should
-- [x] 2.9 The spec header's claim about the pre-claim check is accurate
+- [x] 2.8 Each mutation's failure message names the thing it should — 2bfa98c
+- [x] 2.9 The spec header's claim about the pre-claim check is accurate — 2bfa98c
 
 ### Phase 3: CI wiring and document reconciliation
 
 #### Automated
 
-- [ ] 3.1 `npm run check:links` passes
-- [ ] 3.2 `npm run ci:gate` passes with the dev server killed first
-- [ ] 3.3 `npx vitest run` passes
-- [ ] 3.4 The workflow file is valid YAML and new step names are unique
+- [x] 3.1 `npm run check:links` passes
+- [x] 3.2 `npm run ci:gate` passes with the dev server killed first
+- [x] 3.3 `npx vitest run` passes
+- [x] 3.4 The workflow file is valid YAML and new step names are unique
 
 #### Manual
 
-- [ ] 3.5 A CI run executes the E2E job and it passes there
-- [ ] 3.6 Every new sentence in `test-plan.md` was checked against the code when written
-- [ ] 3.7 §7 states what the E2E test cannot fail on
+- [x] 3.5 A CI run executes the E2E job and it passes there
+- [x] 3.6 Every new sentence in `test-plan.md` was checked against the code when written
+- [x] 3.7 §7 states what the E2E test cannot fail on

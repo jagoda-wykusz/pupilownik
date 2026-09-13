@@ -162,13 +162,13 @@ plaintext on every build, which is why the scan targets `dist/client` alone.
 The classic test base for this project: **none yet** (no runner configured, 0
 test files). Phase 1 bootstraps it.
 
-| Layer                 | Tool                                                         | Version   | Notes                                                                                                                   |
-| --------------------- | ------------------------------------------------------------ | --------- | ----------------------------------------------------------------------------------------------------------------------- |
-| unit + integration    | Vitest                                                       | ^4.1      | wired in Phase 1 (`vitest.config.ts`, node env, `npm test`). Natural fit: the project already builds on Vite (Astro 6). |
-| Supabase integration  | local stack (`npx supabase start`) + `@supabase/supabase-js` | installed | Run RLS tests against the local Postgres with two distinct user JWTs; never the service-role client.                    |
-| e2e                   | Playwright                                                   | TBD       | none yet — optional, deferred until a domain flow exists (post-Phase 4).                                                |
-| build-artifact checks | grep over `dist/` build output                               | n/a       | none yet — see §3 Phase 3 (secret-leak gate).                                                                           |
-| (optional) AI-native  | none                                                         | n/a       | not justified under cost × signal at this maturity.                                                                     |
+| Layer                 | Tool                                                         | Version   | Notes                                                                                                                                                                                                                                                                            |
+| --------------------- | ------------------------------------------------------------ | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| unit + integration    | Vitest                                                       | ^4.1      | wired in Phase 1 (`vitest.config.ts`, node env, `npm test`). Natural fit: the project already builds on Vite (Astro 6).                                                                                                                                                          |
+| Supabase integration  | local stack (`npx supabase start`) + `@supabase/supabase-js` | installed | Run RLS tests against the local Postgres with two distinct user JWTs; never the service-role client.                                                                                                                                                                             |
+| e2e                   | Playwright                                                   | ^1.63     | wired 2026-09-13 (`playwright.config.ts`, `tests/e2e/`, `npm run test:e2e`). Chromium only, `retries: 0`. Runs on a developer machine and in GitHub Actions; **never** in the publish gate — the Cloudflare build container has no Docker, so `supabase start` cannot run there. |
+| build-artifact checks | grep over `dist/` build output                               | n/a       | none yet — see §3 Phase 3 (secret-leak gate).                                                                                                                                                                                                                                    |
+| (optional) AI-native  | none                                                         | n/a       | not justified under cost × signal at this maturity.                                                                                                                                                                                                                              |
 
 **Stack grounding tools (current session):**
 
@@ -210,26 +210,26 @@ the one this project keeps relearning from the other direction: **an instruction
 inventory look identical in prose, and the only way to tell them apart is to observe the
 system.**
 
-| Gate                                          | Where it runs                                                  | Enforced?                                         | Catches                                                                                           |
-| --------------------------------------------- | -------------------------------------------------------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| format (prettier, edited file)                | per-edit agent hook (`.claude/hooks/format-edited-file.mjs`)   | agent sessions only                               | formatting drift; a file the formatter cannot parse                                               |
-| format (prettier, staged json/css/md)         | pre-commit, lint-staged                                        | every commit                                      | formatting drift in non-code files                                                                |
-| lint (staged files)                           | pre-commit, lint-staged → `eslint --fix` on `*.{ts,tsx,astro}` | every commit                                      | syntactic drift                                                                                   |
-| lint (whole project)                          | **publish gate** + GitHub Actions                              | **every deploy; blocks publication**              | drift in files no commit touched; any WARNING (`--max-warnings 0`)                                |
-| typecheck                                     | pre-commit → `npm run check`; **publish gate**; Actions        | every commit **and every deploy**                 | type drift, including inside `.astro` templates; any WARNING (`--minimumFailingSeverity warning`) |
-| build                                         | **publish gate** + GitHub Actions                              | **every deploy; blocks publication**              | broken SSR build                                                                                  |
-| unit + component                              | **publish gate** + GitHub Actions                              | **every deploy; blocks publication**              | logic regressions                                                                                 |
-| unit + integration, scoped to the edited file | per-edit agent hook (`.claude/hooks/related-tests.mjs`)        | agent sessions only; skips when the stack is down | regressions on the path just edited                                                               |
-| secret-leak scan of `dist/client`             | `npm run check:secrets`, and a test inside `npm test`          | **every deploy; blocks publication**              | a secret literal pasted into a client island                                                      |
-| env schema shape                              | a test inside `npm test`                                       | **every deploy; blocks publication**              | a `PUBLIC_`/client-context redeclaration that would inline a secret                               |
-| Supabase advisors (security)                  | `npx supabase db advisors`, by hand                            | recommended on every migration                    | RLS / definer-function issues                                                                     |
-| integration (RLS + routes)                    | **GitHub Actions only** — the build container has no Docker    | every push and PR, but **cannot block a merge**   | RLS + route regressions                                                                           |
-| gate contents themselves                      | `tests/unit/ci-gate-source.test.ts`                            | **every deploy; blocks publication**              | a step quietly removed from either gate                                                           |
-| island props in rendered pages                | `tests/render/island-props.test.ts` via `npm run test:render`  | **every deploy; blocks publication**              | a server secret reaching the browser inside `<astro-island props>`                                |
-| font provider source                          | `tests/unit/font-source.test.ts`                               | **every deploy; blocks publication**              | a Google host re-entering the build path through a config edit                                    |
-| fonts actually emitted by the build           | `tests/unit/font-assets.test.ts`                               | **every deploy; blocks publication**              | a build that exits 0 having produced no webfonts, or lost `unicode-range`                         |
-| documentation links                           | `npm run check:links`, first in `ci:gate` + Actions            | **every deploy; blocks publication**              | a document citing a path that no longer exists                                                    |
-| e2e on critical flows                         | —                                                              | not present                                       | broken critical user paths                                                                        |
+| Gate                                          | Where it runs                                                             | Enforced?                                                                  | Catches                                                                                                                     |
+| --------------------------------------------- | ------------------------------------------------------------------------- | -------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| format (prettier, edited file)                | per-edit agent hook (`.claude/hooks/format-edited-file.mjs`)              | agent sessions only                                                        | formatting drift; a file the formatter cannot parse                                                                         |
+| format (prettier, staged json/css/md)         | pre-commit, lint-staged                                                   | every commit                                                               | formatting drift in non-code files                                                                                          |
+| lint (staged files)                           | pre-commit, lint-staged → `eslint --fix` on `*.{ts,tsx,astro}`            | every commit                                                               | syntactic drift                                                                                                             |
+| lint (whole project)                          | **publish gate** + GitHub Actions                                         | **every deploy; blocks publication**                                       | drift in files no commit touched; any WARNING (`--max-warnings 0`)                                                          |
+| typecheck                                     | pre-commit → `npm run check`; **publish gate**; Actions                   | every commit **and every deploy**                                          | type drift, including inside `.astro` templates; any WARNING (`--minimumFailingSeverity warning`)                           |
+| build                                         | **publish gate** + GitHub Actions                                         | **every deploy; blocks publication**                                       | broken SSR build                                                                                                            |
+| unit + component                              | **publish gate** + GitHub Actions                                         | **every deploy; blocks publication**                                       | logic regressions                                                                                                           |
+| unit + integration, scoped to the edited file | per-edit agent hook (`.claude/hooks/related-tests.mjs`)                   | agent sessions only; skips when the stack is down                          | regressions on the path just edited                                                                                         |
+| secret-leak scan of `dist/client`             | `npm run check:secrets`, and a test inside `npm test`                     | **every deploy; blocks publication**                                       | a secret literal pasted into a client island                                                                                |
+| env schema shape                              | a test inside `npm test`                                                  | **every deploy; blocks publication**                                       | a `PUBLIC_`/client-context redeclaration that would inline a secret                                                         |
+| Supabase advisors (security)                  | `npx supabase db advisors`, by hand                                       | recommended on every migration                                             | RLS / definer-function issues                                                                                               |
+| integration (RLS + routes)                    | **GitHub Actions only** — the build container has no Docker               | every push and PR, but **cannot block a merge**                            | RLS + route regressions                                                                                                     |
+| gate contents themselves                      | `tests/unit/ci-gate-source.test.ts`                                       | **every deploy; blocks publication**                                       | a step quietly removed from either gate                                                                                     |
+| island props in rendered pages                | `tests/render/island-props.test.ts` via `npm run test:render`             | **every deploy; blocks publication**                                       | a server secret reaching the browser inside `<astro-island props>`                                                          |
+| font provider source                          | `tests/unit/font-source.test.ts`                                          | **every deploy; blocks publication**                                       | a Google host re-entering the build path through a config edit                                                              |
+| fonts actually emitted by the build           | `tests/unit/font-assets.test.ts`                                          | **every deploy; blocks publication**                                       | a build that exits 0 having produced no webfonts, or lost `unicode-range`                                                   |
+| documentation links                           | `npm run check:links`, first in `ci:gate` + Actions                       | **every deploy; blocks publication**                                       | a document citing a path that no longer exists                                                                              |
+| e2e on critical flows                         | `npm run test:e2e`; **GitHub Actions only** — needs Docker + a dev server | every push and PR, but **cannot block a merge**, and never blocks a deploy | the caretaker reveal chain end to end: claim → cookie jar → reload → SSR, and the sensitive tier reaching an island's props |
 
 **Why so many rows now say "blocks publication", corrected 2026-09-12.** Five rows read
 "with the suite", which is true but misleading in the one way this section exists to prevent:
@@ -351,7 +351,19 @@ tidy.
 
 ### 6.3 Adding an e2e test
 
-- TBD — deferred until a domain flow exists (post-§3 Phase 4).
+**Read `docs/reference/e2e-rules.md` first** — it carries the rules that are specific to this
+repo and not derivable from general Playwright practice. Model the test on
+`tests/e2e/seed.spec.ts`; that file is the exemplar a generator copies.
+
+1. Start from a §2 risk that genuinely needs a browser — it crosses several boundaries (auth,
+   routing, API, DB) or exists only in the rendered UI. If an isolated function can prove it, a
+   unit or integration test is cheaper and more honest.
+2. Seed through `tests/e2e/fixtures/`, per test, with an anon-keyed client — never service-role,
+   which bypasses RLS and makes the surrounding assertions tautological.
+3. `await waitForHydration(page)` before touching any island. Controlled inputs are reset by
+   hydration and clicks on un-hydrated buttons do nothing, silently.
+4. Prove the assertion bites by a deliberate break, and check WHICH assertion moved — not merely
+   that something went red. Revert it; never commit it.
 
 ### 6.4 Adding a test for a new API endpoint
 
@@ -414,8 +426,11 @@ capturing anything surprising the phase taught.)
   intent; (3) a plpgsql function returning a composite answers `return null` with a row of
   NULLs, not NULL, so an RLS miss reads as a hit at the client — return a scalar when the
   caller needs to tell "nothing happened" apart from "here it is". Also note what is
-  deliberately NOT tested: the caretaker page is verified through HTTP by hand (§7 — no e2e
-  runner), because an automated version would depend on a running dev server.
+  deliberately NOT tested at the time: the caretaker page was verified through HTTP by hand,
+  because an automated version would depend on a running dev server. **Superseded in part on
+  2026-09-13** — the post-claim reveal flow is now driven by Playwright
+  (`tests/e2e/invite-reveal.spec.ts`), outside `npm test`; the page's other branches are still
+  unasserted. See §7.
 
 - **S-08 (`period-pets-relation`)**: the first table in this schema whose ownership is
   transitive through TWO parents, and the recipe changes because of it. §6.5's four denial
@@ -500,13 +515,17 @@ contributors should respect these unless the underlying assumption changes.
 - **Tailwind styling / exact class output** — brittle and low-signal. Re-evaluate if a
   visual regression ever causes a real incident. (Source: Phase 2 interview Q5.)
 
-- **The caretaker page's rendered HTML (S-02).** `/invite/[token]` is verified through HTTP
-  by hand, not by an automated test: an automated version would need a running dev server,
-  so it would fail `npm test` whenever the server is down, and this project has no e2e runner
-  by choice. What IS covered automatically is the part that decides the answer —
-  `resolveInviteView` (`tests/unit/invite-view.test.ts`) pins the uniform-failure rule
-  (identical status, title and body for unknown / tampered / malformed / revoked), and
-  `tests/rls/invite-token.test.ts` pins the SQL side. The template itself is not asserted.
+- **The caretaker page's rendered HTML (S-02) — PARTLY COVERED since 2026-09-13, and the
+  boundary is worth stating precisely.** This entry used to read "this project has no e2e runner
+  by choice"; that is no longer true. `tests/e2e/invite-reveal.spec.ts` now drives the page in a
+  real Chromium and asserts the POST-CLAIM state: the sensitive tier on screen, and that same
+  text absent from every `<astro-island props>`. It lives outside `npm test` (its own runner and
+  script), so the original objection — a suite that fails whenever the dev server is down — does
+  not apply to it.
+  What is STILL not asserted: every other branch of the template. The inactive card, the revoked
+  card, the error card and the uniform-failure rule remain pinned only by `resolveInviteView`
+  (`tests/unit/invite-view.test.ts`) and `tests/rls/invite-token.test.ts` on the SQL side. One
+  flow is covered; the template as a whole is not.
 
 - **The SELECT and DELETE halves of `care_period_pets`'s owner predicate (S-08).** All four
   policies are a conjunction over both parents (caller owns the period AND the pet), and the
@@ -602,6 +621,16 @@ re-inherit them.
   tier separation, id-keyed matching, no dropped or conjured pet, and the note travelling only
   with the reveal. Real, and narrower than "the API leaks the field anyway" suggests here.
 
+  **What the 2026-09-13 e2e test does and does NOT add to this, measured rather than reasoned.**
+  `tests/e2e/invite-reveal.spec.ts` carries a pre-claim check that the sensitive text is absent.
+  That check is a co-assertion, NOT a guard, and the paragraph above is why: disabling the
+  sensitive block's render in `[token].astro` and re-running left the pre-claim assertions GREEN
+  and failed the test at the POST-claim assertion instead. So nobody should credit the e2e suite
+  with defending the pre-claim boundary — `tests/rls/reveal-instructions.test.ts` does that, one
+  layer down. What the e2e test genuinely adds is the chain no other layer touches: the browser's
+  own cookie jar. Inverting the capability cookie's `Path` turns the reveal red; that failure is
+  invisible to `tests/api/invite-claim.test.ts`, which drives the claim route with a FAKE jar.
+
 - **Risk #5's owner routes are defended by two different fences, and which one holds depends on
   the caller.** With NO session cookie — the link-only caretaker Risk #5 is about — deleting a
   route's `locals.user` check does not produce a write: the client is anon-keyed and anon holds
@@ -686,11 +715,12 @@ re-inherit them.
   Three layers now stand on that boundary, and they catch different mistakes — worth stating
   separately, because each is useless against the others' shape:
 
-  | Guard                                        | Catches                                                   | Blind to                                                 |
-  | -------------------------------------------- | --------------------------------------------------------- | -------------------------------------------------------- |
-  | `astro check` (pre-commit + gate)            | an undeclared prop; a field absent from the source object | a secret in a prop already declared `string`             |
-  | `no-restricted-imports` (`eslint.config.js`) | the import itself, in any `.astro` file                   | the value arriving via a helper, a re-export or a spread |
-  | `tests/render/island-props.test.ts`          | the rendered bytes, through any indirection               | islands on branches that need a session                  |
+  | Guard                                          | Catches                                                      | Blind to                                                 |
+  | ---------------------------------------------- | ------------------------------------------------------------ | -------------------------------------------------------- |
+  | `astro check` (pre-commit + gate)              | an undeclared prop; a field absent from the source object    | a secret in a prop already declared `string`             |
+  | `no-restricted-imports` (`eslint.config.js`)   | the import itself, in any `.astro` file                      | the value arriving via a helper, a re-export or a spread |
+  | `tests/render/island-props.test.ts`            | the rendered bytes, through any indirection                  | islands on branches that need a session                  |
+  | `tests/e2e/invite-reveal.spec.ts` (2026-09-13) | sensitive INSTRUCTION TEXT in the props of a post-claim page | every page and branch but this one; key-shaped secrets   |
 
   **The correction this entry exists to carry.** `context/archive/2026-09-11-testing-secret-leak/research.md:82`
   records `claim_digest` as "guarded by `CaretakerLabel`'s prop type", and `src/lib/caretaker-name.ts:110-118`
@@ -702,10 +732,18 @@ re-inherit them.
   is `string`, because a secret is a string. Say both halves: a reader who concludes types cover this
   is wrong, and so is one who concludes they cover nothing.
 
-  **Not tested, deliberately**: islands on gated branches. Without middleware the sweep renders the
-  degraded branch, so `periods/[id].astro` yields 1 island of its 4 and `invite/[token].astro` 1 of 2. Lighting them up needs an injected authenticated `locals`, which needs Docker — turning a
+  **Not tested by the sweep, deliberately**: islands on gated branches. Without middleware it renders
+  the degraded branch, so `periods/[id].astro` yields 1 island of its 4 and `invite/[token].astro` 1 of 2. Lighting them up needs an injected authenticated `locals`, which needs Docker — turning a
   3-second gate step into an integration test. The sweep pins per-page island floors instead, so a
   page that silently stops rendering islands fails rather than passes quietly.
+
+  **One of those gated branches is now covered, by a different runner.** `tests/e2e/invite-reveal.spec.ts`
+  reaches the post-claim `invite/[token].astro` — the one state where the page HOLDS sensitive rows
+  and renders an island at the same time — and asserts the sensitive title, body and trip note appear
+  in none of the page's `props` attributes. Proven by mutation on 2026-09-13: adding
+  `revealed={details}` to `<ClaimSlots />` turns ONLY that test red, naming the leaked string. The
+  sweep could not have caught it (no session, so no data) and `check:secrets` could not
+  (SSR output never reaches `dist/client`). The remaining gated branches stay uncovered.
 
 - **Build-time third parties: one is gone, the others are named rather than tested.** Measured
   2026-09-12 (`vendor-build-fonts`), and the measurement is the point — F9 of the CI-gate review

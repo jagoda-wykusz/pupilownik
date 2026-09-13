@@ -155,3 +155,33 @@ jobs:
       # same command guards it through the real build variables instead.
       - name: Scan the client bundle for secrets
         run: npm run check:secrets
+
+      # E2E, LAST on purpose. It is the slowest and most flake-prone layer here, and every step
+      # above is cheaper and more deterministic — a failure in one of those should reach the log
+      # before a browser ever starts.
+      #
+      # This is the only environment besides a developer's machine where it can run at all, for
+      # exactly the reason the integration suite is stuck here: it needs the local Supabase stack
+      # (already started above) AND a dev server, and the Cloudflare build container has no Docker.
+      # It therefore CANNOT block a deploy, and — like everything else in this file — cannot block
+      # a merge either. See the header.
+      #
+      # `--with-deps` installs the shared libraries headless Chromium needs on a bare ubuntu
+      # runner; without it the browser fails to launch rather than failing a test.
+      - name: Install the Chromium Playwright drives
+        run: npx playwright install --with-deps chromium
+
+      # playwright.config.ts sets `reuseExistingServer: !process.env.CI`, and Actions sets CI=true,
+      # so Playwright starts its own `npm run dev` here rather than attaching to one.
+      - name: E2E — the caretaker reveal chain
+        run: npm run test:e2e
+
+      # The traces and screenshots the config retains on failure. Only useful when the step above
+      # failed, which is what `if: failure()` says.
+      - name: Upload the Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
