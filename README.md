@@ -1,8 +1,30 @@
-# 10x Astro Starter
+# Pupilownik
 
-![](./public/template.png)
+**Kto nakarmi psa, kiedy jedziesz na tydzień?** Dziś odpowiedź organizuje się seryjnie —
+właściciel pyta zaufane osoby po kolei przez komunikator, jedna osoba zwlekająca z odpowiedzią
+blokuje pytanie kolejnej, ciężar całego wyjazdu spada na tę, która odpisała pierwsza, a
+skomplikowane instrukcje karmienia trzeba wiarygodnie przekazać każdemu opiekunowi osobno.
 
-A modern, opinionated starter template for building fast, accessible web applications.
+Pupilownik zamienia to na **równoległy, samoobsługowy zapis na terminy w zamkniętym kręgu
+zaproszonym linkiem**. Właściciel definiuje zwierzęta wraz z instrukcjami opieki, tworzy wyjazd
+(zakres dat → sloty rano / wieczór) i wysyła jeden link. Opiekunowie sami zajmują wolne terminy.
+To nie jest marketplace opiekunów ani publiczne ogłoszenie — krąg jest wąski i zaufany.
+
+Pełny opis problemu, person, kryteriów sukcesu i wymagań funkcjonalnych:
+[`context/foundation/prd.md`](./context/foundation/prd.md).
+
+## Dwie ścieżki
+
+|               | Właściciel                                                                                                 | Opiekun                                                                                          |
+| ------------- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| Dostęp        | konto (email + hasło), Supabase Auth                                                                       | **bez konta** — wyłącznie link zapraszający                                                      |
+| Co robi       | dodaje zwierzęta i instrukcje, tworzy wyjazd, generuje link, widzi obsadę, zwalnia termin, odwołuje wyjazd | otwiera link, czyta publiczne instrukcje, zajmuje wolne terminy podając imię                     |
+| Zakres danych | tylko własne wiersze — egzekwowane przez RLS, nie przez kod aplikacji                                      | tylko ten jeden wyjazd; wrażliwe instrukcje (adres, kody dostępu) dopiero **po** zajęciu terminu |
+
+Dwie reguły produktu, które trzymają całość: **żaden termin nie może zostać obsadzony dwukrotnie**
+(atomowy `claim_slots`, wszystko albo nic) i **nic nie wycieka poza krąg z linku** (surowy token
+nigdy nie trafia do bazy — zapisywany jest wyłącznie jego SHA-256, a token wraca do właściciela
+dokładnie raz).
 
 ## Tech Stack
 
@@ -23,8 +45,8 @@ A modern, opinionated starter template for building fast, accessible web applica
 1. Clone the repository:
 
 ```bash
-git clone https://github.com/przeprogramowani/10x-astro-starter.git
-cd 10x-astro-starter
+git clone https://github.com/jagoda-wykusz/pupilownik.git
+cd pupilownik
 ```
 
 2. Install dependencies:
@@ -62,14 +84,26 @@ npm run dev
 ```md
 .
 ├── src/
+│ ├── pages/ # Astro pages + API routes (`api/`, `invite/`, `periods/`, `pets/`)
+│ ├── components/ # UI — Astro for static layout, React islands where interactive
+│ ├── lib/ # Domain logic: invite tokens, claim cookie, zod schemas, formatting
+│ ├── middleware.ts # Route gating (PROTECTED_ROUTES) + no-referrer/no-store on /invite
 │ ├── layouts/ # Astro layouts
-│ ├── pages/ # Astro pages
-│ │ └── api/ # API endpoints
-│ ├── components/ # UI components (Astro & React)
-│ └── assets/ # Static assets
+│ └── assets/ # Self-hosted fonts
+├── supabase/migrations/ # Schema, RLS policies and the RPCs that carry the domain rules
+├── tests/ # vitest: unit / component / integration (RLS) / render, plus Playwright e2e
+├── context/foundation/ # PRD, roadmap, test plan, tech stack — the written foundation
+├── context/archive/ # Closed changes: plan, research and implementation reviews
+├── docs/reference/ # Data access, contract surfaces, e2e rules, agent hooks
 ├── public/ # Public assets
-├── wrangler.jsonc # Cloudflare Workers config
+└── wrangler.jsonc # Cloudflare Workers config
 ```
+
+The domain rules live in the database, not in the handlers. `claim_slots`,
+`create_period_with_slots`, `release_slot`, `revoke_period` and `regenerate_period_token` are
+Postgres functions under `supabase/migrations/`; an API route validates input with zod, calls one
+of them, and maps its error code to a message. What each of those surfaces promises is written
+down in [`docs/reference/contract-surfaces.md`](./docs/reference/contract-surfaces.md).
 
 ## Supabase Configuration
 
@@ -85,34 +119,34 @@ Requires [Docker](https://www.docker.com/) and ~7 GB RAM.
 cp .env.example .env
 ```
 
-2. Initialize the local Supabase project (creates a `supabase/` config folder):
+2. Start the local stack (downloads Docker images on first run). The `supabase/` folder is
+   already in the repository, so there is no `supabase init` step — `start` picks up its config
+   and applies every migration in `supabase/migrations/`:
 
 ```bash
-npx supabase init
+npm run db:start
 ```
 
-3. Start the local stack (downloads Docker images on first run):
-
-```bash
-npx supabase start
-```
-
-4. Copy the credentials printed by the CLI into your `.env` and `.dev.vars`:
+3. Copy the credentials printed by the CLI into your `.env` and `.dev.vars`:
 
 ```
 SUPABASE_URL=http://127.0.0.1:54321
 SUPABASE_KEY=<anon key from CLI output>
 ```
 
-5. To stop the stack when done:
+4. To stop the stack when done:
 
 ```bash
-npx supabase stop
+npm run db:stop
 ```
 
 The local Studio UI is available at `http://localhost:54323`.
 
-No database tables or migrations are required — this project uses Supabase Auth's built-in `auth.users` table only.
+The schema lives in `supabase/migrations/` — `profiles`, `pets`, `care_instructions`,
+`care_periods`, `care_slots` and `care_period_pets`, each with RLS enabled and per-operation,
+per-role policies. `npm run db:start` applies them; `npm run db:reset` rebuilds the database from
+scratch. Authorization is enforced by those policies rather than by handler code, so a query in a
+page carries no `owner_id` filter — see [`docs/reference/data-access.md`](./docs/reference/data-access.md).
 
 ### Using a cloud Supabase project instead
 
