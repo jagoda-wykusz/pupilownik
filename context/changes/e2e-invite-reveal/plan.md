@@ -556,13 +556,13 @@ None. No schema change, no production code change, no data migration.
 
 #### Automated
 
-- [x] 3.1 `npm run check:links` passes
-- [x] 3.2 `npm run ci:gate` passes with the dev server killed first
-- [x] 3.3 `npx vitest run` passes
-- [x] 3.4 The workflow file is valid YAML and new step names are unique
+- [x] 3.1 `npm run check:links` passes — 7023efb
+- [x] 3.2 `npm run ci:gate` passes with the dev server killed first — 7023efb
+- [x] 3.3 `npx vitest run` passes — 7023efb
+- [x] 3.4 The workflow file is valid YAML and new step names are unique — 7023efb
 
 #### Manual
 
-- [x] 3.5 A CI run executes the E2E job and it passes there
-- [x] 3.6 Every new sentence in `test-plan.md` was checked against the code when written
-- [x] 3.7 §7 states what the E2E test cannot fail on
+- [x] 3.5 A CI run executes the E2E job and it passes there — 7023efb
+- [x] 3.6 Every new sentence in `test-plan.md` was checked against the code when written — 7023efb
+- [x] 3.7 §7 states what the E2E test cannot fail on — 7023efb
