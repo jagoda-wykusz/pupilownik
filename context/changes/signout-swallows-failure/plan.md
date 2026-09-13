@@ -309,28 +309,28 @@ None. No schema change, no data migration, no change to any response status or t
 
 #### Automated
 
-- [x] 1.1 Both new assertions FAIL against the unmodified route, each for its own reason
-- [x] 1.2 `npx vitest run tests/api/signout-failure.test.ts` passes after the fix
-- [x] 1.3 The three existing cases in `tests/api/signout.test.ts` still pass, unmodified
-- [x] 1.4 `npm run lint` passes with `--max-warnings 0`
-- [x] 1.5 `npm run check` passes
-- [x] 1.6 `npx vitest run` — full suite green
-- [x] 1.7 Deliberate break: removing the error-path clearing reddens the route case, not the library case; reverted
+- [x] 1.1 Both new assertions FAIL against the unmodified route, each for its own reason — 383ce1a
+- [x] 1.2 `npx vitest run tests/api/signout-failure.test.ts` passes after the fix — 383ce1a
+- [x] 1.3 The three existing cases in `tests/api/signout.test.ts` still pass, unmodified — 383ce1a
+- [x] 1.4 `npm run lint` passes with `--max-warnings 0` — 383ce1a
+- [x] 1.5 `npm run check` passes — 383ce1a
+- [x] 1.6 `npx vitest run` — full suite green — 383ce1a
+- [x] 1.7 Deliberate break: removing the error-path clearing reddens the route case, not the library case; reverted — 383ce1a
 
 #### Manual
 
-- [x] 1.8 The log line carries only `code` and `message`
-- [x] 1.9 The comment states the accepted limit rather than implying revocation
+- [x] 1.8 The log line carries only `code` and `message` — 383ce1a
+- [x] 1.9 The comment states the accepted limit rather than implying revocation — 383ce1a
 
 ### Phase 2: Reconcile the risk map and §7
 
 #### Automated
 
-- [ ] 2.1 `npm run check:links` passes
-- [ ] 2.2 `npx vitest run` passes, `test-plan-shape` included
-- [ ] 2.3 `npm run ci:gate` passes with the dev server killed first
+- [x] 2.1 `npm run check:links` passes
+- [x] 2.2 `npx vitest run` passes, `test-plan-shape` included
+- [x] 2.3 `npm run ci:gate` passes with the dev server killed first
 
 #### Manual
 
-- [ ] 2.4 The new risk row records likelihood as unmeasured, and why
-- [ ] 2.5 Every new sentence in §7 was read against the code when written
+- [x] 2.4 The new risk row records likelihood as unmeasured, and why
+- [x] 2.5 Every new sentence in §7 was read against the code when written

@@ -34,7 +34,11 @@ leans on the PRD guardrails and the Phase 2 interview more than on churn.
 
 The top failure scenarios this project must protect against, ordered by
 risk = impact × likelihood. Risks are failure scenarios in user / business
-terms, not test names. The Source column cites the _evidence that surfaced
+terms, not test names. **Risk #8's likelihood is recorded as `unmeasured`, not estimated.**
+Its trigger is an error from the auth server, and this project has no application
+monitoring (`roadmap.md`: "brak warstwy aplikacyjnej"), so nobody knows how often that
+happens. A number there would be invented, and the value of these weights is that they
+are not. The Source column cites the _evidence that surfaced
 this risk_ — never a specific file as "where the failure lives" (see §1
 principle #3).
 
@@ -45,15 +49,16 @@ therefore live and covered (see the row below). Risks #3 and #4 remain real PRD
 guardrails living in code that does not exist yet (S-03); they activate as that
 slice ships (see §3 Phase 4).
 
-| #   | Risk (failure scenario)                                                                                                                          | Impact | Likelihood | Source (evidence — not anchor)                                                                                                                                                                                                                                                                                                                                                                                  |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ------ | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | A logged-in owner reads or modifies another owner's rows (data / instructions / sign-ups) through a missing or incorrect RLS policy              | High   | High       | interview Q1; PRD §Access Control; AGENTS hard rule "RLS on every table"; hot-spot dir `supabase/migrations/` (2 commits/30d)                                                                                                                                                                                                                                                                                   |
-| 2   | A protected route stops being gated, or signup/signin/session handling lets an unauthenticated user reach owner data                             | High   | Med        | interview Q1; PRD §Access Control; hot-spot dir `src/` (`middleware` + auth routes)                                                                                                                                                                                                                                                                                                                             |
-| 3   | _(forward — S-03)_ Two caretakers claim the same slot; allocation is not atomic, producing a double-booking                                      | High   | Med        | PRD §NFR (atomic claim), §Business Logic; interview Q3                                                                                                                                                                                                                                                                                                                                                          |
-| 4   | _(forward — S-01/S-03)_ Sensitive instructions (address, access codes) are shown before a slot is claimed, or to someone outside the invite link | High   | Med        | PRD FR-008, §NFR; interview Q1                                                                                                                                                                                                                                                                                                                                                                                  |
-| 5   | The link-only (no-auth) caretaker path grants more than its scope, or a leaked/guessed token exposes a period                                    | High   | Med        | PRD FR-005/FR-007; interview Q3; abuse lens (IDOR / bearer token). **Active since S-02.** Covered by `tests/rls/invite-token.test.ts` (the SECURITY DEFINER function is the only anon door), `tests/api/periods.post.test.ts` (the minted token opens the period; no digest in the response) and `tests/middleware/auth-gating.test.ts` (`/invite` public by requirement, and its no-referrer/no-store headers) |
-| 6   | A Secret/service-role key or sensitive instruction text escapes into the client bundle, logs, or error bodies                                    | High   | Low–Med    | AGENTS hard rule "server-only secrets"; abuse lens (secret/PII leakage)                                                                                                                                                                                                                                                                                                                                         |
-| 7   | An API handler trusts client input (missing or weak zod), accepting malformed or forbidden data                                                  | Med    | Med        | AGENTS rule "validate input with zod"; abuse lens (untrusted input)                                                                                                                                                                                                                                                                                                                                             |
+| #   | Risk (failure scenario)                                                                                                                          | Impact | Likelihood     | Source (evidence — not anchor)                                                                                                                                                                                                                                                                                                                                                                                  |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ------ | -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | A logged-in owner reads or modifies another owner's rows (data / instructions / sign-ups) through a missing or incorrect RLS policy              | High   | High           | interview Q1; PRD §Access Control; AGENTS hard rule "RLS on every table"; hot-spot dir `supabase/migrations/` (2 commits/30d)                                                                                                                                                                                                                                                                                   |
+| 2   | A protected route stops being gated, or signup/signin/session handling lets an unauthenticated user reach owner data                             | High   | Med            | interview Q1; PRD §Access Control; hot-spot dir `src/` (`middleware` + auth routes)                                                                                                                                                                                                                                                                                                                             |
+| 3   | _(forward — S-03)_ Two caretakers claim the same slot; allocation is not atomic, producing a double-booking                                      | High   | Med            | PRD §NFR (atomic claim), §Business Logic; interview Q3                                                                                                                                                                                                                                                                                                                                                          |
+| 4   | _(forward — S-01/S-03)_ Sensitive instructions (address, access codes) are shown before a slot is claimed, or to someone outside the invite link | High   | Med            | PRD FR-008, §NFR; interview Q1                                                                                                                                                                                                                                                                                                                                                                                  |
+| 5   | The link-only (no-auth) caretaker path grants more than its scope, or a leaked/guessed token exposes a period                                    | High   | Med            | PRD FR-005/FR-007; interview Q3; abuse lens (IDOR / bearer token). **Active since S-02.** Covered by `tests/rls/invite-token.test.ts` (the SECURITY DEFINER function is the only anon door), `tests/api/periods.post.test.ts` (the minted token opens the period; no digest in the response) and `tests/middleware/auth-gating.test.ts` (`/invite` public by requirement, and its no-referrer/no-store headers) |
+| 6   | A Secret/service-role key or sensitive instruction text escapes into the client bundle, logs, or error bodies                                    | High   | Low–Med        | AGENTS hard rule "server-only secrets"; abuse lens (secret/PII leakage)                                                                                                                                                                                                                                                                                                                                         |
+| 7   | An API handler trusts client input (missing or weak zod), accepting malformed or forbidden data                                                  | Med    | Med            | AGENTS rule "validate input with zod"; abuse lens (untrusted input)                                                                                                                                                                                                                                                                                                                                             |
+| 8   | A user who clicks "sign out" is told it worked and stays signed in — the session survives on the machine they walked away from                   | High   | **unmeasured** | Measured 2026-09-13: `auth-js` `_signOut()` returns before `_removeSession()` on any error outside 404/401/403, and the route discarded that error. Fixed by `signout-swallows-failure`; see §7.                                                                                                                                                                                                                |
 
 ### Risk Response Guidance
 
@@ -66,6 +71,7 @@ slice ships (see §3 Phase 4).
 | #5   | A valid link grants access only to its own period; an invalid/old token is rejected; the link cannot reach the owner panel                   | "Has a token" ≠ "token is scoped"; absence of login ≠ absence of authorization                           | (S-02/S-03 must exist) token generation/validation, scope enforcement, revocation                                    | integration on the link route                          | Treating an unguessable token as sufficient without a scope check (IDOR)                                |
 | #6   | The built client bundle contains no Secret key; error responses carry no secret or PII                                                       | "It's a server env var" ≠ "it never reached the client"; absence in source ≠ absence in the built bundle | Build-output location; what error bodies serialize                                                                   | deterministic build-artifact grep + response assertion | Grepping source instead of the built bundle                                                             |
 | #7   | Malformed, oversized, or forbidden payloads are rejected server-side with a clean error                                                      | "The client validates" ≠ "the server validates"; a 200 ≠ stored correctly                                | Each handler's zod schema and what input the route actually trusts                                                   | unit / integration on API handlers                     | Re-asserting the zod schema's own shape (implementation mirror)                                         |
+| #8   | A sign-out leaves no usable `sb-` cookie in the browser whether or not the auth server answered, and a failure is recorded                   | "It redirected" ≠ "the session ended"; the status code cannot see this                                   | Which layer actually clears the cookie, and whether the client library does it on its error paths                    | integration with an injected failing client            | Asserting the 302 instead of the cookie's fate — the shape this route shipped with for months           |
 
 ## 3. Phased Rollout
 
@@ -683,21 +689,43 @@ re-inherit them.
   the hosted project. The fix swallows all of them regardless, which is why it did not depend on
   getting this right — but the record should.
 
-- **`/api/auth/signout`'s silent no-op when the Supabase client is unavailable.**
-  `src/pages/api/auth/signout.ts:6-8` skips the sign-out entirely when
-  `createClient` returns null and still redirects to `/`, so a caller cannot tell
-  a completed sign-out from one that never happened. `tests/api/signout.test.ts`
-  says so in its header and does not assert it: reaching that branch needs a
-  null-returning mock, and that file exists to talk to the real client. Recorded
-  here rather than fixed because the branch needs missing runtime configuration,
-  which nothing in the app can currently produce. Be precise about the evidence,
-  because the first draft of this entry overstated it: `npm run check:secrets`
-  does exit 2 without `SUPABASE_URL`/`SUPABASE_KEY`, but it is a BUILD-time
-  secret scan with a documented opt-out (`SECRET_SCAN_ALLOW_MISSING_ENV=1`), and
-  it says nothing about whether the deployed worker has its runtime bindings —
-  which is what `createClient() === null` actually depends on. So the argument
-  for leaving it is that the branch is unreachable in practice and its failure is
-  benign, not that a gate prevents it.
+- **`/api/auth/signout`'s two silent paths — COVERED since 2026-09-13, and the entry is kept
+  because the reason it stood is more instructive than the fix.**
+
+  What this said until now: the route skipped the sign-out entirely when `createClient` returned
+  null and still redirected, so a caller could not tell a completed sign-out from one that never
+  happened; `tests/api/signout.test.ts` named it in its header and did not assert it, because
+  "reaching that branch needs a null-returning mock, and that file exists to talk to the real
+  client". The argument for leaving it was that the branch is unreachable in practice — the entry
+  was careful to say that is a claim about reachability — and that the branch's own failure is
+  benign — not about a gate, correcting its own
+  first draft which had cited `npm run check:secrets` as if a BUILD-time scan with a documented
+  opt-out (`SECRET_SCAN_ALLOW_MISSING_ENV=1`) said anything about the deployed worker's runtime
+  bindings. It does not; `createClient() === null` depends on those.
+
+  **That reasoning covered the smaller of the two silent paths and missed the larger one.** Measured
+  2026-09-13 in `node_modules/@supabase/auth-js/dist/main/GoTrueClient.js` (v2.105.3): `_signOut()`
+  returns EARLY when `admin.signOut()` errors with anything outside 404/401/403, so
+  `_removeSession()` never runs. That function is the only thing in the library that removes the
+  session from storage — measured, because "only" is the kind of word this document keeps having to
+  take back: `removeItemAsync(this.storage, this.storageKey)` appears inside `_removeSession()` and
+  nowhere else. (It has seven callers, so it is not that sign-out is its only entry point; it is
+  that there is no second way to clear.) Storage here is the `@supabase/ssr` cookie adapter in
+  `src/lib/supabase.ts`, so "not cleared from storage" means "the cookies stay in the browser". The route discarded that error, so a **failed** sign-out left the browser holding a
+  working session and answered `302 → /` exactly like a successful one. Unlike the null-client
+  branch, that needs no missing configuration: a 500 from GoTrue or a dropped connection is enough.
+
+  Both paths now clear every `sb-` cookie the caller actually sent and log `code` and `message`;
+  `tests/api/signout-failure.test.ts` pins them, in a second file so that
+  `tests/api/signout.test.ts`'s no-mock rule stands. The library behaviour the fix depends on has
+  its own case there (a client against a closed port), so a future supabase-js that clears
+  regardless turns it red rather than leaving dead code behind a confident comment.
+
+  **What the fix does NOT do, measured rather than assumed**: clearing is not revoking. A probe
+  confirmed the captured token still authenticates after the route has cleared the cookies — the
+  browser loses the session, anyone holding a copy of the token does not. That limit is stated in
+  `signout.ts`'s header. The probe was deliberately not kept as a test: it would go red the day
+  someone adds real revocation, which is a bad property for a guard.
 
 - **CSRF on `/api/pets` and `/api/periods`, which send `application/json`.**
   Measured 2026-09-12: Astro's `checkOrigin` skips JSON bodies, so a form POST
