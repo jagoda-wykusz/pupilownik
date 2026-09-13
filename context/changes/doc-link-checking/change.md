@@ -1,7 +1,7 @@
 ---
 change_id: doc-link-checking
 title: Fail the gate when a document points at a file that no longer exists
-status: implemented
+status: impl_reviewed
 created: 2026-09-13
 updated: 2026-09-13
 archived_at: null

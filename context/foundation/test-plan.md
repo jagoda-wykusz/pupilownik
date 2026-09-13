@@ -855,16 +855,33 @@ re-inherit them.
   a template placeholder. So the work was not finding dead links; it was not crying wolf. The first
   run of the finished script reported 17 hits, of which 3 were real.
 
-  Two classes of noise were solved generically rather than with a list of exceptions, and that
-  choice is the point:
+  SIX mechanisms suppress a match, and naming them all is the point — an earlier version of the
+  script advertised "four exclusion rules", counted only its own array, and two of those four
+  could never fire while three real suppressors went undocumented:
 
-  | noise                                                                                    | why a list would have been wrong                                                                                                                     |
-  | ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
-  | paths containing a space (`context/design/Pupilownik Hi-fi.html`, cited from five files) | the pattern truncates at the space; naming that one directory would go stale, silently, the next time someone adds another                           |
-  | a document ABOUT a dead link, which must be able to name one                             | this change's own folder cited `src/types.ts` as an example and the first run flagged it — the same shape as an assertion matching its own rationale | <!-- link-check:ignore --> |
+  | suppressor                              | the real string that forces it                                                                                                                                                                          |
+  | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | the regex lookbehind                    | npm scopes: `@supabase/ssr`, `@astrojs/cloudflare`. This is what actually keeps them out — NOT the list of package names an earlier version carried, which could never fire and was deleted             |
+  | truncation at an out-of-class character | a glob becomes its directory prefix, and so does a `<placeholder>` path. Silent, undocumented for a day, and the reason the "glob" rule was dead code                                                   |
+  | `isCutAtASpace`                         | `context/design/Pupilownik Hi-fi.html`, cited from five files                                                                                                                                           |
+  | GitHub Action ref                       | `supabase/setup-cli@v3` — 7 findings without it                                                                                                                                                         |
+  | migration template                      | `supabase/migrations/YYYYMMDDHHmmss_short_description.sql` — 2 findings without it                                                                                                                      |
+  | per-line `link-check:ignore`            | a document ABOUT a dead link, which must be able to name one. This change's own folder named one as an example and the first run flagged it — the same shape as an assertion matching its own rationale |
 
-  The first is handled by asking whether the extracted string is the PREFIX of a real entry; the
-  second by a per-line `link-check:ignore` marker.
+  **Two critical corrections came out of the impl-review**, both reproduced before being accepted,
+  and each is the guard failing in the direction it was built to prevent.
+
+  _It was blind to its own reason for existing._ `isCutAtASpace` compared against the bare prefix
+  with no space — prefix-matching despite the name — so any dead reference whose truncated form
+  was a prefix of a surviving sibling vanished. Measured: an archived change folder was swallowed
+  by a later one sharing its name, which is exactly the archive-breakage shape the script exists
+  to catch. One character fixed it, and the comparison must stay `prefix + " "`.
+
+  _It could block every deploy._ `context/changes/**` was scanned as a source, and `/10x-plan`
+  writes plans that NAME THE FILES THEY ARE ABOUT TO CREATE. With this step first in an
+  `&&`-chained `ci:gate`, one in-flight plan would have stopped all publication, including
+  unrelated changes. Closed by excluding that directory as a SOURCE while keeping it a valid
+  TARGET — the same treatment `context/archive/` already had.
 
   **What it deliberately cannot catch**, so nobody mistakes the reach: a moved LINE number
   (`foo.ts:42` is checked as `foo.ts`), a reference that is wrong rather than dead (both files

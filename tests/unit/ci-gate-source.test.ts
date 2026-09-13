@@ -257,6 +257,16 @@ describe("the publish gate is still the chain it claims to be", () => {
       typecheck,
     );
 
+    // FIRST, not merely "before the typecheck", and the difference is the finding this assertion
+    // exists because of. Both reviewers caught it: this block is named "first in the chain" and its
+    // comment calls the position part of the contract, while the assertion above would stay green
+    // after `npm run format && npm run check:links && …`. A comment claiming more than its
+    // assertion proves is the failure this file's own header sermonises about.
+    expect(
+      gate.trimStart().startsWith("npm run check:links"),
+      `the link check is no longer FIRST in the chain — it now starts with: ${gate.trimStart().slice(0, 40)}`,
+    ).toBe(true);
+
     expect(workflow, "Actions does not run the link check").toMatch(/^\s*-?\s*run:\s*npm run check:links\s*$/m);
   });
 
