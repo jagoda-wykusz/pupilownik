@@ -1,10 +1,10 @@
 ---
 change_id: signout-swallows-failure
 title: A failed sign-out leaves the session alive and redirects as if it succeeded
-status: impl_reviewed
+status: archived
 created: 2026-09-13
 updated: 2026-09-13
-archived_at: null
+archived_at: 2026-09-13T19:39:10Z
 ---
 
 ## Notes
