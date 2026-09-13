@@ -25,30 +25,47 @@ const { POST: signout } = await import("@/pages/api/auth/signout");
 /** Astro's cookie object, recording both removal shapes.
  *
  *  `@supabase/ssr` removes a cookie by WRITING IT EMPTY through the adapter; a route removing one
- *  itself would more naturally call `delete`. Both are removals, and this file asserts the OUTCOME
- *  — the caller's cookie is gone — rather than pinning which mechanism produced it. */
-function createFakeCookies(seed: Record<string, string> = {}) {
-  const store = new Map<string, string>(Object.entries(seed));
+ *  itself would more naturally call `delete`. Both are removals, and `removed` asserts the
+ *  OUTCOME — the caller's cookie is gone — without pinning which mechanism produced it.
+ *
+ *  `removals` exists for the one detail the outcome cannot show: the OPTIONS passed to `delete`.
+ *  A delete whose path does not match the one the cookie was set with is silently ignored by the
+ *  browser, so `delete(name)` with no path would clear nothing in a real browser while still
+ *  landing in `removed` here — green test, no-op in production. */
+function createFakeCookies() {
+  const store = new Map<string, string>();
   const removed: string[] = [];
+  const removals: { name: string; options?: Record<string, unknown> }[] = [];
+  // Astro's outgoing jar: one entry per name set OR deleted during the request, keyed by name so a
+  // later delete replaces an earlier set. `headers()` walks it; the route reads it to catch names
+  // a mid-request token refresh staged that the request header never carried.
+  const outgoing = new Map<string, string>();
   return {
     store,
     removed,
+    removals,
     get(name: string) {
       const value = store.get(name);
       return value === undefined ? undefined : { value };
     },
     set(name: string, value: string) {
       store.set(name, value);
+      outgoing.set(name, `${name}=${value}; Path=/`);
       if (value === "") {
         removed.push(name);
       }
     },
-    delete(name: string) {
+    delete(name: string, options?: Record<string, unknown>) {
       store.delete(name);
+      outgoing.set(name, `${name}=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT`);
       removed.push(name);
+      removals.push({ name, options });
     },
     has(name: string) {
       return store.has(name);
+    },
+    *headers() {
+      yield* outgoing.values();
     },
   };
 }
@@ -88,7 +105,7 @@ describe("the library premise this fix rests on", () => {
     // NAME from the project ref in the URL, so pointing at a different host would give the client a
     // storage key that matches nothing, no session to sign out of, and a pass for the wrong reason.
     const written: { name: string; value: string }[] = [];
-    const client = createServerClient(anonKey ? "http://127.0.0.1:1" : "", anonKey, {
+    const client = createServerClient("http://127.0.0.1:1", anonKey, {
       cookies: {
         getAll: () =>
           cookieHeader
@@ -137,6 +154,14 @@ describe("a failed sign-out still ends the local session", () => {
     expect(cookies.removed, "the session cookie survived a failed sign-out").toContain("sb-127-auth-token");
     expect(cookies.removed, "an unrelated cookie was removed").not.toContain("other");
 
+    // The one thing the outcome cannot show. Without this, dropping the options — `delete(name)`,
+    // which a browser ignores because the path does not match — leaves every case in this file
+    // green while clearing nothing at all in production.
+    expect(cookies.removals, "the delete must carry the path @supabase/ssr wrote with").toContainEqual({
+      name: "sb-127-auth-token",
+      options: { path: "/" },
+    });
+
     // The redirect is unchanged. A failed sign-out must not become an oracle either.
     expect(response.status).toBe(302);
     expect(response.headers.get("Location")).toBe("/");
@@ -153,6 +178,88 @@ describe("a failed sign-out still ends the local session", () => {
 
     expect(cookies.removed, "the session cookie survived a skipped sign-out").toContain("sb-127-auth-token");
     expect(response.status).toBe(302);
+  });
+
+  it("still redirects when a cookie name cannot be serialized", async () => {
+    // MEASURED 2026-09-13: `parseCookieHeader` accepts names that `cookie.serialize` — which
+    // `cookies.delete` calls — rejects with a TypeError. The name comes from the caller, so
+    // without the guard a header like this turns the route's guaranteed 302 into a 500 and the
+    // real session cookie that follows it is never cleared.
+    //
+    // The name carries a SPACE, not the `sb-ą` the measurement started from: a header value
+    // is a ByteString, so `new Request` rejects the non-ASCII one before the route ever sees it.
+    // A space passes that gate, `cookie.parse` keeps it in the name, and `cookie.serialize`
+    // refuses it — which is the reachable shape of this bug.
+    vi.mocked(createClient).mockReturnValue(failingClient() as unknown as ReturnType<typeof createClient>);
+
+    const cookies = createFakeCookies();
+    const url = new URL("http://127.0.0.1/api/auth/signout");
+    const context = {
+      request: new Request(url, {
+        method: "POST",
+        headers: { Cookie: "sb-a b=1; sb-127-auth-token=abc" },
+      }),
+      url,
+      cookies: {
+        ...cookies,
+        delete(name: string, options?: Record<string, unknown>) {
+          // Astro's real `delete` serializes eagerly; this is where the TypeError comes from.
+          if (!/^[!-:<>-~]+$/.test(name)) {
+            throw new TypeError("argument name is invalid");
+          }
+          cookies.delete(name, options);
+        },
+      },
+      params: {},
+      locals: { user: null },
+      redirect: (target: string) => new Response(null, { status: 302, headers: { Location: target } }),
+    };
+
+    type Args = Parameters<typeof signout>;
+    const response = await signout(context as unknown as Args[0]);
+
+    expect(response.status, "an unserializable cookie name must not become a 500").toBe(302);
+    expect(cookies.removed, "the serializable session cookie was skipped too").toContain("sb-127-auth-token");
+  });
+
+  it("clears a session the request never carried, staged by a mid-request refresh", async () => {
+    // MEASURED 2026-09-13 in @supabase/auth-js@2.105.3: `_signOut()` runs inside `_useSession()`,
+    // whose `__loadSession()` calls `_callRefreshToken()` when the session sits inside
+    // EXPIRY_MARGIN_MS. The refreshed session is persisted through the adapter's `setAll`, so the
+    // response can already be STAGING a fresh session — under re-chunked names the request header
+    // never had — by the time the sign-out fails. Clearing only the request's names would emit a
+    // brand-new working session in the very response that claims the user signed out.
+    vi.mocked(createClient).mockReturnValue(failingClient() as unknown as ReturnType<typeof createClient>);
+
+    const cookies = createFakeCookies();
+    cookies.set("sb-127-auth-token.0", "fresh-half-one");
+    cookies.set("sb-127-auth-token.1", "fresh-half-two");
+
+    const url = new URL("http://127.0.0.1/api/auth/signout");
+    const context = {
+      // The request carried the OLD, unchunked name. The two chunks above exist only in the jar.
+      request: new Request(url, { method: "POST", headers: { Cookie: "sb-127-auth-token=stale" } }),
+      url,
+      cookies,
+      params: {},
+      locals: { user: null },
+      redirect: (target: string) => new Response(null, { status: 302, headers: { Location: target } }),
+    };
+
+    type Args = Parameters<typeof signout>;
+    const response = await signout(context as unknown as Args[0]);
+
+    expect(response.status).toBe(302);
+    expect(cookies.removed, "the request's own session cookie survived").toContain("sb-127-auth-token");
+    expect(cookies.removed, "a refreshed session was left staged in the response").toEqual(
+      expect.arrayContaining(["sb-127-auth-token.0", "sb-127-auth-token.1"]),
+    );
+    expect(
+      [...cookies.headers()].filter(
+        (header) => header.startsWith("sb-") && !header.includes("Expires=Thu, 01 Jan 1970"),
+      ),
+      "the response still sets a usable session cookie",
+    ).toEqual([]);
   });
 
   it("writes nothing when the caller sent no session cookie", async () => {

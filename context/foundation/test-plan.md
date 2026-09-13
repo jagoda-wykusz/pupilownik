@@ -34,11 +34,14 @@ leans on the PRD guardrails and the Phase 2 interview more than on churn.
 
 The top failure scenarios this project must protect against, ordered by
 risk = impact × likelihood. Risks are failure scenarios in user / business
-terms, not test names. **Risk #8's likelihood is recorded as `unmeasured`, not estimated.**
-Its trigger is an error from the auth server, and this project has no application
-monitoring (`roadmap.md`: "brak warstwy aplikacyjnej"), so nobody knows how often that
-happens. A number there would be invented, and the value of these weights is that they
-are not. The Source column cites the _evidence that surfaced
+terms, not test names. **Risk #8's likelihood is recorded as `unmeasured`, not estimated.** Its
+trigger is an error from the auth server, and this project has no application monitoring
+(`roadmap.md`: "brak warstwy aplikacyjnej"), so nobody knows how often that happens. A number there
+would be invented, and the value of these weights is that they are not. Its `High` Impact is a
+different kind of claim and should not be read as measured alongside the empty likelihood: it is
+reasoned from the consequence — a session left alive on a machine the user believes they signed out
+of — the same way every other Impact in this table is. The Source column cites the _evidence that
+surfaced
 this risk_ — never a specific file as "where the failure lives" (see §1
 principle #3).
 
@@ -696,12 +699,13 @@ re-inherit them.
   null and still redirected, so a caller could not tell a completed sign-out from one that never
   happened; `tests/api/signout.test.ts` named it in its header and did not assert it, because
   "reaching that branch needs a null-returning mock, and that file exists to talk to the real
-  client". The argument for leaving it was that the branch is unreachable in practice — the entry
-  was careful to say that is a claim about reachability — and that the branch's own failure is
-  benign — not about a gate, correcting its own
-  first draft which had cited `npm run check:secrets` as if a BUILD-time scan with a documented
-  opt-out (`SECRET_SCAN_ALLOW_MISSING_ENV=1`) said anything about the deployed worker's runtime
-  bindings. It does not; `createClient() === null` depends on those.
+  client". The argument for leaving it was that the branch is unreachable in practice and that its
+  own failure is benign. The entry was careful to say that this is a claim about reachability, not
+  about a gate — correcting its own first draft, which had cited `npm run check:secrets` as if it
+  were one. That command does exit 2 without `SUPABASE_URL`/`SUPABASE_KEY` — the measurement was
+  real — but it is a BUILD-time secret scan with a documented opt-out
+  (`SECRET_SCAN_ALLOW_MISSING_ENV=1`), and it says nothing about whether the deployed worker holds
+  its runtime bindings, which is what `createClient() === null` actually depends on.
 
   **That reasoning covered the smaller of the two silent paths and missed the larger one.** Measured
   2026-09-13 in `node_modules/@supabase/auth-js/dist/main/GoTrueClient.js` (v2.105.3): `_signOut()`
@@ -715,8 +719,31 @@ re-inherit them.
   working session and answered `302 → /` exactly like a successful one. Unlike the null-client
   branch, that needs no missing configuration: a 500 from GoTrue or a dropped connection is enough.
 
-  Both paths now clear every `sb-` cookie the caller actually sent and log `code` and `message`;
-  `tests/api/signout-failure.test.ts` pins them, in a second file so that
+  Both paths now clear every `sb-` cookie the caller actually sent, and both log. The error path
+  logs `code` and `message`; the null-client path logs a static line, because there is no error
+  object on that branch — a reader grepping the logs for a `code` there will not find one, and
+  that is the branch, not a lost log. A cookie name the caller sent that `cookie.serialize`
+  refuses (a space in the name — non-ASCII cannot reach us, `new Request` rejects the header
+  first) is skipped rather than thrown: it cannot be a name `@supabase/ssr` wrote, and the route's
+  single 302 exit must survive a hostile header.
+  The loop clears more than the request header, because the request header is not the whole story.
+  Measured 2026-09-13 in the same `GoTrueClient.js`: `_signOut()` runs inside `_useSession()`, whose
+  `__loadSession()` calls `_callRefreshToken()` when the session sits within `EXPIRY_MARGIN_MS`, and
+  that persists through the adapter's `setAll`. So a sign-out attempt can itself STAGE a fresh
+  session — under re-chunked names the request never carried — before it fails. Clearing only what
+  the caller sent would have emitted a brand-new working session in the very response that says
+  "signed out". The route therefore unions the request's names with Astro's outgoing jar
+  (`cookies.headers()`); `delete` replaces an outgoing entry by name, so a staged set becomes a
+  removal.
+
+  **The one thing this assumes rather than measures**: that `{ path: "/" }` is the path the cookies
+  were written with. It is today — `src/lib/supabase.ts` passes no `cookieOptions` to
+  `createServerClient`, so `@supabase/ssr` uses its own default of `/` (grep: `cookieOptions`
+  appears nowhere under `src/` or `tests/`). Give that factory a `cookieOptions.path` and this
+  route's deletes stop matching, silently, with every test still green — the browser ignores a
+  mismatched-path delete and nothing here would notice.
+
+  `tests/api/signout-failure.test.ts` pins all of it, in a second file so that
   `tests/api/signout.test.ts`'s no-mock rule stands. The library behaviour the fix depends on has
   its own case there (a client against a closed port), so a future supabase-js that clears
   regardless turns it red rather than leaving dead code behind a confident comment.
@@ -726,6 +753,26 @@ re-inherit them.
   browser loses the session, anyone holding a copy of the token does not. That limit is stated in
   `signout.ts`'s header. The probe was deliberately not kept as a test: it would go red the day
   someone adds real revocation, which is a bad property for a guard.
+
+  This does not contradict `tests/api/signout.test.ts:99` ("leaves the caller's cookie unable to
+  authenticate"), and the two are easy to read as opposites. That case drives a SUCCESSFUL sign-out,
+  where GoTrue does revoke, and it asserts on the COOKIE. The probe held a copy of the access token
+  and ran the failure path, where nothing is revoked at all. Cookie dead, token alive — different
+  object, different path.
+
+- **`tests/rls/release-reveal.test.ts` is intermittently red in a FULL suite run — recorded, not
+  chased.** Observed 2026-09-13 during `signout-swallows-failure`: one failure across three full
+  runs, then green. Measured again the same day in isolation — `vitest run
+tests/rls/release-reveal.test.ts`, five consecutive runs, 4/4 passing every time — so whatever
+  produces it is an interaction with the rest of the suite (shared Supabase state, ordering, or
+  timing), not a defect inside that file. It predates this change and is unrelated to it: nothing
+  in `signout-swallows-failure` touches release, reveal, or their tables.
+
+  Left unfixed deliberately, and this is the uncomfortable half: a test that is red once in three
+  runs teaches people to re-run instead of to read, which is exactly how a real regression gets
+  waved through. Recorded here so the next person who sees it red knows it has been seen before,
+  has NOT been diagnosed, and that "it passed on retry" is not the end of the story. Fixing it
+  needs the suite-level interaction identified, which is its own change.
 
 - **CSRF on `/api/pets` and `/api/periods`, which send `application/json`.**
   Measured 2026-09-12: Astro's `checkOrigin` skips JSON bodies, so a form POST

@@ -27,11 +27,36 @@ import { createClient } from "@/lib/supabase";
  *  A caller who sent no session cookie has nothing removed — the route must not start writing
  *  cookies to someone who sent none, which `tests/api/signout.test.ts` pins on the success path. */
 function clearSessionCookies(context: Parameters<APIRoute>[0]): void {
-  for (const { name } of parseCookieHeader(context.request.headers.get("Cookie") ?? "")) {
-    if (name.startsWith("sb-")) {
+  const fromRequest = parseCookieHeader(context.request.headers.get("Cookie") ?? "").map(({ name }) => name);
+
+  // MEASURED 2026-09-13 in node_modules/@supabase/auth-js/dist/main/GoTrueClient.js (v2.105.3):
+  // `_signOut()` goes through `_useSession()` -> `__loadSession()`, which calls
+  // `_callRefreshToken()` when the session is inside EXPIRY_MARGIN_MS. That persists through the
+  // adapter's `setAll` -> `cookies.set`, so by the time we get here the response may already be
+  // STAGING a fresh session under names the request never carried — a re-chunked
+  // `…auth-token.0`/`.1`, say. Clearing only what the request sent would let the route emit a
+  // brand-new working session in the very response that says "signed out". `headers()` is the
+  // outgoing jar; `delete` replaces an entry there by name, so a staged set becomes a removal.
+  // Snapshotted first: we must not mutate the map we are walking.
+  const staged = [...context.cookies.headers()].map((setCookie) => setCookie.slice(0, setCookie.indexOf("=")));
+
+  for (const name of new Set([...fromRequest, ...staged])) {
+    if (!name.startsWith("sb-")) {
+      continue;
+    }
+    try {
       // `path: "/"` mirrors what @supabase/ssr writes; a delete whose path does not match the one
       // the cookie was set with is silently ignored by the browser.
       context.cookies.delete(name, { path: "/" });
+    } catch {
+      // MEASURED 2026-09-13: `parseCookieHeader` accepts names that `cookie.serialize` — which
+      // `delete` calls — rejects with a TypeError. Over HTTP the reachable shape is a SPACE in the
+      // name (`sb-a b`); a non-ASCII name never gets this far, because a header value is a
+      // ByteString and `new Request` rejects it first. The name comes from the caller either way,
+      // so without this a broken or hostile header turns the route's guaranteed 302 into a 500 and
+      // the real session cookie later in the header is never reached. Skipping is correct, not a
+      // swallow: a name we cannot serialize is by definition not a name @supabase/ssr wrote, so
+      // there is no session behind it, and the names that ARE ours still get cleared.
     }
   }
 }
