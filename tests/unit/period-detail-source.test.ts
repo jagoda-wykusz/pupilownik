@@ -72,4 +72,48 @@ describe("periods/[id].astro — the digest boundary", () => {
     // The label passed is the grouped, normalized one — the same expression the <bdi> renders.
     expect(props).toContain("caretaker?.label");
   });
+
+  // ADDED 2026-09-13 by `invite-page-silent-failures`' implementation review (F1), and the reason
+  // is worth stating because nothing in THIS file changed to require it.
+  //
+  // The header above grants `claim_digest` free passage through the frontmatter "because that runs
+  // on the server". That grant was safe for one unstated reason: frontmatter had no way to EMIT
+  // anything. `eslint.config.js` relaxed `no-console` for `src/pages/**/*.ts` only, so a
+  // `console.error` in a `.astro` page failed `--max-warnings 0` and could not be committed.
+  //
+  // That stopped being true when the allowlist grew to cover `src/pages/**/*.astro`. The premise
+  // behind this file's permission expired in a commit that never touched this file — which is the
+  // shape of the risk: widening a gate can invalidate a guard's reasoning somewhere else entirely.
+  it("never hands a digest or the trip note to a log line", () => {
+    const frontmatter = source.slice(0, source.indexOf(templateOf(source)));
+
+    // Parenthesis-balanced rather than a lazy `);` match, and `warn` as well as `error`, for the
+    // reasons `tests/unit/invite-source.test.ts` records: every failure mode of the lazy form
+    // dropped arguments instead of flagging them.
+    const calls: string[] = [];
+    const opener = /console\.(?:error|warn)\(/g;
+    for (let match = opener.exec(frontmatter); match !== null; match = opener.exec(frontmatter)) {
+      let depth = 1;
+      let index = match.index + match[0].length;
+      const start = index;
+      while (index < frontmatter.length && depth > 0) {
+        const char = frontmatter[index];
+        if (char === "(") {
+          depth += 1;
+        } else if (char === ")") {
+          depth -= 1;
+        }
+        index += 1;
+      }
+      calls.push(frontmatter.slice(start, index - 1));
+    }
+
+    // No control assertion on the count here, deliberately: this page logs nothing today, and the
+    // case has to hold precisely in that state. What keeps it from being vacuous forever is the
+    // first `it` above — if the page stops reading `claim_digest` at all, that one fails and says so.
+    for (const call of calls) {
+      expect(call, "a log line carries the claim digest").not.toMatch(/digest/i);
+      expect(call, "a log line carries the trip note").not.toMatch(/caretaker_note|caretakerNote/);
+    }
+  });
 });

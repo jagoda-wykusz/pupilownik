@@ -39,6 +39,16 @@
     "directory": "./dist",
     "not_found_handling": "404-page",
   },
+  // Workers observability. This is the project's only log sink — there is no logging library, so
+  // `console.error` in an endpoint or in `.astro` frontmatter is what reaches it.
+  //
+  // KNOW WHAT ELSE IS IN HERE, recorded 2026-09-13 during the `invite-page-silent-failures` review.
+  // Invocation logs are on (no `logs.invocation_logs: false`) and unsampled, so every request's URL
+  // is recorded — and for the caretaker page the URL *is* the credential: `/invite/<token>`. The
+  // call-site discipline of never interpolating `token` into a log MESSAGE is still right and still
+  // worth keeping, but it does not keep the token out of this sink; only turning invocation logs off
+  // would, at the cost of the request-level signal that makes an outage diagnosable at all. Recorded
+  // as a knowingly-taken trade-off rather than fixed.
   "observability": {
     "enabled": true,
   },

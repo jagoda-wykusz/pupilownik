@@ -104,6 +104,14 @@ if (supabase) {
     payload = data as TokenPayload | null;
   }
 } else {
+  // The third silent branch, caught by this change's own implementation review (F6): reached when
+  // `createClient` returns null, i.e. the Supabase env vars are absent. It degraded to the same
+  // error card as an RPC failure and, like the two above, recorded nothing — the exact defect the
+  // lesson this change wrote describes, one `else` away from the branch it was written for.
+  //
+  // Matches the wording `src/pages/api/auth/signin.ts` already uses for the identical state, so a
+  // misconfigured deployment produces one recognisable sentence across every surface that hits it.
+  console.error("invite page: supabase client unavailable (configuration)");
   loadError = true;
 }
 

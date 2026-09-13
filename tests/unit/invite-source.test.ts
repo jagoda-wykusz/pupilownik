@@ -118,22 +118,59 @@ describe("invite/[token].astro — the instruction tier boundary", () => {
 // proves the page asks the composition for what it may RENDER; this one proves the page says
 // something when a read fails. They share a subject and nothing else.
 //
-// WHY A SOURCE CHECK IS THE RIGHT LEVEL HERE, and it is a narrower claim than it looks. The defect
-// these cases exist for is an OBSERVABILITY gap, not a wrong output: both branches already produce
-// the correct rendered result. `get_claimed_details` answers NULL for every miss rather than
-// erroring, so forcing a genuine failure needs grant manipulation or a transport fault — a new
-// pattern in this repo for a branch with no behaviour of its own. If either branch ever grows
-// behaviour, this should be revisited at the integration level.
+// WHY A SOURCE CHECK IS THE RIGHT LEVEL HERE — and the first version of this paragraph got the
+// reason wrong, which is why it is spelled out. It claimed forcing an RPC failure "needs grant
+// manipulation or a transport fault — a new pattern in this repo". That is false: producing the
+// error is CHEAP and the pattern is established in three files. `tests/rls/reveal-instructions.test.ts:491`
+// calls this very function with a `service_role` client and gets a deterministic `42501`, because
+// the explicit revoke in `20260907180022` denies that role; `claim-slots.test.ts` and
+// `release-slot.test.ts` do the same for theirs.
+//
+// The real barrier is the other half: OBSERVING the log line. These branches produce the correct
+// rendered output either way — the defect is an observability gap, not a wrong answer — so the
+// assertion has to be about what reached the sink, and capturing workerd's stdout from a test is
+// what this repo has no harness for. A source check is the pragmatic level until one exists.
+//
+// (It is true, and still worth knowing, that a malformed token cannot produce an error at all:
+// both functions bound their arguments at 43 characters and return NULL for every miss.)
 describe("invite/[token].astro — the two RPC failure branches", () => {
   const pageSource = readFileSync(PAGE, "utf8");
   const frontmatter = stripFrontmatterComments(pageSource.slice(0, pageSource.length - templateOf(pageSource).length));
 
-  /** Every `console.error(...)` call in the frontmatter, as its raw argument list.
+  /** Every `console.error(...)` / `console.warn(...)` call in the frontmatter, as its raw argument
+   *  list, found by BALANCING PARENTHESES from the opening one.
    *
    *  Comments are already stripped, so a rationale sentence naming a forbidden identifier cannot
-   *  land in here — the mistake `stripFrontmatterComments` exists to prevent. */
+   *  land in here — the mistake `stripFrontmatterComments` exists to prevent.
+   *
+   *  WHY NOT A LAZY `/console\.error\(([\s\S]*?)\);/`, which is what this was. Every way that regex
+   *  broke failed OPEN — it dropped arguments rather than flagging them (impl-review F2):
+   *    - a `);` inside a string literal truncated the list, discarding everything after it;
+   *    - `console.warn` was never scanned at all, and the eslint allowlist permits `warn`;
+   *    - a call in expression position, without a trailing `;`, matched nothing.
+   *  A guard whose parse failures hide the thing it guards against is worse than no guard.
+   *
+   *  `warn` is included because the allowlist is what defines the risk surface, not the level this
+   *  page happens to use today. */
   function logCalls(): string[] {
-    return [...frontmatter.matchAll(/console\.error\(([\s\S]*?)\);/g)].map((match) => match[1]);
+    const calls: string[] = [];
+    const opener = /console\.(?:error|warn)\(/g;
+    for (let match = opener.exec(frontmatter); match !== null; match = opener.exec(frontmatter)) {
+      let depth = 1;
+      let index = match.index + match[0].length;
+      const start = index;
+      while (index < frontmatter.length && depth > 0) {
+        const char = frontmatter[index];
+        if (char === "(") {
+          depth += 1;
+        } else if (char === ")") {
+          depth -= 1;
+        }
+        index += 1;
+      }
+      calls.push(frontmatter.slice(start, index - 1));
+    }
+    return calls;
   }
 
   it("says something when the read door fails", () => {
@@ -153,18 +190,28 @@ describe("invite/[token].astro — the two RPC failure branches", () => {
   it("never puts a bearer credential in a log line", () => {
     const calls = logCalls();
 
-    // The control, and it is load-bearing: with no `console.error` at all, the loop below iterates
-    // zero times and the case passes having checked nothing.
-    expect(calls.length, "no console.error calls found — the assertions below would be vacuous").toBeGreaterThanOrEqual(
-      2,
+    // EXACT-count control, not `>= 2`. The parser above can only under-report — a call it fails to
+    // read is a call this case never inspects — so the control has to notice that, and a floor
+    // cannot. Counting openers independently of the parse is what makes a silent parse failure
+    // loud (impl-review F2).
+    const openers = frontmatter.match(/console\.(?:error|warn)\(/g) ?? [];
+    expect(openers.length, "no console.error/warn calls found — the assertions below would be vacuous").toBeGreaterThan(
+      0,
     );
+    expect(calls.length, "the argument-list parser read fewer calls than exist — it failed open").toBe(openers.length);
 
-    for (const args of calls) {
-      // `token` and `claimSecret` are both in scope in this frontmatter. src/lib/invite-token.ts
-      // states the invite token "must never be logged"; the capability secret is the same class of
-      // value. Interpolating either turns a bearer credential into a log entry.
-      expect(args, "a log line interpolates the invite token").not.toMatch(/\btoken\b/);
-      expect(args, "a log line interpolates the capability secret").not.toMatch(/\bclaimSecret\b/);
+    for (const call of calls) {
+      // Everything after the leading message literal. The message legitimately contains
+      // `get_period_by_token`, and the patterns below are deliberately substring-wide, so the
+      // literal has to come off first or every case fails on its own message.
+      const args = call.replace(/^\s*"[^"]*"\s*,?/, "");
+
+      // SUBSTRING, not `\b…\b`, and that is the fix rather than an oversight. `\bclaimSecret\b`
+      // does NOT match `rawClaimSecret` — measured — which is the raw, ungated cookie value sitting
+      // in scope two lines away; `\btoken\b` likewise misses `p_token` and `tokenDigest`. For a
+      // credential guard the correct direction to fail is a false alarm, never a false pass.
+      expect(args, "a log line carries something token-shaped").not.toMatch(/token/i);
+      expect(args, "a log line carries something secret-shaped").not.toMatch(/secret/i);
     }
   });
 });

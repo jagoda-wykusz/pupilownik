@@ -115,6 +115,15 @@ const scriptsConfig = tseslint.config({
 //
 // STILL EXCLUDED, deliberately: `src/lib/**`, which client islands import. That exclusion is about
 // which bundle the code can reach, and adding server-rendered pages does not weaken it.
+//
+// AND CLIENT `<script>` BLOCKS STAY OUT TOO — structurally, not by luck, which is worth recording
+// because the mechanism is an upstream detail a reader would otherwise have to re-derive.
+// `eslint-plugin-astro`'s flat/recommended applies `processor: "astro/client-side-ts"` to
+// `**/*.astro`, which extracts each `<script>` body into a virtual file named `**/*.astro/*.js`.
+// That path's basename no longer ends in `.astro`, so it does not match the glob below and a
+// `console.*` inside a page's client script still falls under the base `no-console: "warn"` — and
+// therefore still fails `--max-warnings 0`. Latent rather than live today: there are no `<script>`
+// tags anywhere under `src/pages/`, `src/layouts/` or `src/components/`.
 const serverRouteConfig = tseslint.config({
   files: ["src/pages/**/*.ts", "src/pages/**/*.astro"],
   rules: {
