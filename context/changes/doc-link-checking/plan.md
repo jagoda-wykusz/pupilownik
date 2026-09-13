@@ -8,7 +8,7 @@ extracts repo-relative paths, and exits non-zero when one does not exist.
 ## Current State Analysis
 
 Nothing checks that a cited path is real. Measured across 118 files: 439 path references, 8 unique
-dead, **2 genuine** (`AGENTS.md:34` → `src/types.ts`; `test-plan.md:238` → `tests/integration/`).
+dead, **2 genuine** (`AGENTS.md:34` → `src/types.ts`; `test-plan.md:238` → `tests/integration/`). <!-- link-check:ignore -->
 Five more were repaired by hand an hour earlier — all five were `context/changes/<id>/` folders
 broken by archiving, which is the recurring mechanism this change exists for.
 
@@ -63,8 +63,8 @@ guard nothing — the failure shape `lessons.md` records. Exit 2 if the count is
 
 **Files**: `AGENTS.md`, `context/foundation/test-plan.md`
 
-**Intent**: `AGENTS.md` claims shared types live in `src/types.ts`; find where they actually live and
-say that. `test-plan.md:238` calls `tests/integration/` a directory; it is a vitest project whose
+**Intent**: `AGENTS.md` claims shared types live in `src/types.ts`; find where they actually live and <!-- link-check:ignore -->
+say that. `test-plan.md:238` calls `tests/integration/` a directory; it is a vitest project whose <!-- link-check:ignore -->
 `include` is `tests/**/*.test.ts` — the sentence needs to name the project, not a path.
 
 ### Success Criteria
@@ -135,15 +135,15 @@ next person who wants to "simplify" the exclusions knows which real string each 
 
 #### Automated
 
-- [ ] 1.1 The script exits 0 against the repo
-- [ ] 1.2 The script exits 1 on a planted dead link
-- [ ] 1.3 The script exits 2 when its pattern is sabotaged
-- [ ] 1.4 None of the six known false positives is reported
-- [ ] 1.5 `npm run lint` and `npm run check` pass
+- [x] 1.1 The script exits 0 against the repo
+- [x] 1.2 The script exits 1 on a planted dead link
+- [x] 1.3 The script exits 2 when its pattern is sabotaged
+- [x] 1.4 None of the six known false positives is reported
+- [x] 1.5 `npm run lint` and `npm run check` pass
 
 #### Manual
 
-- [ ] 1.6 The two rewritten sentences say something true
+- [x] 1.6 The two rewritten sentences say something true
 
 ### Phase 2: Wire it into the gate and pin it
 

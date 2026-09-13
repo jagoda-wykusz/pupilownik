@@ -92,7 +92,7 @@ export default defineConfig({
   // it carries the Polish diacritics (ą ę ł ń ó ś ź ż).
   //
   // WHY THESE ARE VENDORED RATHER THAN FETCHED, measured 2026-09-12 (see
-  // context/changes/vendor-build-fonts/research.md). The Google provider reaches two hosts on two
+  // context/archive/2026-09-12-vendor-build-fonts/research.md). The Google provider reaches two hosts on two
   // code paths with opposite failure modes. `fonts.gstatic.com` (the binaries) throws
   // `CannotFetchFontFile` on the FIRST failure with no retry, and the build caller is unguarded:
   // a 429 is exit 1, no deploy. `fonts.googleapis.com` (the CSS metadata) goes through unifont,

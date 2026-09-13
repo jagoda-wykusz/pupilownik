@@ -31,7 +31,7 @@ Vitest runs three projects: `unit` (pure logic, no setup file), `component` (hap
 - Astro components for static layout; React only when interactive. Add shadcn/ui ("new-york") via `npx shadcn@latest add <name>` into `src/components/ui/`.
 - API handlers use uppercase `GET`/`POST` exports and validate input with zod.
 - Migrations: `supabase/migrations/YYYYMMDDHHmmss_short_description.sql`.
-- Shared types in `src/types.ts`; services/helpers in `src/lib/`. Auth flow lives in `src/lib/supabase.ts` and `src/middleware.ts` (add paths to `PROTECTED_ROUTES` to gate them).
+- Generated database types in `src/db/database.types.ts` (never hand-edited — `npm run db:gen-types`); domain types live beside the module that owns them in `src/lib/`, not in one shared file. Services/helpers also in `src/lib/`. Auth flow lives in `src/lib/supabase.ts` and `src/middleware.ts` (add paths to `PROTECTED_ROUTES` to gate them).
 
 ## Commit & CI
 

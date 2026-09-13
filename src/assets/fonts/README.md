@@ -8,7 +8,7 @@ through `fontProviders.local()`; nothing here is imported by application code.
 Fetching them at build time reached two Google hosts with two opposite failure modes — one that
 killed the deploy on a single 429, and one that exited 0 having emitted no `@font-face` at all and
 published the site in system fonts. Both measured 2026-09-12; see
-`context/changes/vendor-build-fonts/research.md` and `context/foundation/test-plan.md` §7.
+`context/archive/2026-09-12-vendor-build-fonts/research.md` and `context/foundation/test-plan.md` §7.
 
 ## Provenance
 

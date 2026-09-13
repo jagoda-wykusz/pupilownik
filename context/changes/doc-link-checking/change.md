@@ -1,7 +1,7 @@
 ---
 change_id: doc-link-checking
 title: Fail the gate when a document points at a file that no longer exists
-status: planned
+status: implementing
 created: 2026-09-13
 updated: 2026-09-13
 archived_at: null
@@ -19,9 +19,9 @@ Scanned 118 files (docs, `src/`, `tests/`, `scripts/`, workflows, hooks — excl
 `context/archive/`, which is immutable and legitimately describes the past). 439 path references,
 8 unique dead, of which **only 2 are genuine**:
 
-- `AGENTS.md:34` — "Shared types in `src/types.ts`". No such file. This is the document agents read
+- `AGENTS.md:34` — "Shared types in `src/types.ts`". No such file. This is the document agents read <!-- link-check:ignore -->
   first.
-- `context/foundation/test-plan.md:238` — "Only `tests/integration/` is genuinely non-blocking".
+- `context/foundation/test-plan.md:238` — "Only `tests/integration/` is genuinely non-blocking". <!-- link-check:ignore -->
   No such directory: `integration` is a vitest PROJECT whose `include` is `tests/**/*.test.ts`.
   Written by this session yesterday, in `warnings-block-publication`.
 

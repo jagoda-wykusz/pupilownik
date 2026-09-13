@@ -235,8 +235,10 @@ system.**
 anything in `tests/unit/`, `tests/component/` or `tests/render/` runs inside `npm run ci:gate`,
 and `ci:gate` IS the Cloudflare build command — so a failure there produces no version and
 nothing deploys. A reader deciding whether the font assertion can stop a bad deploy got the
-wrong answer from that cell. Only `tests/integration/` is genuinely non-blocking, because it
-needs Docker and therefore runs in Actions alone.
+wrong answer from that cell. Only the `integration` vitest PROJECT is genuinely
+non-blocking, because it needs Docker and therefore runs in Actions alone. Note it is a project,
+not a directory: `vitest.config.ts` gives it `include: ["tests/**/*.test.ts"]` and selects by
+config, so there is no `tests/integration/` folder to point at. <!-- link-check:ignore -->
 
 The `astro check` in pre-commit replaced `tsc --noEmit` on 2026-09-07 (S-03 phase 3 review:
 `tsc` does not see type errors inside `.astro` templates). Both tables said otherwise until
