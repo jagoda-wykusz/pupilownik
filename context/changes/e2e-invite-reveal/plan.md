@@ -568,6 +568,6 @@ None. No schema change, no production code change, no data migration.
 
 #### Manual
 
-- [ ] 3.5 A CI run executes the E2E job and it passes there
+- [x] 3.5 A CI run executes the E2E job and it passes there — 7023efb
 - [x] 3.6 Every new sentence in `test-plan.md` was checked against the code when written — 7023efb
 - [x] 3.7 §7 states what the E2E test cannot fail on — 7023efb

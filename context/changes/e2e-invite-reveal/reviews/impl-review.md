@@ -10,14 +10,14 @@
 
 ## Verdicts
 
-| Dimension           | Verdict (at review) | After triage                       |
-| ------------------- | ------------------- | ---------------------------------- |
-| Plan Adherence      | WARNING             | PASS                               |
-| Scope Discipline    | PASS                | PASS                               |
-| Safety & Quality    | WARNING             | PASS                               |
-| Architecture        | PASS                | PASS                               |
-| Pattern Consistency | WARNING             | PASS                               |
-| Success Criteria    | FAIL                | PENDING — 3.5 awaits a real CI run |
+| Dimension           | Verdict (at review) | After triage                                       |
+| ------------------- | ------------------- | -------------------------------------------------- |
+| Plan Adherence      | WARNING             | PASS                                               |
+| Scope Discipline    | PASS                | PASS                                               |
+| Safety & Quality    | WARNING             | PASS                                               |
+| Architecture        | PASS                | PASS                                               |
+| Pattern Consistency | WARNING             | PASS                                               |
+| Success Criteria    | FAIL                | PASS — 3.5 closed by a verified CI run (see below) |
 
 Scope Discipline was clean on every count and is worth recording: `ci:gate` untouched, zero changes
 under `src/` or `supabase/`, no visual/snapshot assertion, no Risk #3 test, `tests/helpers/` imported
@@ -184,9 +184,24 @@ rather than forked.
 | `npm run check:links`                   | clean                                         |
 | `git status src/ supabase/`             | clean — no mutation residue                   |
 
-## Still open
+## Closed after the review: F1's underlying risk, measured
 
-- **Progress row 3.5** is deliberately `- [ ]`. It may be checked only after a CI run that actually
-  executes the "E2E — the caretaker reveal chain" step on branch `ci/e2e-verify` (now at
-  `36131b2`). F1's underlying risk — whether the CI dev server receives Supabase configuration —
-  is resolved by that run, not by this review.
+**Progress row 3.5 is now `[x]`.** A run on `ci/e2e-verify` at `36131b2` executed the
+"E2E — the caretaker reveal chain" step and reported `5 passed (27.1s)` on the runner, with the
+spec line numbers matching that commit. That settles both halves this review could not:
+
+- **`npx playwright install --with-deps chromium` works on a bare ubuntu runner.** Untestable
+  locally, where `--with-deps` is a no-op.
+- **W3 is REFUTED, and it was the more interesting half.** The concern was that the workflow writes
+  `.env.test` (read by the node-side clients) but never `.dev.vars`, while `SUPABASE_URL` /
+  `SUPABASE_KEY` are `optional: true` — so a dev server that did not pick up the exported values
+  would degrade silently and fail every test on a missing element, indistinguishable from a product
+  bug. It does pick them up: all five tests passed. Recorded here rather than deleted, because the
+  reasoning was sound and the next person to change how the workflow exports those values should
+  know what was measured and when.
+
+The E2E step adds ~27s to a job previously measured at 5m17s, well inside its 25-minute timeout.
+
+**Not covered by that run**: commit `e56ff72` (these review fixes) landed afterwards and touches
+`ci.yml` and every test file. It was pushed to the same branch after 3.5 was closed; a second run
+covers it.
