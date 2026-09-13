@@ -133,12 +133,12 @@ which names this item as outstanding.
 
 #### Automated
 
-- [ ] 1.1 `npm ci` completes and the CLI binary is present
-- [ ] 1.2 The lockfile marks the supabase entry `"optional": true`
-- [ ] 1.3 The new assertions pass
-- [ ] 1.4 Every new assertion fails when its target is reverted
-- [ ] 1.5 `npx --no-install supabase --version` exits 0
-- [ ] 1.6 Full gate passes: `npm run ci:gate`
+- [x] 1.1 `npm ci` completes and the CLI binary is present
+- [x] 1.2 The lockfile marks the supabase entry `"optional": true`
+- [x] 1.3 The new assertions pass
+- [x] 1.4 Every new assertion fails when its target is reverted
+- [x] 1.5 `npx --no-install supabase --version` exits 0
+- [x] 1.6 Full gate passes: `npm run ci:gate`
 
 ### Phase 2: Record it
 

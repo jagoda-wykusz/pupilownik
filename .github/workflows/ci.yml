@@ -62,9 +62,24 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # The Supabase CLI is already a devDependency, so `npx supabase` is the version
+      # The Supabase CLI is an OPTIONAL dependency, so `npx supabase` is the version
       # package-lock.json pins — the same one the developer runs. That is worth more here than
       # supabase/setup-cli@v3, which would install a second, independently drifting copy.
+      #
+      # WHY THE CHECK BELOW EXISTS, and it is a direct consequence of that word "optional".
+      # `supabase`'s postinstall downloads a 98 MB Go binary from GitHub Releases and ends in a
+      # bare `await main()` with no catch, so a failed download exits 1. As a devDependency that
+      # failed `npm ci` — which on Cloudflare Workers Builds runs BEFORE the build command, so a
+      # GitHub outage killed the deploy before the gate could speak. Moving it to
+      # optionalDependencies makes that failure non-fatal (measured: `npm ci` exits 0), but npm
+      # then DROPS the package entirely rather than leaving a broken one.
+      #
+      # Here that would be the worst possible outcome: `npx supabase start` would quietly fetch a
+      # copy from the registry instead of failing, and these 22 integration files are the only
+      # tests in the project that exercise RLS. `--no-install` is the load-bearing flag — it makes
+      # npx fail instead of fetch, turning a silent skip into a named failure.
+      - name: Verify the Supabase CLI actually installed
+        run: npx --no-install supabase --version
       #
       # `supabase start` applies supabase/migrations/ (19 files) and supabase/seed.sql itself, so
       # there is no separate migration step. No `db:reset` either: no integration test depends on

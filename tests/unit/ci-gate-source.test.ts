@@ -228,6 +228,55 @@ describe("the publish gate is still the chain it claims to be", () => {
     );
   });
 
+  it("keeps the Supabase CLI optional, so a GitHub outage cannot fail npm ci", () => {
+    // WHY THE PLACEMENT IS PINNED. `supabase`'s postinstall downloads a 98 MB Go binary from
+    // GitHub Releases and ends in a bare `await main()` with no catch, so a failed download exits
+    // 1. Measured: as a devDependency that makes `npm ci` exit 1; as an optionalDependency it
+    // exits 0 and npm drops the package. On Cloudflare Workers Builds `npm ci` runs BEFORE the
+    // build command, so the devDependency form let a third party kill the deploy before `ci:gate`
+    // could report anything — and the container has no Docker, so that binary is unusable there.
+    //
+    // Moving it back is a one-word edit that restores a silent deploy-blocking dependency, which
+    // is exactly the shape this file exists to pin.
+    //
+    // NOT `--omit=optional` anywhere: measured, the lockfile carries 131 optional entries
+    // including `@cloudflare/workerd-linux-64`, so omitting them would strip the platform
+    // binaries the build itself needs.
+    const manifest = JSON.parse(read("package.json")) as {
+      devDependencies?: Record<string, string>;
+      optionalDependencies?: Record<string, string>;
+    };
+
+    expect(
+      manifest.optionalDependencies?.supabase,
+      "supabase is not an optionalDependency — a failed CLI download would fail npm ci and block the deploy",
+    ).toBeTruthy();
+    expect(
+      manifest.devDependencies?.supabase,
+      "supabase is back in devDependencies, which makes its postinstall failure fatal to npm ci",
+    ).toBeUndefined();
+
+    // The lockfile is what `npm ci` actually acts on; the manifest section alone proves nothing.
+    const lock = JSON.parse(read("package-lock.json")) as {
+      packages: Record<string, { optional?: boolean }>;
+    };
+    const lockEntry = lock.packages["node_modules/supabase"];
+
+    expect(lockEntry, "package-lock.json has no entry for supabase at all").toBeTruthy();
+    expect(
+      lockEntry.optional,
+      "package-lock.json does not mark supabase optional — run `npm install` to regenerate it",
+    ).toBe(true);
+
+    // The other half of the trade. Optional means npm DROPS the package on failure, and Actions is
+    // the only place the integration suite runs — without this check `npx supabase start` would
+    // quietly fetch a copy from the registry instead of failing.
+    expect(
+      workflow,
+      "Actions no longer verifies the CLI installed; a dropped optional dependency would be silently refetched",
+    ).toMatch(/^\s*-?\s*run:\s*npx --no-install supabase --version\s*$/m);
+  });
+
   it("names vitest projects that actually exist", () => {
     // MEASURED, not assumed: `vitest run --project nope` exits 0 and simply runs nothing. So
     // renaming a project in vitest.config.ts while the gate still asks for the old name would
