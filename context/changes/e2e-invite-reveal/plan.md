@@ -523,34 +523,34 @@ None. No schema change, no production code change, no data migration.
 
 #### Automated
 
-- [x] 1.1 `npx playwright install chromium` completes
-- [x] 1.2 `npm run test:e2e` passes, and passes again immediately with no manual cleanup
-- [x] 1.3 `npm run check` passes
-- [x] 1.4 `npm run lint` passes with `--max-warnings 0`
-- [x] 1.5 `npm run check:links` passes
-- [x] 1.6 `git status` shows no `playwright/.auth/` and no `test-results/`
+- [x] 1.1 `npx playwright install chromium` completes — 7525ec3
+- [x] 1.2 `npm run test:e2e` passes, and passes again immediately with no manual cleanup — 7525ec3
+- [x] 1.3 `npm run check` passes — 7525ec3
+- [x] 1.4 `npm run lint` passes with `--max-warnings 0` — 7525ec3
+- [x] 1.5 `npm run check:links` passes — 7525ec3
+- [x] 1.6 `git status` shows no `playwright/.auth/` and no `test-results/` — 7525ec3
 
 #### Manual
 
-- [x] 1.7 `playwright/.auth/owner.json` exists on disk and is NOT staged
-- [x] 1.8 The seed test reads as an example worth copying
+- [x] 1.7 `playwright/.auth/owner.json` exists on disk and is NOT staged — 7525ec3
+- [x] 1.8 The seed test reads as an example worth copying — 7525ec3
 
 ### Phase 2: The Risk #4 ∩ #6 test
 
 #### Automated
 
-- [ ] 2.1 `npm run test:e2e` passes
-- [ ] 2.2 Run twice back-to-back — all tests pass both times
-- [ ] 2.3 Mutation A: reveal test FAILS, outsider test still passes; reverted
-- [ ] 2.4 Mutation B: island-props test FAILS, reveal test still passes; reverted
-- [ ] 2.5 `git status` clean of both mutations before commit
-- [ ] 2.6 `npm run check`, `npm run lint` pass
-- [ ] 2.7 `npx vitest run` — existing suite unaffected
+- [x] 2.1 `npm run test:e2e` passes
+- [x] 2.2 Run twice back-to-back — all tests pass both times
+- [x] 2.3 Mutation A: reveal test FAILS, outsider test still passes; reverted
+- [x] 2.4 Mutation B: island-props test FAILS, reveal test still passes; reverted
+- [x] 2.5 `git status` clean of both mutations before commit
+- [x] 2.6 `npm run check`, `npm run lint` pass
+- [x] 2.7 `npx vitest run` — existing suite unaffected
 
 #### Manual
 
-- [ ] 2.8 Each mutation's failure message names the thing it should
-- [ ] 2.9 The spec header's claim about the pre-claim check is accurate
+- [x] 2.8 Each mutation's failure message names the thing it should
+- [x] 2.9 The spec header's claim about the pre-claim check is accurate
 
 ### Phase 3: CI wiring and document reconciliation
 
