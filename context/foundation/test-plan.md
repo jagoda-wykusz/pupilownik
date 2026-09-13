@@ -77,12 +77,12 @@ orchestrator updates Status as artifacts appear on disk.
 | --- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ------------- | --------------------------------------------- | -------- | ------------------------------------------------------- |
 | 1   | Bootstrap runner + RLS owner-isolation | Prove an owner cannot read/modify another's rows; establish the reusable RLS-test harness every future table copies | #1            | vitest setup + integration vs local Supabase  | complete | context/archive/2026-06-28-testing-rls-owner-isolation/ |
 | 2a  | Auth gating                            | Protected routes gate unauthenticated access; auth/session flows behave; an invalid session cannot reach owner data | #2            | integration (routes + middleware)             | complete | context/archive/2026-07-12-testing-auth-gating/         |
-| 2b  | Input validation                       | API handlers reject malformed/forbidden input server-side (zod), not just the client                                | #7            | unit / integration on API handlers            | complete | context/changes/testing-input-validation/               |
+| 2b  | Input validation                       | API handlers reject malformed/forbidden input server-side (zod), not just the client                                | #7            | unit / integration on API handlers            | complete | context/archive/2026-09-12-testing-input-validation/    |
 | 3   | Secret-leak assertions                 | No secret reaches `dist/client`, no upstream error or config state reaches a caller                                 | #6            | build-artifact scan + unit + integration      | complete | context/archive/2026-09-11-testing-secret-leak/         |
 | 4   | Domain guardrails (gated)              | Instruction visibility scoping, link-only access enforcement, atomic slot claim                                     | #3, #4, #5    | unit + integration + component, no new runner | complete | context/archive/2026-09-11-testing-domain-guardrails/   |
 
 Phase 2 was split into **2a (auth gating, #2)** and **2b (input validation, #7)**
-when the gating work shipped in `context/changes/testing-auth-gating/` — Risk #2
+when the gating work shipped in `context/archive/2026-07-12-testing-auth-gating/` — Risk #2
 landed there.
 
 **Phase 2b closed 2026-09-12, and it closed NARROWER than its name, on purpose.**
@@ -120,7 +120,7 @@ something measured:
 What it deliberately did NOT do is add tests to `periods`, `revoke`, `token`,
 `release` or `invite/claim`: the coverage census in that change's `research.md`
 found them already covered, and `tests/api/invite-claim.test.ts:506-531` alone
-pins five bad-input shapes. See `context/changes/testing-input-validation/`.
+pins five bad-input shapes. See `context/archive/2026-09-12-testing-input-validation/`.
 
 Phase 4 was blocked until slices S-01..S-03 existed — `/10x-research` cannot
 ground code that has not been written. **Unblocked 2026-09-11**: S-01..S-06 have
@@ -692,7 +692,7 @@ re-inherit them.
   **The correction this entry exists to carry.** `context/archive/2026-09-11-testing-secret-leak/research.md:82`
   records `claim_digest` as "guarded by `CaretakerLabel`'s prop type", and `src/lib/caretaker-name.ts:110-118`
   makes the same claim more precisely. Both are RIGHT, and an earlier reading in
-  `context/changes/testing-island-prop-leak/research.md` first judged them wrong and withdrew it:
+  `context/archive/2026-09-12-testing-island-prop-leak/research.md` first judged them wrong and withdrew it:
   planting `leakedDigest={claimed.claim_digest}` fails `npm run check` twice over — `ts(2339)`
   because the field is already absent from the object, `ts(2322)` because the prop is not on the
   component's `Props`. What a type cannot do is reject a secret handed to a prop whose declared type
@@ -729,12 +729,16 @@ re-inherit them.
   now does, for fonts — and it is the first instance of that assertion class in this repo, not the
   last one that will be needed.
 
-  **Not tested, deliberately**: the other two build-time network dependencies. `npm ci` reaches the
-  registry, and the `supabase` devDependency's postinstall downloads a Go binary from GitHub Releases
-  on every cold Cloudflare build — a binary that container can never run, because it has no Docker.
-  Removing fonts removed the one with the worst failure modes, not the only one. Recorded in
-  `context/changes/vendor-build-fonts/research.md` so the remaining two are a decision rather than an
-  oversight.
+  **The other two build-time network dependencies**, named here when this entry was written so they
+  would be a decision rather than an oversight. `npm ci` reaches the registry, and the `supabase`
+  dependency's postinstall downloads a Go binary from GitHub Releases on every cold Cloudflare build
+  — a binary that container can never run, because it has no Docker.
+
+  **One of the two is now closed, and it corrected this paragraph on the way out.** The sentence
+  that stood here said removing fonts removed "the one with the worst failure modes". That was
+  wrong: measured 2026-09-13, the supabase postinstall fails BEFORE the build command runs at all,
+  so it could kill a deploy in a place no gate can reach. See the entry below. The registry remains,
+  and it is not going away.
 
   **A correction to carry**: `context/archive/2026-09-11-ci-quality-gates/follow-ups/review-fixes.md:32-42`
   proposes vendoring into `public/`. That is wrong — `astro/dist/assets/fonts/providers/local.d.ts:11-13`
@@ -797,9 +801,50 @@ re-inherit them.
   the npm scripts rather than calling `eslint`/`astro check` directly, since a direct call in the
   workflow would quietly lose the threshold.
 
+- **An install-time dependency fails where no gate can see it.** Measured 2026-09-13
+  (`supabase-cli-build-cost`), closing the second of the three build-time third parties named in the
+  entry above.
+
+  `supabase`'s postinstall downloads a 98,396,160 B Go binary from GitHub Releases and ends in a
+  bare `await main()` with no `catch`. Measured with an unroutable proxy: `POSTINSTALL_EXIT=1`. A
+  failing lifecycle script fails `npm ci` — and on Workers Builds `npm ci` runs BEFORE the build
+  command, so a GitHub outage or rate-limit killed the deploy in a place `ci:gate` never reaches.
+  Every guard this project has ever added lives inside the build command. None of them can speak
+  here. **That is the generalisable part: `ci:gate` is not the outermost thing that can fail.**
+
+  Fixed by moving the dependency to `optionalDependencies`. Measured in an isolated npm project, for
+  `npm ci` specifically:
+
+  | placement              | `npm ci` with a failing postinstall | package present afterwards |
+  | ---------------------- | ----------------------------------- | -------------------------- |
+  | `devDependencies`      | exit 1                              | —                          |
+  | `optionalDependencies` | **exit 0**                          | **no — npm drops it**      |
+
+  **`--omit=optional` was ruled out by measurement, not preference**, and the next person should not
+  re-derive this: the lockfile carries 131 optional entries including `@cloudflare/workerd-linux-64`,
+  `@esbuild/*` and `@img/sharp-*`. Omitting optional dependencies would strip the platform binaries
+  the build itself needs. The 98 MB download therefore stays — waste, not a hazard, once the failure
+  mode is gone. That was a deliberate scope decision, not an oversight.
+
+  **The trade it creates, and why Actions needed a new step.** On failure npm drops the package
+  entirely rather than leaving a broken one. On Cloudflare that is exactly right — nothing there can
+  use the CLI. In Actions it would mean `npx supabase start` quietly fetching a copy from the
+  registry instead of failing, and the 22 integration files are the only tests in this project that
+  exercise RLS, so a silent skip is the worst outcome available. `.github/workflows/ci.yml` now runs
+  `npx --no-install supabase --version` first; `--no-install` is the load-bearing flag, since it
+  makes npx fail instead of fetch.
+
+  **Pinned in two layers on purpose.** `tests/unit/ci-gate-source.test.ts` asserts the manifest
+  section AND the lockfile's `"optional": true`. The lockfile is what `npm ci` acts on, so an
+  assertion on the manifest alone would describe an intention rather than guard a behaviour — a
+  mutation that stripped only the lockfile flag would pass it.
+
+  **Still not addressed**: the npm registry itself, which every install depends on and which no
+  change is going to remove.
+
 ## 8. Freshness Ledger
 
-- Strategy (§1–§5) last reviewed: 2026-09-13 (§5's lint and typecheck rows now say they catch warnings, and §7 records why follow-up #3's choice was false; §7 closed ci-quality-gates follow-up #5 as explained-not-changed, with the two reasons the dangerous asset scope is unreachable; §5's chain string and gate table gained `test:render`, which the island-prop change added to `ci:gate` without updating the inventory, plus the two font guards; §7 gained the build-time third-party entry; §7 gained the island-prop boundary and its three-layer coverage, plus a withdrawn criticism of the prop-type claim; §3 Phase 2b closed narrower than its name — see the note under the phase table; earlier on 2026-09-11: §3 Phases 3 and 4 closed; §5 rewritten against the repo after the CI it described was found not to exist; §2's Risk #4 and #5 wording corrected against measurement — see §7)
+- Strategy (§1–§5) last reviewed: 2026-09-13 (§7 gained the install-time dependency entry, closing the second of three build-time third parties, and five stale `context/changes/` links were repointed at their archive paths; §5's lint and typecheck rows now say they catch warnings, and §7 records why follow-up #3's choice was false; §7 closed ci-quality-gates follow-up #5 as explained-not-changed, with the two reasons the dangerous asset scope is unreachable; §5's chain string and gate table gained `test:render`, which the island-prop change added to `ci:gate` without updating the inventory, plus the two font guards; §7 gained the build-time third-party entry; §7 gained the island-prop boundary and its three-layer coverage, plus a withdrawn criticism of the prop-type claim; §3 Phase 2b closed narrower than its name — see the note under the phase table; earlier on 2026-09-11: §3 Phases 3 and 4 closed; §5 rewritten against the repo after the CI it described was found not to exist; §2's Risk #4 and #5 wording corrected against measurement — see §7)
 - Stack versions last verified: 2026-06-28
 - AI-native tool references last verified: 2026-06-28
 

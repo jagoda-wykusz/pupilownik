@@ -212,3 +212,28 @@ than one copy of React`, co czyta się jak zdublowana zależność, a nie jak ca
   liczbą fontów przeszedł w tym repo wszystkie sześć kroków `ci:gate`. Przy każdej zależności
   produkującej artefakt dopisz asercję NA ARTEFAKT — reszta bramki mierzy proces, nie wynik.
 - **Applies to**: research, frame, plan, implement, impl-review
+
+## Bramka nie jest najbardziej zewnętrzną rzeczą, która może paść
+
+- **Context**: Każda zależność z hookiem `preinstall` / `install` / `postinstall`. W tym repo są
+  cztery: `supabase`, `esbuild`, `sharp`, `workerd`. Hook wykonuje się podczas `npm ci`, a na
+  Cloudflare Workers Builds `npm ci` dzieje się PRZED komendą builda.
+- **Problem**: W `supabase-cli-build-cost` okazało się, że `postinstall` Supabase CLI ściąga 98 MB
+  z GitHub Releases i kończy się gołym `await main()` bez `catch`. Zmierzone: przy nieosiągalnym
+  hoście `POSTINSTALL_EXIT=1`, co wywala `npm ci`, co zabija deploy. Wszystkie strażniki, jakie ten
+  projekt kiedykolwiek dodał — typy, lint, testy, render sweep, skan sekretów, asercja na artefakcie
+  — żyją WEWNĄTRZ `npm run ci:gate`. Żaden z nich nie ma prawa głosu w tym momencie. Follow-up
+  opisywał tę zależność jako marnotrawstwo („ściąga binarkę, której kontener nie uruchomi") i to
+  sformułowanie przetrwało trzy tygodnie, bo nikt nie zapytał, co się dzieje, gdy pobranie zawiedzie.
+- **Rule**: Dodając zależność z hookiem instalacyjnym, sprawdź JAK ZAWODZI, zanim sprawdzisz, co
+  robi. Otwórz skrypt i poszukaj `catch`. Jeśli go nie ma, porażka jest fatalna dla `npm ci` — a to
+  znaczy fatalna dla deployu, w miejscu, którego żadna bramka nie widzi. `optionalDependencies` jest
+  tu właściwym narzędziem: npm traktuje porażkę opcjonalnej zależności jako nieśmiertelną (zmierzone
+  dla `npm ci`, nie tylko `npm install`).
+- **Rule (co za to płacisz)**: Przy porażce npm USUWA opcjonalną paczkę w całości, zamiast zostawić
+  zepsutą. Zawsze zapytaj, kto jej używa i czy zauważy brak. Tu Actions by nie zauważył — `npx`
+  po cichu dociągnąłby CLI z rejestru — więc trzeba było dołożyć `npx --no-install`.
+- **Rule (nie sięgaj po `--omit=optional`)**: Kusi, żeby przy okazji oszczędzić transfer. Zmierz
+  najpierw, ile wpisów w `package-lock.json` ma `"optional": true`. W tym repo 131, w tym binarki
+  platformowe `workerd`, `esbuild` i `sharp`, bez których build nie ruszy.
+- **Applies to**: plan, implement, impl-review, research
