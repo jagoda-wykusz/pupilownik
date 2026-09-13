@@ -3,7 +3,19 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import type { Database } from "@/db/database.types";
 import { getTestEnv } from "../../env";
-import type { OwnerCredentials } from "../auth.setup";
+
+/** What `auth.setup.ts` writes and this module reads back.
+ *
+ *  It is declared HERE, not in `auth.setup.ts`, so that nothing ever imports a spec/setup file for
+ *  a type. That import worked only because `import type` is erased before Playwright loads the
+ *  module; dropping the word `type` in a future edit would pull `setup(...)` into this module's
+ *  graph and Playwright would refuse with "test() can only be called in a test file". Inverting the
+ *  direction removes the trap rather than relying on nobody springing it (review F8). */
+export interface OwnerCredentials {
+  email: string;
+  password: string;
+  userId: string;
+}
 
 // Rebuilds an owner-scoped Supabase client for the identity `auth.setup.ts` created this run.
 //
@@ -38,12 +50,26 @@ export async function ownerClient(): Promise<{ client: SupabaseClient<Database>;
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
-  const { error } = await client.auth.signInWithPassword({
+  const { data, error } = await client.auth.signInWithPassword({
     email: credentials.email,
     password: credentials.password,
   });
   if (error) {
-    throw new Error(`ownerClient: could not sign in as ${credentials.email}: ${error.message}`);
+    throw new Error(
+      `ownerClient: could not sign in as ${credentials.email}: ${error.message}. If the local stack was reset since the last run, the credentials file is stale — delete playwright/.auth/ and re-run.`,
+    );
+  }
+
+  // The identity guard, and it exists because the failure it catches is SILENT. The credentials
+  // file survives a `supabase db reset` / `stop` + `start`, so it can name a user that no longer
+  // exists — or, worse, one that exists but is a different owner than the browser session belongs
+  // to. In that second case sign-in SUCCEEDS, the cleanup delete is scoped by RLS to nobody, and
+  // PostgREST reports no error for a zero-row delete: the test goes green having cleaned up
+  // nothing (review F10). Comparing the id turns both modes into one named failure.
+  if (data.user.id !== credentials.userId) {
+    throw new Error(
+      `ownerClient: the credentials file names user ${credentials.userId} but signing in produced ${data.user.id} — playwright/.auth/ is stale. Delete it and re-run; if the local stack was reset, run \`npm run db:reset\` first.`,
+    );
   }
 
   return { client, userId: credentials.userId };

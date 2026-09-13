@@ -22,7 +22,22 @@ import { expect, type Page } from "@playwright/test";
 // rule and not a loophole in it: this locates no user-facing element and asserts nothing about the
 // product. It waits for the FRAMEWORK to be ready, which has no accessible-name equivalent.
 //
-// A page with no islands passes trivially — the locator matches nothing, which is already 0.
+// NESTED ISLANDS AND `await-children` ARE NOT HOLES, checked against Astro's client runtime rather
+// than assumed: the element refuses to hydrate while `this.parentElement?.closest('astro-island[ssr]')`
+// matches and retries on the parent's `astro:hydrate` event, so a child keeps its `ssr` attribute
+// until its parent is done. `toHaveCount(0)` therefore waits for the whole tree.
+//
+// THE PRECONDITION THIS DOES HAVE: every island in this project is `client:load`. Verified by
+// grepping `src/` for `client:only|client:visible|client:idle|client:media` — zero hits. That
+// matters because the helper is BLIND to `client:only`: such an island is never server-rendered, so
+// it carries no `ssr` attribute and this assertion is satisfied while the component is still being
+// fetched. And `client:visible` would invert the failure — a below-fold island never hydrates, so
+// this would burn its full timeout on a page that works perfectly. If either directive is ever
+// introduced, this helper needs revisiting before it is trusted on that page.
+//
+// The `> 0` control comes first for the reason every other control in this suite exists: a page
+// whose islands silently stopped rendering would satisfy `toHaveCount(0)` and sail through.
 export async function waitForHydration(page: Page): Promise<void> {
+  await expect(page.locator("astro-island")).not.toHaveCount(0);
   await expect(page.locator("astro-island[ssr]")).toHaveCount(0);
 }

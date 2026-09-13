@@ -1,3 +1,4 @@
+import type { Page } from "@playwright/test";
 import { test, expect } from "./fixtures/invite";
 import { waitForHydration } from "./fixtures/hydration";
 
@@ -41,6 +42,31 @@ import { waitForHydration } from "./fixtures/hydration";
 // test would no longer describe the person the risk is about.
 test.use({ storageState: { cookies: [], origins: [] } });
 
+/** The claim, exactly as a caretaker performs it. Shared by all three tests because each needs a
+ *  real claim — two of them only as setup for what they actually assert.
+ *
+ *  THE DAY IS SELECTED EXPLICITLY, and that is the point of this helper existing rather than three
+ *  copies. The seeded trip spans 2027-02-01..02, so `create_period_with_slots` generates a "Rano"
+ *  slot on BOTH days; `getByRole("button", { name: /^Rano/ })` resolves to one only because
+ *  `ClaimSlots` renders a single selected day at a time and opens on the first with free slots.
+ *  That is an implicit dependency on the island's default state: the day the default moves, the
+ *  locator matches two elements and fails with a strict-mode violation that reads like a product
+ *  bug (review F9). Clicking the day first makes the dependency explicit and the flow a truer
+ *  description of what a caretaker does.
+ *
+ *  Re-selecting the already-open day is a no-op — `selectDay` only clears the slot selection when
+ *  the day actually changes. */
+async function claimMorningSlot(page: Page, caretakerName: string): Promise<void> {
+  await page.getByRole("button", { name: /^poniedziałek, 1 lutego/ }).click();
+
+  // A slot card's accessible name is composed of the time-of-day label, its status pill and its
+  // call to action ("Rano WOLNE Wolny termin — możesz go wziąć. Zapisuję się"), so anchor on the
+  // part that identifies it rather than matching the whole string.
+  await page.getByRole("button", { name: /^Rano/ }).click();
+  await page.getByLabel("TWOJE IMIĘ", { exact: true }).fill(caretakerName);
+  await page.getByRole("button", { name: /^Zapisuję się \(1\)$/ }).click();
+}
+
 test("sensitive instructions reach the caretaker only after a slot is claimed", async ({ page, trip }) => {
   await page.goto(`/invite/${trip.token}`);
   await waitForHydration(page);
@@ -55,12 +81,8 @@ test("sensitive instructions reach the caretaker only after a slot is claimed", 
   await expect(page.getByText("Tylko dla opiekuna")).toBeHidden();
   await expect(page.getByText(trip.secretBody, { exact: true })).toBeHidden();
 
-  // The claim. A slot card's accessible name is composed of the time-of-day label, its status
-  // pill and its call to action ("Rano WOLNE Wolny termin — możesz go wziąć. Zapisuję się"), so
-  // anchor on the part that identifies it rather than matching the whole string.
-  await page.getByRole("button", { name: /^Rano/ }).click();
-  await page.getByLabel("TWOJE IMIĘ", { exact: true }).fill("Ania E2E");
-  await page.getByRole("button", { name: /^Zapisuję się \(1\)$/ }).click();
+  // The claim.
+  await claimMorningSlot(page, "Ania E2E");
 
   // THE LOAD-BEARING ASSERTIONS. The island reloads the page after a successful claim, so what is
   // asserted here is the server's re-render, reached only because the browser kept the cookie.
@@ -83,9 +105,7 @@ test("the revealed sensitive tier never reaches an island's serialized props", a
   await page.goto(`/invite/${trip.token}`);
   await waitForHydration(page);
 
-  await page.getByRole("button", { name: /^Rano/ }).click();
-  await page.getByLabel("TWOJE IMIĘ", { exact: true }).fill("Basia E2E");
-  await page.getByRole("button", { name: /^Zapisuję się \(1\)$/ }).click();
+  await claimMorningSlot(page, "Basia E2E");
   await expect(page.getByText("Tylko dla opiekuna")).toBeVisible();
 
   // HALF ONE, and it is what stops half two from passing vacuously: the reveal really happened, so
@@ -123,9 +143,7 @@ test("a browser without the capability cookie sees no sensitive tier on the same
   // reveal is gated on the claim rather than on the token.
   await page.goto(`/invite/${trip.token}`);
   await waitForHydration(page);
-  await page.getByRole("button", { name: /^Rano/ }).click();
-  await page.getByLabel("TWOJE IMIĘ", { exact: true }).fill("Celina E2E");
-  await page.getByRole("button", { name: /^Zapisuję się \(1\)$/ }).click();
+  await claimMorningSlot(page, "Celina E2E");
   await expect(page.getByText("Tylko dla opiekuna")).toBeVisible();
 
   // A genuinely separate browser context: its own cookie jar, no capability, nothing shared.

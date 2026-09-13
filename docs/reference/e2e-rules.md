@@ -101,6 +101,14 @@ that Astro removes on hydration — a framework-provided readiness bit, verified
 server's HTML. It is the one sanctioned exception to rule "never locate by DOM structure": it
 locates no user-facing element and asserts nothing about the product.
 
+**Its precondition: every island here is `client:load`** (verified by grep — no `client:only`,
+`client:visible`, `client:idle` or `client:media` anywhere in `src/`). The helper is **blind to
+`client:only`**, which is never server-rendered and so never carries `ssr`; it would report ready
+while the component is still loading. `client:visible` would fail the opposite way — a below-fold
+island never hydrates, so the wait would time out on a page that works. Introduce either directive
+and this helper must be revisited before it is trusted on that page. Nested islands and
+`await-children` are NOT holes: Astro keeps `ssr` on a child until its parent has hydrated.
+
 ```ts
 await page.goto("/pets/new");
 await waitForHydration(page);

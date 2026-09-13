@@ -3,6 +3,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { createOwnerClient } from "../helpers/auth";
 import { waitForHydration } from "./fixtures/hydration";
+import type { OwnerCredentials } from "./fixtures/owner";
 
 // Captures one owner session per RUN, so no individual spec ever logs in through the UI.
 //
@@ -26,13 +27,6 @@ import { waitForHydration } from "./fixtures/hydration";
 const AUTH_DIR = path.resolve("playwright/.auth");
 const STATE_FILE = path.join(AUTH_DIR, "owner.json");
 const CREDENTIALS_FILE = path.join(AUTH_DIR, "owner-credentials.json");
-
-/** What the specs read back to rebuild an owner-scoped Supabase client for cleanup. */
-export interface OwnerCredentials {
-  email: string;
-  password: string;
-  userId: string;
-}
 
 setup("authenticate as a fresh owner", async ({ page }) => {
   const owner = await createOwnerClient();

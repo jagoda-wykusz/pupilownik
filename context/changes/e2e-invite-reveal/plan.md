@@ -446,7 +446,12 @@ future test starts in.
 
 **Intent**: Status and date.
 
-**Contract**: `status: complete`, `updated: <today>`.
+**Contract**: `status: implemented`, `updated: <today>`.
+
+> Corrected during the implementation review. This line originally said `status: complete`, which
+> is not in the allowed set (`.claude/skills/10x-new/references/change-md.md`: `new`, `preparing`,
+> `planned`, `plan_reviewed`, `implementing`, `implemented`, `impl_reviewed`, `archived`,
+> `blocked`). `implemented` was used at execution time; this corrects the plan to match.
 
 ### Success Criteria:
 
@@ -563,6 +568,6 @@ None. No schema change, no production code change, no data migration.
 
 #### Manual
 
-- [x] 3.5 A CI run executes the E2E job and it passes there — 7023efb
+- [ ] 3.5 A CI run executes the E2E job and it passes there
 - [x] 3.6 Every new sentence in `test-plan.md` was checked against the code when written — 7023efb
 - [x] 3.7 §7 states what the E2E test cannot fail on — 7023efb

@@ -159,15 +159,20 @@ plaintext on every build, which is why the scan targets `dist/client` alone.
 
 ## 4. Stack
 
-The classic test base for this project: **none yet** (no runner configured, 0
-test files). Phase 1 bootstraps it.
+The classic test base for this project **when this plan was first written**: none — no runner
+configured, 0 test files. Phase 1 bootstrapped it.
+
+**As measured 2026-09-13**: 46 vitest files / 428 tests across the `unit`, `component` and
+`integration` projects, plus 4 Playwright tests in 2 spec files (`tests/e2e/`) behind their own
+runner. The sentence above is kept in the past tense rather than deleted because §3's phase
+numbering refers back to it — but read as a description of state it is now false in both halves.
 
 | Layer                 | Tool                                                         | Version   | Notes                                                                                                                                                                                                                                                                            |
 | --------------------- | ------------------------------------------------------------ | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | unit + integration    | Vitest                                                       | ^4.1      | wired in Phase 1 (`vitest.config.ts`, node env, `npm test`). Natural fit: the project already builds on Vite (Astro 6).                                                                                                                                                          |
 | Supabase integration  | local stack (`npx supabase start`) + `@supabase/supabase-js` | installed | Run RLS tests against the local Postgres with two distinct user JWTs; never the service-role client.                                                                                                                                                                             |
 | e2e                   | Playwright                                                   | ^1.63     | wired 2026-09-13 (`playwright.config.ts`, `tests/e2e/`, `npm run test:e2e`). Chromium only, `retries: 0`. Runs on a developer machine and in GitHub Actions; **never** in the publish gate — the Cloudflare build container has no Docker, so `supabase start` cannot run there. |
-| build-artifact checks | grep over `dist/` build output                               | n/a       | none yet — see §3 Phase 3 (secret-leak gate).                                                                                                                                                                                                                                    |
+| build-artifact checks | `scripts/check-client-bundle.mjs` (`npm run check:secrets`)  | n/a       | shipped by §3 Phase 3 and wired into `npm run ci:gate` on 2026-09-12, so it **blocks publication**. Scans `dist/client` only — under `output: "server"` that is where the client bundle lives and SSR output never reaches it (see §7).                                          |
 | (optional) AI-native  | none                                                         | n/a       | not justified under cost × signal at this maturity.                                                                                                                                                                                                                              |
 
 **Stack grounding tools (current session):**

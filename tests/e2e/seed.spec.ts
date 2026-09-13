@@ -20,23 +20,47 @@ import { waitForHydration } from "./fixtures/hydration";
 //   1. ROLE-BASED LOCATORS. getByRole / getByLabel throughout — never CSS, never XPath, never DOM
 //      structure. These survive a Tailwind refactor; `.btn-primary` does not. They are also what
 //      the agent actually sees in an accessibility snapshot.
-//   2. INDEPENDENCE. Setup, action, assertion and cleanup all live in this one test. Nothing here
-//      depends on another test having run, which is what makes `fullyParallel` safe.
+//   2. INDEPENDENCE. Setup, action and assertion live in this one test, and its cleanup is bound
+//      to it by `afterEach`. Nothing here depends on another test having run, which is what makes
+//      `fullyParallel` safe.
 //   3. WAITING ON STATE, NEVER ON TIME. `waitForURL` and web-first `expect(...).toBeVisible()`,
 //      which retry until the condition holds. There is no `waitForTimeout` in this project's E2E
 //      suite and there must never be one — it passes on a laptop and flakes in CI.
 //   4. UNIQUE TEST DATA + CLEANUP. A `Date.now()` suffix means two runs cannot collide, and the
-//      teardown means the account does not accumulate a pet per run.
+//      `afterEach` teardown means the account does not accumulate a pet per run — including on
+//      runs where the test itself failed, which is the half an in-body cleanup gets wrong.
 //
 // On the cleanup: it goes through the DATABASE rather than the UI, and that is forced rather than
 // chosen — this app has no delete affordance for a pet anywhere (no button in
 // src/pages/pets/index.astro, no DELETE on /api/pets). The client is anon-keyed and signed in as
 // the same owner, so RLS applies and the delete is one the owner could genuinely perform.
 
+// Set by the test, consumed by the teardown below. It lives out here because cleanup belongs in
+// `afterEach` rather than at the end of the test body: a failure at ANY assertion above would skip
+// an in-body cleanup and leak a `pets` row per failed run — which is anti-pattern #5, the very
+// thing this file's header claims to demonstrate (implementation review F6).
+let petName: string | null = null;
+
+test.afterEach(async () => {
+  if (petName === null) {
+    return;
+  }
+  const { client } = await ownerClient();
+
+  // `.select("id")` and a length assertion, NOT `expect(error).toBeNull()` alone: PostgREST
+  // reports no error for a delete that matched ZERO rows, so the weaker check passes when nothing
+  // was cleaned up — including when a stale credentials file signs us in as a different owner and
+  // RLS silently scopes the delete to nobody.
+  const { data, error } = await client.from("pets").delete().eq("name", petName).select("id");
+  expect(error).toBeNull();
+  expect(data).toHaveLength(1);
+  petName = null;
+});
+
 test("a pet created by its owner persists after page reload", async ({ page }) => {
   // Unique per run. Without this the second run creates a second "Burek" and the heading assertion
   // below becomes ambiguous — strict mode would fail on two matches, which reads as a product bug.
-  const petName = `Testowy Burek ${Date.now()}`;
+  petName = `Testowy Burek ${Date.now()}`;
 
   await page.goto("/pets/new");
 
@@ -60,9 +84,5 @@ test("a pet created by its owner persists after page reload", async ({ page }) =
   await page.reload();
   await expect(heading).toBeVisible();
 
-  // Cleanup — see the header. Runs in the test body rather than in afterEach because this file
-  // holds one test and the teardown needs `petName`.
-  const { client } = await ownerClient();
-  const { error } = await client.from("pets").delete().eq("name", petName);
-  expect(error).toBeNull();
+  // Cleanup runs in `test.afterEach` above, so it happens even when an assertion here fails.
 });

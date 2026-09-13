@@ -176,12 +176,26 @@ jobs:
       - name: E2E — the caretaker reveal chain
         run: npm run test:e2e
 
-      # The traces and screenshots the config retains on failure. Only useful when the step above
-      # failed, which is what `if: failure()` says.
-      - name: Upload the Playwright report on failure
+      # The traces and screenshots the config retains on failure.
+      #
+      # `test-results/`, NOT `playwright-report/` — the latter is written only by the `html`
+      # reporter, and playwright.config.ts uses `github` + `list`. The first version of this step
+      # pointed at `playwright-report/` and was therefore a no-op that uploaded nothing and still
+      # went green: `if-no-files-found` defaults to `warn`. `error` is set below so an empty upload
+      # is loud rather than reassuring.
+      #
+      # KNOW WHAT THIS PUBLISHES BEFORE WIDENING IT. A Playwright trace records request bodies and
+      # cookie headers, so the setup project's trace contains the sign-in POST (the throwaway
+      # owner's email and password) and the session cookie the app issues. Harmless today — the
+      # identity is minted per run against an ephemeral `supabase start` container that dies with
+      # the job, and tests/env.ts refuses any non-localhost host — but anyone reaching for
+      # `--trace on` or a wider path should know it is publishing credentials to everyone with
+      # repo read access.
+      - name: Upload the Playwright traces on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-report
-          path: playwright-report/
-          retention-days: 7
+          name: playwright-traces
+          path: test-results/
+          if-no-files-found: error
+          retention-days: 3
