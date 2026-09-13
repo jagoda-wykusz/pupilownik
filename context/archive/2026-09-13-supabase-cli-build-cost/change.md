@@ -1,10 +1,10 @@
 ---
 change_id: supabase-cli-build-cost
 title: Stop a GitHub Releases outage from killing the Cloudflare build
-status: impl_reviewed
+status: archived
 created: 2026-09-13
 updated: 2026-09-13
-archived_at: null
+archived_at: 2026-09-13T10:47:25Z
 ---
 
 ## Notes
