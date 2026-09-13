@@ -152,10 +152,10 @@ not chosen. Update the §5 rows if their wording implies warnings are advisory.
 
 #### Automated
 
-- [x] 2.1 The new guard assertions pass
-- [x] 2.2 Every new assertion fails when its flag is removed
-- [x] 2.3 Full gate passes: `npm run ci:gate`
+- [x] 2.1 The new guard assertions pass — ab7d98f
+- [x] 2.2 Every new assertion fails when its flag is removed — ab7d98f
+- [x] 2.3 Full gate passes: `npm run ci:gate` — ab7d98f
 
 #### Manual
 
-- [x] 2.4 §7 reads correctly to someone who was not part of this session
+- [x] 2.4 §7 reads correctly to someone who was not part of this session — ab7d98f
