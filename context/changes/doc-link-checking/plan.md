@@ -135,25 +135,25 @@ next person who wants to "simplify" the exclusions knows which real string each 
 
 #### Automated
 
-- [x] 1.1 The script exits 0 against the repo
-- [x] 1.2 The script exits 1 on a planted dead link
-- [x] 1.3 The script exits 2 when its pattern is sabotaged
-- [x] 1.4 None of the six known false positives is reported
-- [x] 1.5 `npm run lint` and `npm run check` pass
+- [x] 1.1 The script exits 0 against the repo — 3ee3b93
+- [x] 1.2 The script exits 1 on a planted dead link — 3ee3b93
+- [x] 1.3 The script exits 2 when its pattern is sabotaged — 3ee3b93
+- [x] 1.4 None of the six known false positives is reported — 3ee3b93
+- [x] 1.5 `npm run lint` and `npm run check` pass — 3ee3b93
 
 #### Manual
 
-- [x] 1.6 The two rewritten sentences say something true
+- [x] 1.6 The two rewritten sentences say something true — 3ee3b93
 
 ### Phase 2: Wire it into the gate and pin it
 
 #### Automated
 
-- [ ] 2.1 `npm run ci:gate` passes with the new step
-- [ ] 2.2 The new pin assertions pass
-- [ ] 2.3 Every new assertion fails when its target is removed
-- [ ] 2.4 The gate fails when a dead link is planted
+- [x] 2.1 `npm run ci:gate` passes with the new step
+- [x] 2.2 The new pin assertions pass
+- [x] 2.3 Every new assertion fails when its target is removed
+- [x] 2.4 The gate fails when a dead link is planted
 
 #### Manual
 
-- [ ] 2.5 §7 reads correctly to someone who was not part of this session
+- [x] 2.5 §7 reads correctly to someone who was not part of this session

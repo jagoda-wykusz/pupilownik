@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -226,6 +226,38 @@ describe("the publish gate is still the chain it claims to be", () => {
     expect(commands, "the workflow invokes astro check directly, bypassing the script's threshold").not.toMatch(
       /\bastro\s+check\b/,
     );
+  });
+
+  it("checks documentation links, first in the chain", () => {
+    // Written the same hour the step was added, because the comment in "runs the render sweep
+    // through its own config" says it plainly: adding a step to `ci:gate` does NOT fail the
+    // assertions above. They pin the presence and order of the steps they already know about, not
+    // that no others exist. A new link in the chain is unguarded until someone writes it down.
+    //
+    // FIRST is part of the contract, not a preference: the checker needs neither a build nor the
+    // generated `.astro/` types, so it can fail in seconds instead of after the build. Pinning the
+    // position keeps that property from being lost to a tidy-up that groups the `check:*` scripts.
+    const linkScript = packageJson.scripts["check:links"];
+
+    expect(linkScript, "scripts['check:links'] is missing, but the gate calls it").toBeTruthy();
+    expect(linkScript, "check:links no longer runs the link checker").toContain("scripts/check-doc-links.mjs");
+    expect(
+      existsSync(path.join(ROOT, "scripts/check-doc-links.mjs")),
+      "scripts/check-doc-links.mjs is gone, but package.json still calls it",
+    ).toBe(true);
+
+    expect(gate, "the link check is not in the publish gate").toContain("npm run check:links");
+
+    const links = gate.indexOf("npm run check:links");
+    const typecheck = CHECK_STEP.exec(gate)?.index ?? -1;
+
+    expect(links, "the link check is absent, so its position proves nothing").toBeGreaterThan(-1);
+    expect(typecheck, "the typecheck is absent, so the comparison below proves nothing").toBeGreaterThan(-1);
+    expect(links, "the link check must run before the typecheck — it is the cheapest step in the chain").toBeLessThan(
+      typecheck,
+    );
+
+    expect(workflow, "Actions does not run the link check").toMatch(/^\s*-?\s*run:\s*npm run check:links\s*$/m);
   });
 
   it("keeps the Supabase CLI optional, so a GitHub outage cannot fail npm ci", () => {

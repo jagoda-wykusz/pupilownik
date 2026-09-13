@@ -228,6 +228,7 @@ system.**
 | island props in rendered pages                | `tests/render/island-props.test.ts` via `npm run test:render`  | **every deploy; blocks publication**              | a server secret reaching the browser inside `<astro-island props>`                                |
 | font provider source                          | `tests/unit/font-source.test.ts`                               | **every deploy; blocks publication**              | a Google host re-entering the build path through a config edit                                    |
 | fonts actually emitted by the build           | `tests/unit/font-assets.test.ts`                               | **every deploy; blocks publication**              | a build that exits 0 having produced no webfonts, or lost `unicode-range`                         |
+| documentation links                           | `npm run check:links`, first in `ci:gate` + Actions            | **every deploy; blocks publication**              | a document citing a path that no longer exists                                                    |
 | e2e on critical flows                         | —                                                              | not present                                       | broken critical user paths                                                                        |
 
 **Why so many rows now say "blocks publication", corrected 2026-09-12.** Five rows read
@@ -256,7 +257,7 @@ the paragraph that stood here predicted it almost correctly and got one thing wr
 
 The build command is now `npm run ci:gate`, defined in `package.json` — not typed into the
 dashboard, so its contents are in git history where review can see them. The chain is
-`check → lint → build → --project unit --project component → test:render → check:secrets`, and the order is
+`check:links → check → lint → build → --project unit --project component → test:render → check:secrets`, and the order is
 load-bearing twice over: `astro check` regenerates `.astro/` that type-aware ESLint needs, and
 the build must precede the TESTS, not merely the scan — `tests/unit/client-bundle.test.ts` fails
 rather than skips without `dist/client`. That is the correction: the paragraph that stood here
@@ -844,9 +845,44 @@ re-inherit them.
   **Still not addressed**: the npm registry itself, which every install depends on and which no
   change is going to remove.
 
+- **Dead links in documents, and why the exclusions are the whole design.** Added 2026-09-13
+  (`doc-link-checking`). Archiving a change moves `context/changes/<id>/` to
+  `context/archive/<date>-<id>/` and silently breaks every reference to it; nothing in `ci:gate`
+  read prose, so a document could rot indefinitely while every test stayed green.
+
+  **The measurement that shaped it.** 439 path references across 118 files, 8 unique dead — and only
+  **2 genuine**. At a 75% false-positive rate a gate step gets ignored, or worse, blocks a deploy on
+  a template placeholder. So the work was not finding dead links; it was not crying wolf. The first
+  run of the finished script reported 17 hits, of which 3 were real.
+
+  Two classes of noise were solved generically rather than with a list of exceptions, and that
+  choice is the point:
+
+  | noise                                                                                    | why a list would have been wrong                                                                                                                     |
+  | ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
+  | paths containing a space (`context/design/Pupilownik Hi-fi.html`, cited from five files) | the pattern truncates at the space; naming that one directory would go stale, silently, the next time someone adds another                           |
+  | a document ABOUT a dead link, which must be able to name one                             | this change's own folder cited `src/types.ts` as an example and the first run flagged it — the same shape as an assertion matching its own rationale | <!-- link-check:ignore --> |
+
+  The first is handled by asking whether the extracted string is the PREFIX of a real entry; the
+  second by a per-line `link-check:ignore` marker.
+
+  **What it deliberately cannot catch**, so nobody mistakes the reach: a moved LINE number
+  (`foo.ts:42` is checked as `foo.ts`), a reference that is wrong rather than dead (both files
+  exist), and any URL — checking those would put the network back in the build, which is the exact
+  failure class the two preceding changes removed.
+
+  **It exits 2, not 1, when its own pattern stops matching.** A floor of 200 references separates a
+  broken scan from a finding, because a pattern that matched nothing would print "clean" and guard
+  nothing.
+
+  **Three genuine findings on the first run**, two of them beyond the reach of the manual sweep an
+  hour earlier — that sweep read only `context/foundation/*.md`, while the script reads source
+  comments too, and `astro.config.mjs` and `src/assets/fonts/README.md` both pointed at a research
+  document archived the day before.
+
 ## 8. Freshness Ledger
 
-- Strategy (§1–§5) last reviewed: 2026-09-13 (§7 gained the install-time dependency entry, closing the second of three build-time third parties, and five stale `context/changes/` links were repointed at their archive paths; §5's lint and typecheck rows now say they catch warnings, and §7 records why follow-up #3's choice was false; §7 closed ci-quality-gates follow-up #5 as explained-not-changed, with the two reasons the dangerous asset scope is unreachable; §5's chain string and gate table gained `test:render`, which the island-prop change added to `ci:gate` without updating the inventory, plus the two font guards; §7 gained the build-time third-party entry; §7 gained the island-prop boundary and its three-layer coverage, plus a withdrawn criticism of the prop-type claim; §3 Phase 2b closed narrower than its name — see the note under the phase table; earlier on 2026-09-11: §3 Phases 3 and 4 closed; §5 rewritten against the repo after the CI it described was found not to exist; §2's Risk #4 and #5 wording corrected against measurement — see §7)
+- Strategy (§1–§5) last reviewed: 2026-09-13 (§5 and its chain string gained `check:links`, and §7 records why that checker's exclusions are its design; §7 gained the install-time dependency entry, closing the second of three build-time third parties, and five stale `context/changes/` links were repointed at their archive paths; §5's lint and typecheck rows now say they catch warnings, and §7 records why follow-up #3's choice was false; §7 closed ci-quality-gates follow-up #5 as explained-not-changed, with the two reasons the dangerous asset scope is unreachable; §5's chain string and gate table gained `test:render`, which the island-prop change added to `ci:gate` without updating the inventory, plus the two font guards; §7 gained the build-time third-party entry; §7 gained the island-prop boundary and its three-layer coverage, plus a withdrawn criticism of the prop-type claim; §3 Phase 2b closed narrower than its name — see the note under the phase table; earlier on 2026-09-11: §3 Phases 3 and 4 closed; §5 rewritten against the repo after the CI it described was found not to exist; §2's Risk #4 and #5 wording corrected against measurement — see §7)
 - Stack versions last verified: 2026-06-28
 - AI-native tool references last verified: 2026-06-28
 

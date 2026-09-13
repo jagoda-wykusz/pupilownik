@@ -78,6 +78,11 @@ jobs:
       # copy from the registry instead of failing, and these 22 integration files are the only
       # tests in the project that exercise RLS. `--no-install` is the load-bearing flag — it makes
       # npx fail instead of fetch, turning a silent skip into a named failure.
+      # First in the chain and first here, because it needs neither a build nor generated types —
+      # a dead link should fail in seconds rather than after a four-minute build.
+      - name: Check documentation links
+        run: npm run check:links
+
       - name: Verify the Supabase CLI actually installed
         run: npx --no-install supabase --version
       #
