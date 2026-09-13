@@ -141,21 +141,21 @@ not chosen. Update the §5 rows if their wording implies warnings are advisory.
 
 #### Automated
 
-- [x] 1.1 `npm run lint` exits 0 with zero problems
-- [x] 1.2 `npm run check` exits 0 at the `warning` threshold
-- [x] 1.3 A planted `console.log` in an endpoint fails lint
-- [x] 1.4 A planted `console.error` in a client component fails lint
-- [x] 1.5 The twelve existing calls are unchanged
-- [x] 1.6 Full gate passes: `npm run ci:gate`
+- [x] 1.1 `npm run lint` exits 0 with zero problems — b9338b7
+- [x] 1.2 `npm run check` exits 0 at the `warning` threshold — b9338b7
+- [x] 1.3 A planted `console.log` in an endpoint fails lint — b9338b7
+- [x] 1.4 A planted `console.error` in a client component fails lint — b9338b7
+- [x] 1.5 The twelve existing calls are unchanged — b9338b7
+- [x] 1.6 Full gate passes: `npm run ci:gate` — b9338b7
 
 ### Phase 2: Prove it bites, and record it
 
 #### Automated
 
-- [ ] 2.1 The new guard assertions pass
-- [ ] 2.2 Every new assertion fails when its flag is removed
-- [ ] 2.3 Full gate passes: `npm run ci:gate`
+- [x] 2.1 The new guard assertions pass
+- [x] 2.2 Every new assertion fails when its flag is removed
+- [x] 2.3 Full gate passes: `npm run ci:gate`
 
 #### Manual
 
-- [ ] 2.4 §7 reads correctly to someone who was not part of this session
+- [x] 2.4 §7 reads correctly to someone who was not part of this session

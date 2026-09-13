@@ -39,6 +39,15 @@ const CHECK_STEP = /npm run check(?![:\w])/;
  *  assertion on the shorter name would be satisfied by this longer one. */
 const RENDER_STEP = /npm run test:render(?![:\w])/;
 
+/** The two flags that decide whether a WARNING can stop a deploy.
+ *
+ *  Both accept either separator, because `--flag value` and `--flag=value` are the same thing to
+ *  the tools and pinning only one spelling would fail on a harmless edit. What they do NOT accept
+ *  is a different value: `--max-warnings 10` is a budget, not a gate, and `(?!\d)` is what stops
+ *  the pattern from matching the leading `0` of some larger number. */
+const MAX_WARNINGS = /--max-warnings[= ]0(?!\d)/;
+const FAILING_SEVERITY = /--minimumFailingSeverity[= ]warning\b/;
+
 describe("the publish gate is still the chain it claims to be", () => {
   it("was actually parsed, so the assertions below are not vacuous", () => {
     // GUARDS THE GUARD. Rename `ci:gate`, or move the workflow, and every `toContain` below would
@@ -114,6 +123,55 @@ describe("the publish gate is still the chain it claims to be", () => {
     expect(renderScript, "scripts['test:render'] is missing, but the gate calls it").not.toBe("");
     expect(renderScript, "the render sweep must run under vitest.render.config.ts").toContain(
       "vitest.render.config.ts",
+    );
+  });
+
+  it("makes a single warning stop the deploy, in both tools", () => {
+    // WHY THIS IS PINNED AT ALL, and it is the same argument as the file header: a threshold that
+    // is removed leaves no symptom. `eslint .` without --max-warnings 0 prints the same warnings
+    // and exits 0; `astro check` without --minimumFailingSeverity warning prints the same summary
+    // and exits 0. Both read as a clean run. Before `warnings-block-publication` that was the
+    // actual state — 12 warnings, green gate — and a rule added at `warn` severity contributed
+    // nothing to publication.
+    //
+    // THE FLAG CARRIES MORE THAN ITS NAME SUGGESTS, measured rather than assumed. `no-console` is
+    // `error` only for `src/pages/**/*.ts`; everywhere else it is still `warn`. So a console.error
+    // in a client island fails ONLY because of --max-warnings 0. Drop that flag and client code
+    // silently reverts to advisory while endpoints stay strict — the opposite of what a reader
+    // would guess from the eslint config alone.
+    // No `?? ""` here, and the reason is a type that lies: `scripts` is `Record<string, string>`,
+    // so dot access is typed `string` and TS would call the fallback unnecessary — while at RUNTIME
+    // a deleted script is `undefined`. `toBeTruthy()` catches both that and an empty string, which
+    // `not.toBe("")` would not: `undefined !== ""` passes.
+    const lintScript = packageJson.scripts.lint;
+    const checkScript = packageJson.scripts.check;
+
+    expect(lintScript, "scripts['lint'] is missing from package.json").toBeTruthy();
+    expect(checkScript, "scripts['check'] is missing from package.json").toBeTruthy();
+
+    expect(lintScript, "`npm run lint` tolerates warnings — a rule at `warn` severity cannot block a deploy").toMatch(
+      MAX_WARNINGS,
+    );
+    expect(
+      checkScript,
+      "`npm run check` exits on errors only — a warning-severity diagnostic cannot block a deploy",
+    ).toMatch(FAILING_SEVERITY);
+  });
+
+  it("routes both gates through those scripts by name, so one definition covers both", () => {
+    // The flags above live in package.json. They reach the publish gate and GitHub Actions only
+    // because BOTH invoke the npm scripts rather than calling `eslint` or `astro check` directly.
+    // Inline either tool in the workflow and that copy silently loses the threshold while this
+    // file keeps passing.
+    expect(gate, "lint missing from the publish gate").toContain("npm run lint");
+    expect(gate, "typecheck missing from the publish gate").toMatch(CHECK_STEP);
+    expect(workflow, "Actions does not run lint through the npm script").toContain("npm run lint");
+    expect(workflow, "Actions does not run the typecheck through the npm script").toMatch(CHECK_STEP);
+    expect(workflow, "Actions calls eslint directly, bypassing the script's threshold").not.toMatch(
+      /run:\s*npx?\s+eslint/,
+    );
+    expect(workflow, "Actions calls astro check directly, bypassing the script's threshold").not.toMatch(
+      /run:\s*npx?\s+astro check/,
     );
   });
 

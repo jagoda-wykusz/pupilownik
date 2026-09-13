@@ -210,25 +210,25 @@ the one this project keeps relearning from the other direction: **an instruction
 inventory look identical in prose, and the only way to tell them apart is to observe the
 system.**
 
-| Gate                                          | Where it runs                                                  | Enforced?                                         | Catches                                                                   |
-| --------------------------------------------- | -------------------------------------------------------------- | ------------------------------------------------- | ------------------------------------------------------------------------- |
-| format (prettier, edited file)                | per-edit agent hook (`.claude/hooks/format-edited-file.mjs`)   | agent sessions only                               | formatting drift; a file the formatter cannot parse                       |
-| format (prettier, staged json/css/md)         | pre-commit, lint-staged                                        | every commit                                      | formatting drift in non-code files                                        |
-| lint (staged files)                           | pre-commit, lint-staged → `eslint --fix` on `*.{ts,tsx,astro}` | every commit                                      | syntactic drift                                                           |
-| lint (whole project)                          | **publish gate** + GitHub Actions                              | **every deploy; blocks publication**              | drift in files no commit touched                                          |
-| typecheck                                     | pre-commit → `npm run check`; **publish gate**; Actions        | every commit **and every deploy**                 | type drift, including inside `.astro` templates                           |
-| build                                         | **publish gate** + GitHub Actions                              | **every deploy; blocks publication**              | broken SSR build                                                          |
-| unit + component                              | **publish gate** + GitHub Actions                              | **every deploy; blocks publication**              | logic regressions                                                         |
-| unit + integration, scoped to the edited file | per-edit agent hook (`.claude/hooks/related-tests.mjs`)        | agent sessions only; skips when the stack is down | regressions on the path just edited                                       |
-| secret-leak scan of `dist/client`             | `npm run check:secrets`, and a test inside `npm test`          | **every deploy; blocks publication**              | a secret literal pasted into a client island                              |
-| env schema shape                              | a test inside `npm test`                                       | **every deploy; blocks publication**              | a `PUBLIC_`/client-context redeclaration that would inline a secret       |
-| Supabase advisors (security)                  | `npx supabase db advisors`, by hand                            | recommended on every migration                    | RLS / definer-function issues                                             |
-| integration (RLS + routes)                    | **GitHub Actions only** — the build container has no Docker    | every push and PR, but **cannot block a merge**   | RLS + route regressions                                                   |
-| gate contents themselves                      | `tests/unit/ci-gate-source.test.ts`                            | **every deploy; blocks publication**              | a step quietly removed from either gate                                   |
-| island props in rendered pages                | `tests/render/island-props.test.ts` via `npm run test:render`  | **every deploy; blocks publication**              | a server secret reaching the browser inside `<astro-island props>`        |
-| font provider source                          | `tests/unit/font-source.test.ts`                               | **every deploy; blocks publication**              | a Google host re-entering the build path through a config edit            |
-| fonts actually emitted by the build           | `tests/unit/font-assets.test.ts`                               | **every deploy; blocks publication**              | a build that exits 0 having produced no webfonts, or lost `unicode-range` |
-| e2e on critical flows                         | —                                                              | not present                                       | broken critical user paths                                                |
+| Gate                                          | Where it runs                                                  | Enforced?                                         | Catches                                                                                           |
+| --------------------------------------------- | -------------------------------------------------------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| format (prettier, edited file)                | per-edit agent hook (`.claude/hooks/format-edited-file.mjs`)   | agent sessions only                               | formatting drift; a file the formatter cannot parse                                               |
+| format (prettier, staged json/css/md)         | pre-commit, lint-staged                                        | every commit                                      | formatting drift in non-code files                                                                |
+| lint (staged files)                           | pre-commit, lint-staged → `eslint --fix` on `*.{ts,tsx,astro}` | every commit                                      | syntactic drift                                                                                   |
+| lint (whole project)                          | **publish gate** + GitHub Actions                              | **every deploy; blocks publication**              | drift in files no commit touched; any WARNING (`--max-warnings 0`)                                |
+| typecheck                                     | pre-commit → `npm run check`; **publish gate**; Actions        | every commit **and every deploy**                 | type drift, including inside `.astro` templates; any WARNING (`--minimumFailingSeverity warning`) |
+| build                                         | **publish gate** + GitHub Actions                              | **every deploy; blocks publication**              | broken SSR build                                                                                  |
+| unit + component                              | **publish gate** + GitHub Actions                              | **every deploy; blocks publication**              | logic regressions                                                                                 |
+| unit + integration, scoped to the edited file | per-edit agent hook (`.claude/hooks/related-tests.mjs`)        | agent sessions only; skips when the stack is down | regressions on the path just edited                                                               |
+| secret-leak scan of `dist/client`             | `npm run check:secrets`, and a test inside `npm test`          | **every deploy; blocks publication**              | a secret literal pasted into a client island                                                      |
+| env schema shape                              | a test inside `npm test`                                       | **every deploy; blocks publication**              | a `PUBLIC_`/client-context redeclaration that would inline a secret                               |
+| Supabase advisors (security)                  | `npx supabase db advisors`, by hand                            | recommended on every migration                    | RLS / definer-function issues                                                                     |
+| integration (RLS + routes)                    | **GitHub Actions only** — the build container has no Docker    | every push and PR, but **cannot block a merge**   | RLS + route regressions                                                                           |
+| gate contents themselves                      | `tests/unit/ci-gate-source.test.ts`                            | **every deploy; blocks publication**              | a step quietly removed from either gate                                                           |
+| island props in rendered pages                | `tests/render/island-props.test.ts` via `npm run test:render`  | **every deploy; blocks publication**              | a server secret reaching the browser inside `<astro-island props>`                                |
+| font provider source                          | `tests/unit/font-source.test.ts`                               | **every deploy; blocks publication**              | a Google host re-entering the build path through a config edit                                    |
+| fonts actually emitted by the build           | `tests/unit/font-assets.test.ts`                               | **every deploy; blocks publication**              | a build that exits 0 having produced no webfonts, or lost `unicode-range`                         |
+| e2e on critical flows                         | —                                                              | not present                                       | broken critical user paths                                                                        |
 
 **Why so many rows now say "blocks publication", corrected 2026-09-12.** Five rows read
 "with the suite", which is true but misleading in the one way this section exists to prevent:
@@ -766,9 +766,40 @@ re-inherit them.
   now carries a header saying so, because this was raised as a suspicious-looking value twice and
   would have been raised again.
 
+- **A warning now stops a deploy, and the rule that produced them was the thing that was wrong.**
+  Follow-up #3 of `ci-quality-gates` posed a choice: "clean up the ten warnings and add
+  `--max-warnings 0`, or accept that warnings are advisory and stop adding rules at `warn`
+  severity expecting them to bite." Measured 2026-09-12: **both horns were wrong.**
+
+  All twelve warnings (ten when the follow-up was written) were `console.error` in Astro endpoints
+  under `src/pages/**/*.ts` — deliberate observability. This project has no logging library and
+  `wrangler.jsonc` enables Workers observability, so `console.error` IS the log sink; one call sits
+  directly under the comment "Never log inviteToken". "Cleaning up" would have deleted working
+  diagnostics to satisfy a rule that never applied to that code.
+
+  `eslint.config.js` already carried the precedent it needed — `scripts/**/*.mjs` turns the rule
+  off because "A CLI script's output IS its interface." Endpoints got the same treatment, narrower:
+  `no-console: ["error", { allow: ["error", "warn"] }]`. An endpoint's output is its HTTP response,
+  not its log, so a `console.log` left behind after debugging still fails. Deliberately NOT extended
+  to `src/lib/**`, which client islands import.
+
+  Both thresholds then went up: `eslint . --max-warnings 0` and
+  `astro check --minimumFailingSeverity warning`. Measured before choosing — `warning` exits 0
+  today, `hint` exits 1 on five `ts(6387)` deprecations in `eslint.config.js`. `hint` was rejected
+  for a reason that got sharper immediately after: adding one config block took the hint count from
+  five to six, so that threshold would grow with every future block.
+
+  **The asymmetry worth knowing before editing either flag.** `no-console` is `error` only for
+  endpoints; everywhere else it is still `warn`. So a `console.error` in a client island fails ONLY
+  because of `--max-warnings 0` — drop that one flag and client code silently returns to advisory
+  while endpoints stay strict, which is the opposite of what the eslint config alone suggests.
+  `tests/unit/ci-gate-source.test.ts` pins both flags and pins that both gates invoke them through
+  the npm scripts rather than calling `eslint`/`astro check` directly, since a direct call in the
+  workflow would quietly lose the threshold.
+
 ## 8. Freshness Ledger
 
-- Strategy (§1–§5) last reviewed: 2026-09-12 (§7 closed ci-quality-gates follow-up #5 as explained-not-changed, with the two reasons the dangerous asset scope is unreachable; §5's chain string and gate table gained `test:render`, which the island-prop change added to `ci:gate` without updating the inventory, plus the two font guards; §7 gained the build-time third-party entry; §7 gained the island-prop boundary and its three-layer coverage, plus a withdrawn criticism of the prop-type claim; §3 Phase 2b closed narrower than its name — see the note under the phase table; earlier on 2026-09-11: §3 Phases 3 and 4 closed; §5 rewritten against the repo after the CI it described was found not to exist; §2's Risk #4 and #5 wording corrected against measurement — see §7)
+- Strategy (§1–§5) last reviewed: 2026-09-13 (§5's lint and typecheck rows now say they catch warnings, and §7 records why follow-up #3's choice was false; §7 closed ci-quality-gates follow-up #5 as explained-not-changed, with the two reasons the dangerous asset scope is unreachable; §5's chain string and gate table gained `test:render`, which the island-prop change added to `ci:gate` without updating the inventory, plus the two font guards; §7 gained the build-time third-party entry; §7 gained the island-prop boundary and its three-layer coverage, plus a withdrawn criticism of the prop-type claim; §3 Phase 2b closed narrower than its name — see the note under the phase table; earlier on 2026-09-11: §3 Phases 3 and 4 closed; §5 rewritten against the repo after the CI it described was found not to exist; §2's Risk #4 and #5 wording corrected against measurement — see §7)
 - Stack versions last verified: 2026-06-28
 - AI-native tool references last verified: 2026-06-28
 
