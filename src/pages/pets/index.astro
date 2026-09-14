@@ -1,13 +1,16 @@
 ---
 import Layout from "@/layouts/Layout.astro";
 import AppBar from "@/components/AppBar.astro";
+import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase";
+import { resolveTheme, THEME_COOKIE } from "@/lib/theme";
 import { SPECIES_LABEL, type Species } from "@/lib/pet-format";
 
 // Protected by middleware (PROTECTED_ROUTES includes "/pets"): an unauthenticated
 // request is redirected to /auth/signin before this frontmatter runs. The query
 // below carries no owner filter — RLS scopes it to the caller's own pets.
 const supabase = createClient(Astro.request.headers, Astro.cookies);
+const theme = resolveTheme(Astro.cookies.get(THEME_COOKIE)?.value);
 
 interface InstructionRow {
   id: string;
@@ -48,25 +51,18 @@ if (supabase) {
 ---
 
 <Layout title="Moje zwierzęta">
-  <div class="bg-cosmic min-h-screen p-4">
-    <div class="mx-auto max-w-3xl py-10 text-white">
-      <AppBar />
-
-      <div class="mb-6 flex items-center justify-between">
-        <h1 class="bg-gradient-to-r from-blue-200 to-purple-200 bg-clip-text text-3xl font-bold text-transparent">
-          Moje zwierzęta
-        </h1>
-        <a
-          href="/pets/new"
-          class="rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-purple-500"
-        >
-          + Dodaj zwierzę
-        </a>
-      </div>
+  <div class="bg-background min-h-screen px-5 py-8">
+    <div class="mx-auto w-full max-w-2xl">
+      <AppBar theme={theme}>
+        <h1 class="font-heading text-foreground text-[30px] leading-[1.15] font-bold">Moje zwierzęta</h1>
+      </AppBar>
 
       {
         loadError && (
-          <p class="rounded-lg border border-red-500/30 bg-red-900/30 px-4 py-3 text-sm text-red-300">
+          <p
+            role="alert"
+            class="border-destructive/40 bg-destructive/10 text-destructive rounded-lg border-[1.5px] px-4 py-3 text-[14px]"
+          >
             Nie udało się wczytać zwierząt. Odśwież stronę.
           </p>
         )
@@ -74,54 +70,66 @@ if (supabase) {
 
       {
         !loadError && pets.length === 0 && (
-          <div class="rounded-2xl border border-white/10 bg-white/10 p-10 text-center text-blue-100/70 backdrop-blur-xl">
-            <p class="mb-4">Nie masz jeszcze żadnych zwierząt.</p>
-            <a href="/pets/new" class="text-purple-300 hover:underline">
-              Dodaj pierwsze zwierzę →
-            </a>
+          <div class="border-border bg-card rounded-lg border-[1.5px] p-8 text-center">
+            <p class="text-muted-foreground mb-4 text-[15px]">Nie masz jeszcze żadnego zwierzęcia.</p>
+            <Button asChild>
+              <a href="/pets/new">Dodaj pierwsze zwierzę</a>
+            </Button>
           </div>
         )
       }
 
       {
         pets.length > 0 && (
-          <ul class="grid gap-4 sm:grid-cols-2">
-            {pets.map((pet) => {
-              const sensitiveCount = pet.care_instructions.filter((i) => i.is_sensitive).length;
-              return (
-                <li>
-                  {/* The whole card is the link, following /periods/index.astro rather than
-                      adding a per-card button: this page is asserted to carry ZERO islands
-                      (tests/render/island-props.test.ts), and an interactive control here
-                      would raise that floor. Edit and delete both live on the detail page.
-                      Nothing interactive may be nested inside this anchor. */}
-                  <a
-                    href={`/pets/${pet.id}`}
-                    class="block rounded-2xl border border-white/10 bg-white/10 p-5 backdrop-blur-xl transition-colors hover:border-white/30"
-                  >
-                    <div class="mb-1 flex items-baseline justify-between">
-                      <h2 class="text-xl font-semibold text-white">{pet.name}</h2>
-                      <span class="text-xs text-blue-100/60">{SPECIES_LABEL[pet.species]}</span>
-                    </div>
-                    <p class="text-sm text-blue-100/70">
-                      {[pet.breed, pet.age].filter(Boolean).join(" · ") || "Brak dodatkowych danych"}
-                    </p>
-                    <p class="mt-3 flex items-center gap-2 text-xs text-blue-100/60">
-                      <span>
-                        {pet.care_instructions.length}{" "}
-                        {pet.care_instructions.length === 1 ? "instrukcja" : "instrukcji"}
-                      </span>
-                      {sensitiveCount > 0 && (
-                        <span class="rounded-full bg-amber-500/20 px-2 py-0.5 text-amber-200">
-                          {sensitiveCount} wrażliwe
+          <>
+            <ul class="space-y-3">
+              {pets.map((pet) => {
+                const sensitiveCount = pet.care_instructions.filter((i) => i.is_sensitive).length;
+                return (
+                  <li>
+                    {/* The whole card is the link, following /periods/index.astro rather than
+                        adding a per-card button: this page carries no island of its own beyond
+                        the AppBar's theme switch (tests/render/island-props.test.ts), and an
+                        interactive control here would raise that floor. Edit and delete both
+                        live on the detail page. Nothing interactive may be nested inside this
+                        anchor. */}
+                    <a
+                      href={`/pets/${pet.id}`}
+                      class="border-border bg-card hover:border-ring block rounded-lg border-[1.5px] p-5 transition-colors"
+                    >
+                      <div class="flex items-baseline justify-between gap-3">
+                        <span class="font-heading text-foreground text-[17px] font-bold">{pet.name}</span>
+                        <span class="text-muted-foreground shrink-0 text-[13px]">{SPECIES_LABEL[pet.species]}</span>
+                      </div>
+                      <p class="text-primary mt-1 text-[13px] font-semibold">
+                        {[pet.breed, pet.age].filter(Boolean).join(" · ") || "Brak dodatkowych danych"}
+                      </p>
+                      <p class="text-muted-foreground mt-2 flex flex-wrap items-center gap-2 text-[13px]">
+                        <span>
+                          {pet.care_instructions.length}{" "}
+                          {pet.care_instructions.length === 1 ? "instrukcja" : "instrukcji"}
                         </span>
-                      )}
-                    </p>
-                  </a>
-                </li>
-              );
-            })}
-          </ul>
+                        {/* The sensitive count is a warning tone rather than the accent: it
+                            says "some of this is hidden from a caretaker until they claim a
+                            term", which is a different kind of fact from the species line. */}
+                        {sensitiveCount > 0 && (
+                          <span class="border-primary bg-secondary text-secondary-foreground rounded-[24px] border-[1.5px] px-2.5 py-0.5 text-[12px] font-bold">
+                            {sensitiveCount} wrażliwe
+                          </span>
+                        )}
+                      </p>
+                    </a>
+                  </li>
+                );
+              })}
+            </ul>
+
+            <div class="mt-6">
+              <Button asChild className="w-full">
+                <a href="/pets/new">+ Dodaj zwierzę</a>
+              </Button>
+            </div>
+          </>
         )
       }
     </div>

@@ -13,14 +13,11 @@ import { SPECIES_LABEL, type Species } from "@/lib/pet-format";
 // filter — RLS scopes it, so another owner's id resolves to nothing and lands on the same 404
 // as an id that does not exist.
 //
-// GROUND: this page is on `bg-background` with a working theme toggle, while /pets and
-// /pets/new are still on `bg-cosmic` without one. That inconsistency is deliberate and
-// temporary, and it is a consequence rather than a preference: `bg-cosmic` is a fixed gradient
-// with no theme variant (global.css), and ui/Input renders its label OUTSIDE the box as
-// `text-muted-foreground` directly on the page ground — which on navy is ~3.4:1 in the default
-// light theme and near-black-on-near-black in `.contrast`. A token-styled form on that ground
-// is correct in exactly one of three themes. The two older screens retire onto tokens with
-// S-01's own reskin; this slice does not touch them.
+// GROUND: token palette with a working theme toggle, like every /periods screen. /pets and
+// /pets/new followed it here — they were the last two owner screens on `bg-cosmic`, a fixed
+// gradient with no theme variant (global.css) on which ui/Input's label, drawn OUTSIDE the box
+// in `text-muted-foreground` directly on the page ground, measured ~3.4:1 in the light theme
+// and near-black-on-near-black in `.contrast`. Only /dashboard is still on that gradient.
 const supabase = createClient(Astro.request.headers, Astro.cookies);
 const theme = resolveTheme(Astro.cookies.get(THEME_COOKIE)?.value);
 

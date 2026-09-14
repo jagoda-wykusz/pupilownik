@@ -6,9 +6,16 @@ import type { Theme } from "@/lib/theme";
 // door — a button on /dashboard — while the screens an owner actually lives on (/periods,
 // /pets) had none, so leaving the app meant navigating to a page with nothing else on it.
 //
-// The left half is a slot rather than a prop: each screen already opens with either its
-// own <h1> or a back link, and those are not interchangeable. The bar owns the right half
-// (identity and the way out) and nothing else.
+// It now carries the product's navigation for the same reason. The two halves of the app —
+// pets and trips — referenced each other only through dead ends: /periods/new links to
+// /pets/new when the owner has no pets, and nothing at all led the other way. An owner on
+// /pets had no route to /periods except by editing the URL.
+//
+// The bar is two rows, and the split is deliberate. Row one is the APP: where you can go,
+// and who you are signed in as. Row two is the SCREEN — a slot rather than a prop, because
+// each screen opens with either its own <h1> or a back link and those are not
+// interchangeable. Keeping the screen's title below the navigation means the nav sits in
+// the same place on every page rather than moving with the length of the heading.
 //
 // `theme` is optional on purpose. Passing it lights up the theme switch; the screens still
 // on the older palette omit it, because a control that visibly does nothing is worse than
@@ -21,35 +28,92 @@ interface Props {
 const { theme } = Astro.props;
 const { user } = Astro.locals;
 
+// Whether the screen passed a heading or a back link. Checked here rather than with a
+// `:empty` CSS rule, which would never match: the wrapper still holds the template's own
+// whitespace, and `:empty` counts a text node as content.
+const hasScreenSlot = Astro.slots.has("default");
+
+// The product's two halves, in the order the work happens: you add a pet before you plan a
+// trip for it. /dashboard is deliberately absent — nothing links to it, "/" redirects to
+// /periods (src/middleware.ts), and it holds no product surface of its own.
+const NAV_ITEMS = [
+  { href: "/pets", label: "Zwierzęta" },
+  { href: "/periods", label: "Wyjazdy" },
+];
+
+// Prefix match on a SEGMENT boundary, the same shape as middleware's isInviteRoute: a bare
+// startsWith would light "Wyjazdy" up on a future "/periodsomething". Detail and create
+// screens count as their section, so /pets/new and /pets/<id> both keep "Zwierzęta" marked.
+const { pathname } = Astro.url;
+const isCurrent = (href: string): boolean => pathname === href || pathname.startsWith(`${href}/`);
+
 // Shared with ThemeToggle's own button so the two read as one control group.
 const CONTROL_CLASS =
   "border-input bg-card text-foreground hover:bg-accent focus-visible:ring-ring/50 inline-flex h-9 items-center justify-center rounded-lg border-[1.5px] transition-colors outline-none focus-visible:ring-[3px]";
+
+// The tab geometry matches the segmented controls on the forms (ui/Chip's pill is reserved
+// for naming a thing — a pet on a trip — and a nav item is not one of those).
+const NAV_CLASS =
+  "focus-visible:ring-ring/50 inline-flex h-9 items-center rounded-lg border-[1.5px] px-3 font-heading text-[14px] font-bold transition-colors outline-none focus-visible:ring-[3px]";
+const NAV_CURRENT = "border-primary bg-secondary text-secondary-foreground";
+const NAV_IDLE = "border-input bg-card text-muted-foreground hover:bg-accent hover:text-foreground";
 ---
 
-<header class="mb-6 flex items-center justify-between gap-4">
-  <slot />
+<header class="mb-6">
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    {/* aria-current marks the active tab for a screen reader; colour alone would not. */}
+    <nav aria-label="Sekcje aplikacji">
+      <ul class="flex flex-wrap items-center gap-2">
+        {
+          NAV_ITEMS.map((item) => (
+            <li>
+              <a
+                href={item.href}
+                aria-current={isCurrent(item.href) ? "page" : undefined}
+                class:list={[NAV_CLASS, isCurrent(item.href) ? NAV_CURRENT : NAV_IDLE]}
+              >
+                {item.label}
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+    </nav>
 
-  <div class="flex shrink-0 items-center gap-2">
-    {
-      /* The email is the only confirmation of WHICH account is signed in, and it is the
+    <div class="flex shrink-0 items-center gap-2">
+      {
+        /* The email is the only confirmation of WHICH account is signed in, and it is the
         first thing to drop on a narrow screen — the sign-out button beside it stays. */
-    }
-    {
-      user?.email && (
-        <span class="text-muted-foreground hidden max-w-[16rem] truncate text-[13px] sm:inline">{user.email}</span>
-      )
-    }
+      }
+      {
+        user?.email && (
+          <span class="text-muted-foreground hidden max-w-[16rem] truncate text-[13px] sm:inline">{user.email}</span>
+        )
+      }
 
-    {theme !== undefined && <ThemeToggle initialTheme={theme} client:load />}
+      {theme !== undefined && <ThemeToggle initialTheme={theme} client:load />}
 
-    {
-      user && (
-        <form method="POST" action="/api/auth/signout">
-          <button type="submit" class:list={[CONTROL_CLASS, "px-3 text-[13px] font-bold"]}>
-            Wyloguj
-          </button>
-        </form>
-      )
-    }
+      {
+        user && (
+          <form method="POST" action="/api/auth/signout">
+            <button type="submit" class:list={[CONTROL_CLASS, "px-3 text-[13px] font-bold"]}>
+              Wyloguj
+            </button>
+          </form>
+        )
+      }
+    </div>
   </div>
+
+  {
+    /* The screen's own opening — a heading or a back link. A screen that passes nothing
+      (/dashboard) gets no wrapper at all rather than an empty 16px gap. */
+  }
+  {
+    hasScreenSlot && (
+      <div class="mt-4">
+        <slot />
+      </div>
+    )
+  }
 </header>

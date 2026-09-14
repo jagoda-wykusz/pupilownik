@@ -83,12 +83,13 @@ Testing Strategy is confirmed by a human at the end of each phase.
 
 ## What We're NOT Doing
 
-- **Not migrating `/pets` or `/pets/new` off `bg-cosmic`.** They stay navy and keep their
+- **Not migrating `/pets` or `/pets/new` off `bg-cosmic`.** _(Superseded 2026-09-14 — see
+  Deviations in Progress. Both screens moved, and `AddPetForm` with them.)_ They stay navy and keep their
   missing theme toggle until S-01's own reskin. `/pets/<id>` ships on `bg-background` with
   a working toggle. **This is a deliberate, temporary inconsistency** — the alternative was
   a token form on a themeless ground, which is broken in two of three themes.
 - **Not touching `AddPetForm.tsx`, `pets/new.astro`, `auth/FormField` or
-  `auth/PasswordToggle`.** No shared-component refactor; `EditPetForm` is a new, separate
+  `auth/PasswordToggle`.** _(Superseded 2026-09-14 — see Deviations in Progress.)_ No shared-component refactor; `EditPetForm` is a new, separate
   component. The only edit to `/pets` is wrapping the card in an anchor.
 - **Not revoking the table-level `UPDATE`/`DELETE` grants.** The RPCs are the _intended_
   writer, not the enforced one — the same posture `contract-surfaces.md:36` records for
@@ -554,12 +555,41 @@ No data migration: nothing about existing rows changes.
 
 #### Manual
 
-- [ ] 1.12 Editing a pet's scalar fields persists and re-renders
-- [ ] 1.13 Add/edit/reorder/remove instruction rows produces exactly the intended set
-- [ ] 1.14 A caretaker on a live link sees edited public text on reload
-- [ ] 1.15 `is_sensitive` flip refused with a claim present, permitted after revoke
-- [ ] 1.16 `/pets/<id>` correct in all three themes and at 400px
-- [ ] 1.17 `/pets` cards navigate; focus order is sane
+- [x] 1.12 Editing a pet's scalar fields persists and re-renders — walkthrough 2026-09-14
+- [x] 1.13 Add/edit/reorder/remove instruction rows produces exactly the intended set — walkthrough 2026-09-14
+- [x] 1.14 A caretaker on a live link sees edited public text on reload — walkthrough 2026-09-14
+- [x] 1.15 `is_sensitive` flip refused with a claim present, permitted after revoke — walkthrough 2026-09-14
+- [x] 1.16 `/pets/<id>` correct in all three themes and at 400px — re-checked 2026-09-14 after the reskin
+- [x] 1.17 `/pets` cards navigate; focus order is sane — re-checked 2026-09-14 after the reskin
+
+> 1.12-1.15 confirmed by the owner's manual walkthrough on 2026-09-14 ("testy manualne są ok").
+> 1.16 and 1.17 were reopened after that pass, because the reskin and the AppBar navigation
+> recorded under Deviations below landed later and changed exactly what those two items look
+> at. Both were walked again on the current UI the same day and confirmed. Phase 1 is closed.
+
+### Deviations from the plan (2026-09-14)
+
+Recorded here rather than left for impl-review to discover. Both came out of the owner's
+manual walkthrough of Phase 1 and were accepted in conversation on the day.
+
+- **`/pets` and `/pets/new` DID move off `bg-cosmic`**, against "What We're NOT Doing" above.
+  The plan's reasoning stands on its own terms — a token form on a themeless ground is broken
+  in two of three themes — but it assumed the inconsistency would go unnoticed until S-01. It
+  did not: the first thing the walkthrough reported was that `/pets` does not look like
+  `/periods`. Both screens are now on `bg-background` with a working theme toggle, and
+  `AddPetForm` was reskinned onto `ui/Input` / `ui/Textarea` / `ui/button` to follow them.
+  `auth/FormField` and `auth/PasswordToggle` were deleted: `AddPetForm` was their last
+  consumer, which is the condition `context/archive/2026-09-05-ui-design-system/plan.md:324`
+  set for removing them. `bg-cosmic` survives for `/dashboard` alone.
+- **`AppBar` gained the product's navigation.** Also out of plan, and the same walkthrough's
+  second finding: the two halves of the app had no route between them, so an owner on `/pets`
+  reached `/periods` only by editing the URL. Two links, active section marked with
+  `aria-current`, no new island.
+
+Consequences for the Progress list: the island floor for `/src/pages/pets/index.astro` rose
+from 0 to 1 and `/src/pages/pets/new.astro` from 1 to 2 (both the AppBar's theme switch), and
+`tests/render/island-props.test.ts` was updated with the reason. Phase 1's automated items were
+re-run green after the change; 1.16 and 1.17 were reopened rather than re-ticked.
 
 ### Phase 2: Deleting, and refusing to
 

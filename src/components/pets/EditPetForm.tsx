@@ -16,12 +16,11 @@ import {
 
 // The owner's edit form for one pet and its care instructions.
 //
-// A NEW component rather than a mode flag on AddPetForm, and the reason is the ground rather
-// than the markup. AddPetForm sits on `bg-cosmic` and is built on the SUPERSEDED auth-era
-// FormField plus raw inputs with hardcoded starter colours; this form is on the token ground
-// and uses ui/Input, ui/Textarea and ui/button, like NewPeriodForm. Sharing one component
-// across both would mean a palette-mode prop, which is not one form but two sharing a bug
-// surface. AddPetForm, FormField and PasswordToggle are deliberately untouched by this slice.
+// A NEW component rather than a mode flag on AddPetForm. The two now share a ground and the
+// same primitives (ui/Input, ui/Textarea, ui/button), but they still differ where it matters:
+// an empty instruction row is silently dropped on the create form and is an ERROR here (see
+// validate), and rows here carry a stable key because they are reordered and removed. Merging
+// them would mean a mode flag per difference — not one form, but two sharing a bug surface.
 //
 // The bounds come from pet-format.ts rather than from the zod schema, so validating here does
 // not drag zod into the browser bundle — the same reason period-format.ts holds MAX_SPAN_DAYS.

@@ -9,7 +9,7 @@ import { countDays, MAX_NOTE_LENGTH, MAX_SPAN_DAYS, MAX_TITLE_LENGTH } from "@/l
 
 // Create-period island (client:load). Mirrors SignInForm's shape — local state,
 // client-side validation for UX only — on the S-07 component layer, not the
-// superseded FormField that AddPetForm still imports.
+// superseded FormField (deleted once AddPetForm retired onto the token primitives).
 //
 // On success the form is replaced by the invite panel rather than navigating away:
 // the raw token lives only in that response, and carrying it through a redirect would

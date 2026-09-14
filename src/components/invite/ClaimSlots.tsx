@@ -25,7 +25,7 @@ import { formatDay, formatWeekday, MAX_CLAIMANT_NAME_LENGTH, TIME_OF_DAY_LABEL }
 //      the card is inert. Leaving it out would mean a caretaker on a partly-taken day sees
 //      only the free cards and cannot tell the rest exist.
 //
-// It does NOT import FormField or PasswordToggle (both superseded), and copies nothing from
+// It does NOT import FormField or PasswordToggle (both superseded, now deleted), and copies nothing from
 // AddPetForm, which hardcodes starter colours.
 
 // A superset of PeriodCalendar's CalendarSlot: the grid needs only the time and the taken
