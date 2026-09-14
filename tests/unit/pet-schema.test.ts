@@ -33,6 +33,10 @@ const VALID = {
   name: "Burek",
   species: "dog",
   instructions: [{ title: "Karmienie", is_sensitive: false }],
+  // The optimistic-concurrency token, REQUIRED since S-09's impl-review (F4) — a payload
+  // without it is refused, which is the point: an optional token would be an opt-out back to
+  // last-write-wins. Its own accept/refuse pair is in the table below.
+  expected_updated_at: "2026-09-14T10:00:00.000Z",
 };
 
 describe("updatePetSchema — the message contract", () => {
@@ -49,6 +53,19 @@ describe("updatePetSchema — the message contract", () => {
       ],
     });
     expect(parsed.success).toBe(true);
+  });
+
+  it("refuses a payload with no version token, in Polish", () => {
+    const { expected_updated_at: _omitted, ...withoutToken } = VALID;
+
+    // The field is what stands between a stale form and a silent overwrite of rows the owner
+    // never saw (impl-review F4), so its absence must be a refusal here rather than a NULL the
+    // database has to catch — and the sentence has to be one an owner can act on.
+    expect(messagesFor(withoutToken)).toContain(PET_MESSAGES.expectedUpdatedAtInvalid);
+  });
+
+  it("refuses an empty version token, which is what a page that rendered nothing would send", () => {
+    expect(messagesFor({ ...VALID, expected_updated_at: "" })).toContain(PET_MESSAGES.expectedUpdatedAtInvalid);
   });
 
   // The table-driven core. Every refusal an owner can trigger has to come back in Polish, and

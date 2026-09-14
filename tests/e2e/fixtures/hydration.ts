@@ -4,7 +4,8 @@ import { expect, type Page } from "@playwright/test";
 //
 // WHY THIS IS NECESSARY, measured 2026-09-13 rather than assumed. This app's forms are CONTROLLED
 // React inputs inside `client:load` islands — `AddPetForm` holds `useState("")` for the pet name,
-// and `FormField` renders `value={value}`. The server sends that input with `value=""`. If a test
+// and `ui/Input` renders `value={value}` (it was `FormField` when this was measured; S-09 deleted
+// that component and AddPetForm moved onto ui/Input, which is controlled the same way). The server sends that input with `value=""`. If a test
 // fills it before React mounts, hydration runs `useState("")` and React resets the DOM node back
 // to empty. The test then submits an empty form and fails on the app's own validation
 // ("Imię zwierzęcia jest wymagane") — a failure that looks like a product bug and is a race.

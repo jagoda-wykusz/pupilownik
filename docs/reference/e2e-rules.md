@@ -124,8 +124,12 @@ await page.getByLabel("Imię", { exact: true }).fill(petName);
 ## 8. Prefer `{ exact: true }` on `getByLabel`
 
 `getByLabel` matches on a **substring**. On the sign-in form `getByLabel("HASŁO")` resolves to two
-elements — the password input, and `PasswordToggle`'s button whose accessible name is
+elements — the password input, and the reveal button inside `ui/Input` whose accessible name is
 "Pokaż hasło". Strict mode then fails. Exact matching is the default choice here, not the fallback.
+
+_(The second element used to be `PasswordToggle`'s button. S-09 deleted that component and the
+reveal control now lives inside `ui/Input` under the `revealable` prop — same accessible name,
+same collision, same rule.)_
 
 ## 9. Wait on state, not on a URL, after an auth redirect
 

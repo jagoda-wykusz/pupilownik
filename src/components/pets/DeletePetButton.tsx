@@ -124,8 +124,8 @@ export default function DeletePetButton({ petId, petName, instructionCount }: Pr
         </Button>
         <p className="text-muted-foreground text-[13px]">
           {instructionCount > 0
-            ? `Usuniesz „${petName}" razem z ${instructionCount} instrukcjami opieki. Tego nie da się cofnąć.`
-            : `Usuniesz „${petName}". Tego nie da się cofnąć.`}{" "}
+            ? `Usuniesz „${petName}” razem z ${instructionCount} instrukcjami opieki. Tego nie da się cofnąć.`
+            : `Usuniesz „${petName}”. Tego nie da się cofnąć.`}{" "}
           Zwierzę objęte aktywnym wyjazdem trzeba najpierw z niego zwolnić, odwołując ten wyjazd.
         </p>
       </div>

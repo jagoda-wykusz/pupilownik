@@ -44,13 +44,17 @@ setup("authenticate as a fresh owner", async ({ page }) => {
   // passes today is still a race.
   await waitForHydration(page);
 
-  // Role- and label-based, per docs/reference/e2e-rules.md. `FormField` renders a real <label>
-  // bound to the input, which is what makes getByLabel work here at all.
+  // Role- and label-based, per docs/reference/e2e-rules.md. `ui/Input` renders a real <label>
+  // bound to the input (Input.tsx:52), which is what makes getByLabel work here at all.
   //
   // `exact: true` is load-bearing on the password field, measured rather than precautionary:
-  // getByLabel matches on a SUBSTRING by default, and `PasswordToggle` renders a button whose
-  // accessible name is "Pokaż hasło" — which contains "hasło". Without exact matching the locator
-  // resolves to two elements and strict mode fails. Kept on both fields for symmetry.
+  // getByLabel matches on a SUBSTRING by default, and the reveal control inside `ui/Input`
+  // renders a button whose accessible name is "Pokaż hasło" (Input.tsx:86) — which contains
+  // "hasło". Without exact matching the locator resolves to two elements and strict mode fails.
+  // Kept on both fields for symmetry.
+  //
+  // (Both sentences named `FormField` and `PasswordToggle` until S-09 deleted them; the reveal
+  // control moved INTO ui/Input, so the behaviour and this rule are unchanged.)
   await page.getByLabel("E-MAIL", { exact: true }).fill(owner.email);
   await page.getByLabel("HASŁO", { exact: true }).fill(owner.password);
   await page.getByRole("button", { name: "Zaloguj się" }).click();

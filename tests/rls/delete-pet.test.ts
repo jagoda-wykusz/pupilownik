@@ -105,9 +105,19 @@ describe("delete_pet — the owner's remove door", () => {
 
       const { error } = await remove(service, a.petId);
 
+      // THREE outcomes, asserted apart, because `error?.code` alone collapses them into one
+      // ambiguous red (impl-review F7). A full-suite run once failed here with
+      // "expected undefined to be '42501'", which can mean: the call SUCCEEDED (error null — a
+      // real grant leak), it was refused with a different code, or the local stack answered a
+      // transport error, whose object carries a `message` and no `code` at all. Only the first
+      // is a product defect, and the old assertion could not say which had happened.
+      expect(error, "service_role executed delete_pet — the revoke is gone").not.toBeNull();
+      expect(
+        error?.code,
+        `expected a 42501 refusal, got ${error?.code ?? "no code at all"}: ${error?.message ?? ""}`,
+      ).toBe("42501");
       // Supabase's ALTER DEFAULT PRIVILEGES grants EXECUTE to service_role on every new
       // function in `public`, so this passes only while the migration's explicit revoke stands.
-      expect(error?.code).toBe("42501");
       expect(await petExists(a, a.petId)).toBe(true);
     });
   });

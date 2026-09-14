@@ -598,6 +598,37 @@ from 0 to 1 and `/src/pages/pets/new.astro` from 1 to 2 (both the AppBar's theme
 `tests/render/island-props.test.ts` was updated with the reason. Phase 1's automated items were
 re-run green after the change; 1.16 and 1.17 were reopened rather than re-ticked.
 
+### Post-review fixes (2026-09-14)
+
+`/10x-impl-review` over the full plan returned 1 critical, 6 warnings and 3 observations; all ten
+were triaged and addressed the same day (`reviews/impl-review.md` carries the decision on each).
+Two of them changed the product's contracts and belong here rather than only in that report:
+
+- **`delete_pet` now LOCKS the pet row before reading its guard**
+  (`20260914120000_delete_pet_locks_the_row.sql`). The original guard took no lock, and two psql
+  sessions measured the consequence: a trip created concurrently was invisible to the blocker
+  query, the delete proceeded, and the cascade silently removed the just-created link — the exact
+  state the function exists to prevent, reached through it. Re-measured with the lock: PT409,
+  trip named, pet survives.
+- **The edit path gained an optimistic-concurrency token**
+  (`20260914130000_pet_version_token.sql`): `pets.updated_at`, stamped on every call, echoed by
+  the form as `expected_updated_at`, refused with PT412 on a mismatch. Until then PUT was
+  last-write-wins over the WHOLE instruction set, so a save from a stale form deleted rows the
+  owner had never seen, with a 200. Mutation-checked: with the check disabled, a stale save
+  returns success and the row count drops from 2 to 1.
+
+Also from the review: `no-store` on every protected route, logging on the detail page's two
+degraded branches, a corrected island floor, a unit test for the six error-mapping branches no
+integration test can reach, Polish plural agreement in the 409 sentence, and three prose
+references repointed off the components this slice deleted.
+
+**Recorded here because the review flagged it as undocumented drift:** Phase 1's contract item
+for the PUT route names a `22003 -> 400` branch that the implementation deliberately omits. The
+argument is sound and is written at the call site — the update RPC derives `sort_order` from array
+position and `updatePetSchema` has no such field, so the branch is unreachable through this route
+and would be dead code dressed as defence. It should have been stated here when the decision was
+made, not only in a source comment.
+
 ### Phase 2: Deleting, and refusing to
 
 #### Automated

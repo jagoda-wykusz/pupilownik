@@ -31,17 +31,18 @@ Rdzeń wartości — czyli ta jedna cecha, po usunięciu której produkt staje s
 
 ## At a glance
 
-| ID   | Change ID                   | Outcome (user can …)                                               | Prerequisites | PRD refs                      | Status   |
-| ---- | --------------------------- | ------------------------------------------------------------------ | ------------- | ----------------------------- | -------- |
-| F-01 | owner-data-rls-baseline     | (foundation) bezpieczny wzorzec dostępu do danych właściciela      | —             | NFR (privacy), Access Control | done     |
-| S-01 | pet-and-instructions        | właściciel definiuje zwierzę z instrukcjami (publiczna+wrażliwa)   | F-01          | FR-001, FR-002, FR-003, US-01 | done     |
-| S-02 | care-period-and-invite-link | właściciel tworzy okres ze slotami i generuje link zapraszający    | S-01          | FR-004, FR-005, US-01         | done     |
-| S-08 | period-pets-relation        | właściciel wskazuje, które zwierzęta obejmuje wyjazd               | S-02          | FR-002, US-01                 | done     |
-| S-07 | ui-design-system            | aplikacja wygląda wg hi-fi designu — system wizualny + reskin auth | —             | (UI wszystkich FR)            | done     |
-| S-03 | caretaker-claims-slot       | opiekun otwiera link i zajmuje wolny slot (bez podwójnej obsady)   | S-08          | FR-007, FR-008, FR-009, US-02 | done     |
-| S-04 | owner-occupancy-view        | właściciel widzi pełną obsadę okresu — kto zajął którą porę        | S-03          | FR-006, US-01                 | done     |
-| S-05 | caretaker-names-visibility  | opiekun widzi imiona innych opiekunów w obrębie okresu             | S-03          | FR-011                        | proposed |
-| S-06 | close-care-period           | właściciel zamyka/odwołuje okres i unieważnia link                 | S-02          | FR-012                        | done     |
+| ID   | Change ID                   | Outcome (user can …)                                                | Prerequisites | PRD refs                      | Status   |
+| ---- | --------------------------- | ------------------------------------------------------------------- | ------------- | ----------------------------- | -------- |
+| F-01 | owner-data-rls-baseline     | (foundation) bezpieczny wzorzec dostępu do danych właściciela       | —             | NFR (privacy), Access Control | done     |
+| S-01 | pet-and-instructions        | właściciel definiuje zwierzę z instrukcjami (publiczna+wrażliwa)    | F-01          | FR-001, FR-002, FR-003, US-01 | done     |
+| S-02 | care-period-and-invite-link | właściciel tworzy okres ze slotami i generuje link zapraszający     | S-01          | FR-004, FR-005, US-01         | done     |
+| S-08 | period-pets-relation        | właściciel wskazuje, które zwierzęta obejmuje wyjazd                | S-02          | FR-002, US-01                 | done     |
+| S-07 | ui-design-system            | aplikacja wygląda wg hi-fi designu — system wizualny + reskin auth  | —             | (UI wszystkich FR)            | done     |
+| S-03 | caretaker-claims-slot       | opiekun otwiera link i zajmuje wolny slot (bez podwójnej obsady)    | S-08          | FR-007, FR-008, FR-009, US-02 | done     |
+| S-04 | owner-occupancy-view        | właściciel widzi pełną obsadę okresu — kto zajął którą porę         | S-03          | FR-006, US-01                 | done     |
+| S-05 | caretaker-names-visibility  | opiekun widzi imiona innych opiekunów w obrębie okresu              | S-03          | FR-011                        | proposed |
+| S-06 | close-care-period           | właściciel zamyka/odwołuje okres i unieważnia link                  | S-02          | FR-012                        | done     |
+| S-09 | pet-edit-and-delete         | właściciel poprawia zwierzę i instrukcje, usuwa zwierzę bez wyjazdu | S-01, S-06    | FR-002, FR-003, §Guardrails   | done     |
 
 Pozostała ścieżka must-have (czyli minimalny zestaw wymagań, bez których PRD nie uznaje MVP za działające): **S-03 → S-04**. Wszystko inne jest nice-to-have albo już wylądowało.
 
@@ -49,11 +50,11 @@ Pozostała ścieżka must-have (czyli minimalny zestaw wymagań, bez których PR
 
 Navigation aid — groups items that share a Prerequisites chain. Canonical ordering still lives in the dependency graph below; this table is the proposed reading order across parallel tracks.
 
-| Stream | Theme                          | Chain                                               | Note                                                                                                                                               |
-| ------ | ------------------------------ | --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| A      | Rdzeń: od zwierzęcia do zapisu | `F-01` → `S-01` → `S-02` → `S-08` → `S-03` → `S-04` | Ścieżka must-have; zawiera gwiazdę przewodnią `S-03`. Pierwsze cztery ogniwa wylądowały — pozostaje `S-03` → `S-04`. Zgodna z celem `szybkość`.    |
-| B      | Dodatki (nice-to-have)         | `S-06` / `S-05`                                     | `S-06` dołącza do Stream A przy `S-02` (już spełnione, więc jest plannowalny od dziś), `S-05` przy `S-03`. Równoległe względem siebie i do `S-03`. |
-| C      | UI / system wizualny           | `S-07`                                              | Domknięty. Ekrany domenowe realizują swoje slice'y na jego komponentach (zob. Design reference).                                                   |
+| Stream | Theme                          | Chain                                               | Note                                                                                                                                                                                                                                                                                 |
+| ------ | ------------------------------ | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| A      | Rdzeń: od zwierzęcia do zapisu | `F-01` → `S-01` → `S-02` → `S-08` → `S-03` → `S-04` | Ścieżka must-have; zawiera gwiazdę przewodnią `S-03`. Pierwsze cztery ogniwa wylądowały — pozostaje `S-03` → `S-04`. Zgodna z celem `szybkość`.                                                                                                                                      |
+| B      | Dodatki (nice-to-have)         | `S-06` / `S-05` / `S-09`                            | `S-06` dołącza do Stream A przy `S-02` (już spełnione, więc jest plannowalny od dziś), `S-05` przy `S-03`. Równoległe względem siebie i do `S-03`. `S-09` domyka cykl życia encji z `S-01` i potrzebuje `S-06`, bo odwołanie wyjazdu jest jedynym wyjściem z jego blokady usunięcia. |
+| C      | UI / system wizualny           | `S-07`                                              | Domknięty. Ekrany domenowe realizują swoje slice'y na jego komponentach (zob. Design reference).                                                                                                                                                                                     |
 
 ## Baseline
 
@@ -207,6 +208,18 @@ Otwarty dług z designu: pole **`NOTATKA`** (wolny tekst na poziomie okresu) wyp
 - **Risk:** Nice-to-have, ale prerekwizyty ma spełnione od 2026-09-06, więc był plannowalny od dziś — jedyna pozycja, którą dało się poprowadzić równolegle do gwiazdy przewodniej. Teza „ścieżka unieważnienia jest już częściowo pokryta" okazała się trafna co do mechanizmu i myląca co do kosztu: sam zapis był szablonem `release_slot`, ale slice'owi przypadło rozstrzygnięcie, **co odwołanie znaczy dla opiekuna**, co dotknęło funkcji dostępnej dla `anon` i wymagało wyrównania pracy wykonywanej przez tę funkcję (impl-review fazy 2, F2).
 - **Status:** done
 
+### S-09: Właściciel poprawia zwierzę i usuwa je, gdy nie obejmuje go żaden żywy wyjazd
+
+- **Outcome:** właściciel może zmienić dane zwierzęcia i jego instrukcje opieki — w tym w trakcie trwającego wyjazdu, bo opiekun czyta instrukcje na żywo — oraz usunąć zwierzę, którego nie obejmuje żaden nieodwołany wyjazd. Dwie odmowy są częścią efektu, nie jego brakiem: przełączenie `is_sensitive` na istniejącym wierszu jest zablokowane, gdy na żywym wyjeździe ktoś zajął już termin, a usunięcie jest zablokowane, dopóki jakikolwiek nieodwołany wyjazd obejmuje zwierzę. Obie blokady są predykatami SQL, bo granty tabelaryczne pozwalają właścicielowi pisać wprost przez PostgREST.
+- **Change ID:** pet-edit-and-delete
+- **PRD refs:** FR-002, FR-003 — **żaden FR nie opisuje edycji ani usuwania wprost**; slice realizuje guardrail §Guardrails „Instrukcje zawsze aktualne", który bez ścieżki zapisu jest niespełnialny, i domyka cykl życia encji otwarty przez S-01.
+- **Prerequisites:** S-01 (spełnione), S-06 (spełnione — `revoke_period` jest jedynym wyjściem z blokady usunięcia)
+- **Parallel with:** S-04, S-05
+- **Blockers:** —
+- **Unknowns:** Rozstrzygnięte przed planem, zapisane w `context/changes/pet-edit-and-delete/change.md`: semantyka usunięcia (blokada, nie kaskada ani soft-delete), zakres edycji po claimie (tekst tak, flaga `is_sensitive` nie), synchronizacja wierszy potomnych (match po `id`), miękkość blokady flagi (zaakceptowana świadomie — usunięcie wiersza i dodanie go od nowa odtwarza ujawnienie w dwóch krokach). Pomiar kaskady i postury grantów: `context/changes/pet-edit-and-delete/research.md`.
+- **Risk:** S-08 odrzuciło `on delete restrict` argumentem „the alternative deadlocks the owner, since no slice owns period editing" — przesłanka już nie obowiązuje, bo S-06 dało właścicielowi odwołanie wyjazdu. Slice musi tę zmianę wypowiedzieć, zamiast po cichu odziedziczyć dawną decyzję. Drugie ryzyko było wizualne: nowa strona `/pets/[id]` miała stanąć na gruncie tokenowym, podczas gdy `/pets` i `/pets/new` zostają na `bg-cosmic` do czasu własnego reskinu S-01. **Zrealizowało się od razu** — pierwsze przejście manualne zgłosiło tę niespójność, więc oba starsze ekrany przeszły na tokeny w tym samym slice (`0c3e9f0`), razem z `AddPetForm`; `bg-cosmic` został już tylko na `/dashboard`. Zapisane w `context/changes/pet-edit-and-delete/plan.md` w sekcji Deviations.
+- **Status:** done
+
 ## Backlog Handoff
 
 | Roadmap ID | Change ID                   | Suggested issue title                                           | Ready for `/10x-plan` | Notes                                            |
@@ -220,6 +233,7 @@ Otwarty dług z designu: pole **`NOTATKA`** (wolny tekst na poziomie okresu) wyp
 | S-04       | owner-occupancy-view        | Widok obsady okresu dla właściciela                             | no                    | Ostatni must-have; po S-03                       |
 | S-05       | caretaker-names-visibility  | Widoczność imion opiekunów w okresie                            | no                    | Nice-to-have; po S-03                            |
 | S-06       | close-care-period           | Zamknięcie/odwołanie okresu + unieważnienie linku               | done                  | Nice-to-have, ale plannowalny równolegle do S-03 |
+| S-09       | pet-edit-and-delete         | Edycja zwierzęcia i instrukcji + usunięcie z blokadą            | done                  | Domyka cykl życia encji z S-01; wymaga S-06      |
 
 ## Open Roadmap Questions
 
