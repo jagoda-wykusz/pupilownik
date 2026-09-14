@@ -564,12 +564,26 @@ contributors should respect these unless the underlying assumption changes.
   Fixing it properly means Polish messages at the type level in that schema plus the membership
   test extended to cover it — its own unit of work, in S-01's scope, not this change's.
 
-- **The claim × release lost-update window (Phase 4).** `release_slot` carries no optimistic
-  lock, so an owner releasing from a stale tab can silently wipe a caretaker claim that landed
-  in between. Documented at `release_slot.sql:52-65` and recorded in `prd.md` §Open Questions #3
-  with `Owner: użytkownik`. NOT pinned: closing it is a product decision and a migration, not a
-  test. Re-evaluate if the product grows co-owners or realtime — the fix (`p_claimed_at` in the
-  WHERE) would make it testable in the same breath.
+- ~~**The claim × release lost-update window (Phase 4).**~~ **NO LONGER IN THIS SECTION —
+  closed and pinned 2026-09-14.** It was listed here on the reasoning that "closing it is a
+  product decision and a migration, not a test", with a re-evaluation trigger of "co-owners or
+  realtime". That trigger was set too high, and this entry is kept rather than deleted because
+  the mis-sizing is the lesson: the window needs one owner with two tabs, not two owners. The
+  release island reloads the page on success, which leaves every OTHER open tab stale from that
+  moment — so the precondition is a browser habit, not a product feature the roadmap had yet to
+  reach.
+  The "it ends free either way" half of the argument was a statement about the slot, not about
+  the product: the owner asked to free Ania's term and would have freed Basia's.
+
+  Closed by `supabase/migrations/20260914150000_release_slot_expected_claimed_at.sql`
+  (`p_expected_claimed_at` in the WHERE, PT412 on a mismatch, 409 at the route) — the fix this
+  entry itself named. Now pinned at three layers, and each asserts something the others cannot:
+  `tests/rls/release-slot.test.ts` §"optimistic concurrency" (the refusal, that the refused call
+  writes NOTHING, and that a refreshed token still releases — the last one is what stops the
+  first two passing against a function that refuses everything); `tests/api/release-slot.test.ts`
+  §"a term that changed hands after the page was rendered" (409 rather than 404, and that the new
+  holder's name and digest stay out of the error body); and the component test's 409-vs-404
+  branch, because the two statuses carry different sentences and only one of them is true.
 
 - **The claim × revoke race — MEASURED 2026-09-11, and it is not a defect.** The window is real
   and wide: `claim_slots` resolves the period with `revoked_at is null` in one statement and

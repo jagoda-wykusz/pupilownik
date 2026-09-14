@@ -38,23 +38,50 @@ interface CallResult {
 
 type Handler = typeof releaseSlot;
 
+// The route's own origin. Every call below sends a matching Origin by default, because a
+// browser always sends one and the handler refuses a mismatch — the cross-site case has its own
+// test and overrides it.
+const ROUTE_ORIGIN = "http://127.0.0.1";
+
+// A well-formed token that matches no stored row. The right default for every case whose
+// expected answer is a miss: those rows are either invisible or already free, so no real token
+// exists to send, and hard-coding one keeps the misses from accidentally depending on a read.
+const STALE_CLAIMED_AT = "2000-01-01T00:00:00+00:00";
+
 async function call(init: {
   periodId: string;
   slotId: string;
   cookieHeader?: string;
   userId?: string;
+  /** The optimistic-concurrency token. Defaults to one that matches nothing. */
+  expectedClaimedAt?: string | null;
+  /** Replaces the whole serialized body — for the malformed-input cases. */
+  rawBody?: string;
+  /** Overrides the Origin header; `null` omits it entirely. */
+  origin?: string | null;
 }): Promise<CallResult> {
   const path = `/api/periods/${init.periodId}/slots/${init.slotId}/release`;
-  const request = new Request(new URL(`http://127.0.0.1${path}`), {
+  const url = new URL(`${ROUTE_ORIGIN}${path}`);
+  const origin = init.origin === undefined ? ROUTE_ORIGIN : init.origin;
+  const request = new Request(url, {
     method: "POST",
     headers: {
       ...(init.cookieHeader === undefined ? {} : { Cookie: init.cookieHeader }),
+      ...(origin === null ? {} : { Origin: origin }),
       "Content-Type": "application/json",
     },
+    body:
+      init.rawBody ??
+      JSON.stringify({
+        expected_claimed_at: init.expectedClaimedAt === undefined ? STALE_CLAIMED_AT : init.expectedClaimedAt,
+      }),
   });
 
   const context = {
     request,
+    // The handler reads `context.url.origin` for its CSRF check, so the fake context has to
+    // carry one. Astro populates this; without it the route throws instead of answering.
+    url,
     cookies: createFakeCookies(),
     params: { id: init.periodId, slotId: init.slotId },
     // A missing user is what the middleware leaves behind for an unauthenticated call — and
@@ -145,6 +172,15 @@ describe("POST /api/periods/[id]/slots/[slotId]/release — the owner's release 
     expect(error).toBeNull();
 
     return { ...period, slotIds, digest };
+  }
+
+  // The token a rendered page would hold for one claimed term, read back from the table.
+  async function claimedAtOf(forOwner: OwnerWithPetContext, periodId: string, slotId: string): Promise<string> {
+    const row = (await slotsOf(forOwner, periodId)).find((slot) => slot.id === slotId);
+    if (row?.claimed_at == null) {
+      throw new Error("release route test: wanted a claimed slot, found no claimed_at");
+    }
+    return row.claimed_at;
   }
 
   beforeAll(async () => {
@@ -312,6 +348,7 @@ describe("POST /api/periods/[id]/slots/[slotId]/release — the owner's release 
       slotId: target,
       cookieHeader,
       userId: owner.userId,
+      expectedClaimedAt: await claimedAtOf(owner, claimed.id, target),
     });
 
     expect(status).toBe(200);
@@ -334,7 +371,16 @@ describe("POST /api/periods/[id]/slots/[slotId]/release — the owner's release 
     // report success for work it did not do.
     const claimed = await seedClaimed(owner, "R-dwa-razy", "2027-07-01", "2027-07-02");
     const target = claimed.slotIds[0];
-    const args = { periodId: claimed.id, slotId: target, cookieHeader, userId: owner.userId };
+    // The token is captured ONCE and replayed, which is what a double-submit or a stale second
+    // tab actually sends. The second call finds the term free — not re-claimed — so it is a 404
+    // and not the 409 the optimistic guard raises.
+    const args = {
+      periodId: claimed.id,
+      slotId: target,
+      cookieHeader,
+      userId: owner.userId,
+      expectedClaimedAt: await claimedAtOf(owner, claimed.id, target),
+    };
 
     expect((await call(args)).status).toBe(200);
     expect((await call(args)).status).toBe(404);
@@ -344,7 +390,17 @@ describe("POST /api/periods/[id]/slots/[slotId]/release — the owner's release 
     const claimed = await seedClaimed(owner, "R-znowu-wolne", "2027-07-10", "2027-07-11");
     const target = claimed.slotIds[0];
 
-    expect((await call({ periodId: claimed.id, slotId: target, cookieHeader, userId: owner.userId })).status).toBe(200);
+    expect(
+      (
+        await call({
+          periodId: claimed.id,
+          slotId: target,
+          cookieHeader,
+          userId: owner.userId,
+          expectedClaimedAt: await claimedAtOf(owner, claimed.id, target),
+        })
+      ).status,
+    ).toBe(200);
 
     const secret = generateClaimSecret();
     const { error } = await anon.rpc("claim_slots", {
@@ -370,8 +426,212 @@ describe("POST /api/periods/[id]/slots/[slotId]/release — the owner's release 
       slotId: theirs.slotIds[0],
       cookieHeader: strangerCookieHeader,
       userId: stranger.userId,
+      expectedClaimedAt: await claimedAtOf(stranger, theirs.id, theirs.slotIds[0]),
     });
 
     expect(status).toBe(200);
+  });
+
+  // The CSRF cover this route used to get for free. Astro's origin middleware only inspects a
+  // non-safe request carrying NO Content-Type, and this route now reads a JSON body — so the
+  // framework contributes nothing and the handler's own check is the only thing standing here.
+  describe("origin", () => {
+    it("refuses a cross-site POST (403) and frees nothing", async () => {
+      const claimed = await seedClaimed(owner, "R-obce-zrodlo", "2027-08-01", "2027-08-02");
+      const target = claimed.slotIds[0];
+
+      const { status } = await call({
+        periodId: claimed.id,
+        slotId: target,
+        cookieHeader,
+        userId: owner.userId,
+        expectedClaimedAt: await claimedAtOf(owner, claimed.id, target),
+        origin: "https://evil.example",
+      });
+
+      expect(status).toBe(403);
+
+      // The refusal must come BEFORE the write, not as a status painted over one. A valid
+      // session and a CORRECT token are supplied deliberately, so this call would otherwise
+      // have succeeded — without them the assertion below would pass on its own.
+      const slot = (await slotsOf(owner, claimed.id)).find((row) => row.id === target);
+      expect(slot?.claimed_by_name).toBe("Ania");
+    });
+
+    it("refuses an opaque origin (403)", async () => {
+      // A sandboxed iframe sends the literal string "null", which has to fail the equality like
+      // any other mismatch rather than being read as "no Origin header at all".
+      const claimed = await seedClaimed(owner, "R-origin-null", "2027-08-05", "2027-08-06");
+
+      const { status } = await call({
+        periodId: claimed.id,
+        slotId: claimed.slotIds[0],
+        cookieHeader,
+        userId: owner.userId,
+        origin: "null",
+      });
+
+      expect(status).toBe(403);
+    });
+
+    it("allows an ABSENT origin — non-browser callers omit it entirely", async () => {
+      const claimed = await seedClaimed(owner, "R-origin-brak", "2027-08-10", "2027-08-11");
+      const target = claimed.slotIds[0];
+
+      const { status } = await call({
+        periodId: claimed.id,
+        slotId: target,
+        cookieHeader,
+        userId: owner.userId,
+        expectedClaimedAt: await claimedAtOf(owner, claimed.id, target),
+        origin: null,
+      });
+
+      expect(status).toBe(200);
+    });
+  });
+
+  // The body is input this route did not take before, so it gets the same server-side treatment
+  // every other handler's payload does: rejected by zod before any DB call.
+  describe("the body", () => {
+    it.each([
+      ["nie-json", "{"],
+      ["nie-obiekt", '"zwolnij"'],
+      ["pusty-obiekt", "{}"],
+      ["null", '{"expected_claimed_at":null}'],
+      ["liczba", '{"expected_claimed_at":1757851200}'],
+      ["sama-data", '{"expected_claimed_at":"2027-08-15"}'],
+      ["spacja-zamiast-T", '{"expected_claimed_at":"2027-08-15 10:00:00+00"}'],
+    ])("rejects %s (400) and frees nothing", async (label, rawBody) => {
+      const claimed = await seedClaimed(owner, `R-body-${label}`, "2027-09-01", "2027-09-02");
+      const target = claimed.slotIds[0];
+
+      const { status } = await call({
+        periodId: claimed.id,
+        slotId: target,
+        cookieHeader,
+        userId: owner.userId,
+        rawBody,
+      });
+
+      expect(status).toBe(400);
+
+      const slot = (await slotsOf(owner, claimed.id)).find((row) => row.id === target);
+      expect(slot?.claimed_by_name).toBe("Ania");
+    });
+
+    it("accepts the exact shape PostgREST serialises a timestamptz into", async () => {
+      // The format check has to match reality rather than a tidy ISO string: this field carries
+      // a value straight out of `select claimed_at`, microseconds and numeric offset included.
+      // zod's DEFAULT datetime check demands a "Z" suffix and would reject every real release —
+      // this is the assertion that would catch `offset: true` being dropped from the schema.
+      const claimed = await seedClaimed(owner, "R-format-postgrest", "2027-09-10", "2027-09-11");
+      const target = claimed.slotIds[0];
+      const token = await claimedAtOf(owner, claimed.id, target);
+
+      expect(token).toMatch(/[+-]\d{2}:\d{2}$/u);
+
+      const { status } = await call({
+        periodId: claimed.id,
+        slotId: target,
+        cookieHeader,
+        userId: owner.userId,
+        expectedClaimedAt: token,
+      });
+
+      expect(status).toBe(200);
+    });
+  });
+
+  // prd.md §Open Questions #3. The route's fifth outcome, and the reason this change exists: a
+  // release aimed at a claim that is no longer the one standing there.
+  describe("a term that changed hands after the page was rendered", () => {
+    async function seedReclaimed(title: string, start: string, end: string) {
+      const claimed = await seedClaimed(owner, title, start, end);
+      const target = claimed.slotIds[0];
+      const staleToken = await claimedAtOf(owner, claimed.id, target);
+
+      // Ania's term is released legitimately, then Basia takes it through the still-live link.
+      // That second claim is what makes the token an already-open owner tab is holding stale.
+      expect(
+        (
+          await call({
+            periodId: claimed.id,
+            slotId: target,
+            cookieHeader,
+            userId: owner.userId,
+            expectedClaimedAt: staleToken,
+          })
+        ).status,
+      ).toBe(200);
+
+      const secret = generateClaimSecret();
+      const digest = await digestClaimSecret(secret);
+      const { error } = await anon.rpc("claim_slots", {
+        p_token: claimed.token,
+        p_slot_ids: [target],
+        p_claim_secret: secret,
+        p_name: "Basia",
+      });
+      expect(error).toBeNull();
+
+      return { ...claimed, target, staleToken, basiaDigest: digest };
+    }
+
+    it("answers 409, NOT 404 — the term IS taken, and saying otherwise would be false", async () => {
+      const { id, target, staleToken } = await seedReclaimed("R-wyscig", "2027-10-01", "2027-10-02");
+
+      const { status, body } = await call({
+        periodId: id,
+        slotId: target,
+        cookieHeader,
+        userId: owner.userId,
+        expectedClaimedAt: staleToken,
+      });
+
+      expect(status).toBe(409);
+      // The sentence has to send the owner to a refresh. A 404's "nie jest już zajęty" would
+      // describe a free term while Basia is standing on it.
+      expect(body).toMatchObject({ error: expect.stringContaining("Odśwież stronę") as unknown });
+    });
+
+    it("keeps Basia's claim, and never names her in the error body", async () => {
+      const { id, target, staleToken, basiaDigest } = await seedReclaimed("R-wyscig-nic", "2027-10-05", "2027-10-06");
+
+      const { body } = await call({
+        periodId: id,
+        slotId: target,
+        cookieHeader,
+        userId: owner.userId,
+        expectedClaimedAt: staleToken,
+      });
+
+      // Read the row back rather than trusting the status: a 409 returned AFTER a write would be
+      // the exact bug this change closes, dressed up as the fix for it.
+      const slot = (await slotsOf(owner, id)).find((row) => row.id === target);
+      expect(slot?.claimed_by_name).toBe("Basia");
+      expect(slot?.claim_digest).toBe(basiaDigest);
+
+      // Identity reaches the owner through the RLS-scoped read the refresh performs, never out
+      // of an exception. The digest especially must never travel in an error body.
+      expect(JSON.stringify(body)).not.toContain("Basia");
+      expect(JSON.stringify(body)).not.toContain(basiaDigest);
+    });
+
+    it("releases normally once the owner refreshes and sends the current token", async () => {
+      // Without this the two cases above would also pass against a route that refused every
+      // release outright.
+      const { id, target } = await seedReclaimed("R-wyscig-odswiez", "2027-10-10", "2027-10-11");
+
+      const { status } = await call({
+        periodId: id,
+        slotId: target,
+        cookieHeader,
+        userId: owner.userId,
+        expectedClaimedAt: await claimedAtOf(owner, id, target),
+      });
+
+      expect(status).toBe(200);
+    });
   });
 });

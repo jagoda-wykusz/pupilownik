@@ -15,10 +15,19 @@ import ReleaseSlotButton from "@/components/periods/ReleaseSlotButton";
 
 const PERIOD_ID = "11111111-1111-4111-8111-111111111111";
 const SLOT_ID = "22222222-2222-4222-8222-222222222222";
+// Shaped the way PostgREST actually serialises a timestamptz — numeric offset, microseconds —
+// because that is what the page reads out of `claimed_at` and hands to this island.
+const CLAIMED_AT = "2027-07-13T06:30:00.123456+00:00";
 
 function renderButton() {
   return render(
-    <ReleaseSlotButton periodId={PERIOD_ID} slotId={SLOT_ID} caretakerLabel="Ania" termLabel="Rano, 13 lipca" />,
+    <ReleaseSlotButton
+      periodId={PERIOD_ID}
+      slotId={SLOT_ID}
+      caretakerLabel="Ania"
+      termLabel="Rano, 13 lipca"
+      claimedAt={CLAIMED_AT}
+    />,
   );
 }
 
@@ -130,7 +139,7 @@ describe("ReleaseSlotButton", () => {
       expect(init.method).toBe("POST");
     });
 
-    it("sends NO Content-Type — this is what makes the route CSRF-safe", async () => {
+    it("sends the rendered claimed_at as the optimistic-concurrency token", async () => {
       const user = userEvent.setup();
       fetchMock.mockResolvedValue(jsonResponse(200));
       renderButton();
@@ -138,15 +147,40 @@ describe("ReleaseSlotButton", () => {
       await user.click(idle());
       await user.click(confirm());
 
-      // Not incidental, and the reason it is pinned here rather than left to the route: Astro's
-      // origin middleware refuses a non-safe method carrying no Content-Type unless the origin
-      // matches, and that is the ONLY CSRF control on this endpoint (review F6 — the route's
-      // header comment records the same dependency). Adding a header or a body here would
-      // silently drop the request into the middleware's no-check branch, and no other test in
-      // the repo would notice.
+      // The token must be the value the PAGE rendered, verbatim. Re-deriving it here — a
+      // `new Date().toISOString()`, a reformat, a truncation of the microseconds — would make
+      // every release look current to the server and put the lost-update hole
+      // (prd.md §Open Questions #3) straight back.
       const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-      expect(init.headers).toBeUndefined();
-      expect(init.body).toBeUndefined();
+      // `as string` rather than String(): RequestInit['body'] is a union including Blob and
+      // FormData, and stringifying one of those would silently produce "[object Object]" and a
+      // parse error instead of a failed assertion. The island sends JSON.stringify's output.
+      expect(JSON.parse(init.body as string)).toEqual({ expected_claimed_at: CLAIMED_AT });
+    });
+
+    it("sends Content-Type: application/json — which is why the ROUTE owns the Origin check", async () => {
+      const user = userEvent.setup();
+      fetchMock.mockResolvedValue(jsonResponse(200));
+      renderButton();
+
+      await user.click(idle());
+      await user.click(confirm());
+
+      // This assertion is INVERTED from what it used to be, and the inversion is the point.
+      //
+      // It previously pinned `headers` and `body` as undefined, because a bodyless POST with no
+      // Content-Type is the shape Astro's origin middleware inspects — and that middleware was
+      // then the only CSRF control on this endpoint (review F6). Carrying a concurrency token
+      // required a body, which drops the request into the middleware's no-check branch, so the
+      // route grew its own explicit Origin check in the same change
+      // (src/pages/api/periods/[id]/slots/[slotId]/release.ts, and
+      // tests/api/release-slot.test.ts's "origin" block asserts it end to end).
+      //
+      // Pinned rather than deleted so the dependency stays visible in BOTH directions: if this
+      // header ever goes away again, the route's now-redundant-looking check must not be
+      // "cleaned up" alongside it — the framework does not cover the JSON shape.
+      const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+      expect(init.headers).toEqual({ "Content-Type": "application/json" });
     });
 
     it("reloads the page on success rather than patching the row", async () => {
@@ -193,6 +227,27 @@ describe("ReleaseSlotButton", () => {
       // say "refresh", not "try again", or it sends the owner into a loop.
       expect(alert.textContent).toContain("Odśwież stronę");
       expect(confirm()).toBeTruthy();
+      expect(reload).not.toHaveBeenCalled();
+    });
+
+    it("distinguishes 409 from 404 — the term is taken, not free", async () => {
+      const user = userEvent.setup();
+      fetchMock.mockResolvedValue(jsonResponse(409));
+      renderButton();
+
+      await user.click(idle());
+      await user.click(confirm());
+
+      const alert = await screen.findByRole("alert");
+      // 409 means somebody claimed this term after the page was rendered and the release was
+      // REFUSED rather than allowed to wipe them. Falling back to the 404 sentence here would
+      // tell the owner the term is free while a caretaker is standing on it — which is exactly
+      // the state prd.md §Open Questions #3 was about.
+      expect(alert.textContent).toContain("ktoś inny");
+      expect(alert.textContent).not.toContain("nie jest już zajęty");
+      // Still actionable, and still not "try again": the token this page holds can never now
+      // succeed.
+      expect(alert.textContent).toContain("Odśwież stronę");
       expect(reload).not.toHaveBeenCalled();
     });
 

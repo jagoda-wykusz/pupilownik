@@ -307,7 +307,11 @@ export type Database = {
         Returns: string
       }
       release_slot: {
-        Args: { p_period_id: string; p_slot_id: string }
+        Args: {
+          p_expected_claimed_at: string
+          p_period_id: string
+          p_slot_id: string
+        }
         Returns: string
       }
       revoke_period: { Args: { p_period_id: string }; Returns: string }

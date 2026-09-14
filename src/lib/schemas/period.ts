@@ -104,3 +104,35 @@ export const createPeriodSchema = z
 // the strictness looks free right up to the moment a hand-written fixture, a seed row or a
 // pasted id from a bug report goes through it.
 export const periodIdSchema = z.guid();
+
+// The body of POST /api/periods/[id]/slots/[slotId]/release.
+//
+// One field, and it exists so the release is optimistically concurrent: the page echoes back
+// the `claimed_at` it rendered, and `release_slot` refuses when the stored row no longer
+// carries that value (supabase/migrations/20260914150000_release_slot_expected_claimed_at.sql).
+// Without it an owner acting on a stale tab silently wipes a claim made after that tab loaded.
+export const RELEASE_MESSAGES = {
+  // Same shape-level message as PERIOD_MESSAGES.notAnObject and for the same reason: a non-object
+  // body (null, "x", 42, []) is valid JSON, reaches zod, and would otherwise produce zod's
+  // English default with an empty path.
+  notAnObject: "Dane są niepoprawne",
+  claimedAtInvalid: "Nieprawidłowy znacznik terminu",
+} as const;
+
+export const releaseSlotSchema = z.object(
+  {
+    // `offset: true` is REQUIRED, not decoration. PostgREST serialises `timestamptz` with a
+    // numeric offset ("2026-09-14T12:00:00.123456+00:00"), and zod's default datetime check
+    // accepts only a "Z" suffix — so the strict form would reject every real value this field
+    // can carry. Fractional seconds of any length are allowed by default, which covers
+    // Postgres's microseconds.
+    //
+    // The value is passed to the RPC verbatim and cast by Postgres. This check is therefore the
+    // "clean 400 instead of a 22007" half of a two-layer guarantee, not the guarantee itself.
+    // The message rides INSIDE the params object (`error`), not as a second argument the way
+    // `z.iso.date(msg)` above takes it — the checked overloads differ between the two, and the
+    // two-argument form typechecks nowhere.
+    expected_claimed_at: z.iso.datetime({ offset: true, error: RELEASE_MESSAGES.claimedAtInvalid }),
+  },
+  RELEASE_MESSAGES.notAnObject,
+);

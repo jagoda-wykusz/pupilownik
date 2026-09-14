@@ -27,6 +27,12 @@ interface SlotRow {
 
 const SLOT_COLUMNS = "id, slot_date, time_of_day, claimed_by_name, claimed_at, claim_digest";
 
+// A well-formed timestamp that matches no stored row, for the grant-posture cases where the
+// slot id is random anyway. The point of those cases is the permission check, which happens
+// before the body runs — a real token would prove nothing extra and there is no row to read one
+// from.
+const NOWHERE_CLAIMED_AT = "2000-01-01T00:00:00+00:00";
+
 describe("release_slot — the owner's release door", () => {
   let anon: SupabaseClient<Database>;
   let a: OwnerWithPetContext;
@@ -95,9 +101,36 @@ describe("release_slot — the owner's release door", () => {
     return { ...period, slotIds, digest };
   }
 
-  function release(client: SupabaseClient<Database>, periodId: string, slotId: string) {
-    return client.rpc("release_slot", { p_period_id: periodId, p_slot_id: slotId });
+  // The optimistic-concurrency token a rendered page would be holding. Read back from the
+  // table rather than remembered from the claim, because `claimed_at` is stamped by the
+  // database and the point of the token is that it matches what Postgres stored.
+  //
+  // Takes the owner whose RLS can SEE the row, which is not always the caller under test: the
+  // cross-owner case below deliberately hands A a token read through B's client, so the refusal
+  // it asserts cannot be passing merely because A guessed a wrong timestamp.
+  async function claimedAtOf(owner: OwnerWithPetContext, periodId: string, slotId: string): Promise<string> {
+    const row = (await slotsOf(owner, periodId)).find((slot) => slot.id === slotId);
+    if (row?.claimed_at == null) {
+      throw new Error("release-slot test: wanted a claimed slot, found no claimed_at");
+    }
+    return row.claimed_at;
   }
+
+  function release(client: SupabaseClient<Database>, periodId: string, slotId: string, expectedClaimedAt: string) {
+    return client.rpc("release_slot", {
+      p_period_id: periodId,
+      p_slot_id: slotId,
+      p_expected_claimed_at: expectedClaimedAt,
+    });
+  }
+
+  // The generated types declare `p_expected_claimed_at` as non-nullable, which is correct for
+  // every caller that goes through them — and precisely why the null case needs a deliberate
+  // hole to be tested at all. An `authenticated` caller hitting PostgREST directly is not bound
+  // by this repo's TypeScript, and the function has to refuse them rather than fall back to the
+  // old unguarded release. Cast here, once, rather than widening the helper's parameter and
+  // letting every call site pass null by accident.
+  const NULL_TOKEN = null as unknown as string;
 
   beforeAll(async () => {
     anon = createAnonClient();
@@ -116,7 +149,7 @@ describe("release_slot — the owner's release door", () => {
     it("an authenticated owner may execute it — this is the owner's door", async () => {
       // A valid-shaped but unknown pair: the function returns NULL from its own body, which
       // proves execution was permitted. A 42501 here means authenticated lost EXECUTE.
-      const { data, error } = await release(a.client, crypto.randomUUID(), crypto.randomUUID());
+      const { data, error } = await release(a.client, crypto.randomUUID(), crypto.randomUUID(), NOWHERE_CLAIMED_AT);
 
       expect(error).toBeNull();
       expect(data).toBeNull();
@@ -125,14 +158,19 @@ describe("release_slot — the owner's release door", () => {
     it("anon may NOT execute it — a caretaker cannot free anyone's term", async () => {
       const claimed = await seedClaimedPeriod(a, "A-anon-nie-moze", "2027-01-05", "2027-01-06");
 
-      const { error } = await release(anon, claimed.id, claimed.slotIds[0]);
+      const { error } = await release(
+        anon,
+        claimed.id,
+        claimed.slotIds[0],
+        await claimedAtOf(a, claimed.id, claimed.slotIds[0]),
+      );
 
       // The MESSAGE, not just the SQLSTATE. anon holds no UPDATE grant on care_slots either
       // (verified: has_table_privilege('anon','public.care_slots','update') is false), so
       // granting EXECUTE back to anon moves the identical 42501 one layer inward — "permission
       // denied for TABLE care_slots" — and a code-only assertion keeps passing with the
       // function grant fully widened. Measured: the suite went 8/8 green under
-      // `grant execute on function public.release_slot(uuid,uuid) to anon`. Naming the
+      // `grant execute on function public.release_slot(uuid,uuid,timestamptz) to anon`. Naming the
       // function is what makes this a test of the grant rather than a description of it
       // (context/foundation/lessons.md).
       expect(error?.code).toBe("42501");
@@ -152,7 +190,7 @@ describe("release_slot — the owner's release door", () => {
         auth: { persistSession: false, autoRefreshToken: false },
       });
 
-      const { error } = await release(service, crypto.randomUUID(), crypto.randomUUID());
+      const { error } = await release(service, crypto.randomUUID(), crypto.randomUUID(), NOWHERE_CLAIMED_AT);
 
       // Supabase's ALTER DEFAULT PRIVILEGES grants EXECUTE to service_role on every new
       // function in `public`, so this passes only while the migration's explicit revoke stands.
@@ -166,7 +204,7 @@ describe("release_slot — the owner's release door", () => {
       const claimed = await seedClaimedPeriod(a, "A-zwolnij", "2027-01-10", "2027-01-12", 2);
       const [target, keep] = claimed.slotIds;
 
-      const { data, error } = await release(a.client, claimed.id, target);
+      const { data, error } = await release(a.client, claimed.id, target, await claimedAtOf(a, claimed.id, target));
 
       expect(error).toBeNull();
       expect(data).toBe(target);
@@ -190,13 +228,20 @@ describe("release_slot — the owner's release door", () => {
     it("answers NULL on a second release of the same slot and changes nothing", async () => {
       const claimed = await seedClaimedPeriod(a, "A-dwa-razy", "2027-01-15", "2027-01-16");
       const target = claimed.slotIds[0];
+      // Captured ONCE, before the first release, and replayed — which is exactly what a stale
+      // browser tab holds. After the first call the row is free, so there is no token left to
+      // read.
+      const token = await claimedAtOf(a, claimed.id, target);
 
-      expect((await release(a.client, claimed.id, target)).error).toBeNull();
+      expect((await release(a.client, claimed.id, target, token)).error).toBeNull();
 
-      const { data, error } = await release(a.client, claimed.id, target);
+      const { data, error } = await release(a.client, claimed.id, target, token);
 
-      // `claimed_at is not null` in the WHERE turns the second call into a no-op that reports
-      // itself honestly, rather than an error the route would have to classify.
+      // `claimed_at = p_expected_claimed_at` in the WHERE turns the second call into a no-op
+      // that reports itself honestly, rather than an error the route would have to classify:
+      // the row is free now, and equality against a non-null token is never true for NULL. The
+      // old `claimed_at is not null` guard answered this case identically — the difference is
+      // that it ALSO waved through the re-claimed case below, which this one refuses.
       expect(error).toBeNull();
       expect(data).toBeNull();
 
@@ -208,10 +253,15 @@ describe("release_slot — the owner's release door", () => {
       const theirs = await seedClaimedPeriod(b, "B-cudze", "2027-02-01", "2027-02-02");
       const target = theirs.slotIds[0];
 
-      const { data, error } = await release(a.client, theirs.id, target);
+      // A is handed the CORRECT token, read through B's own client. That is deliberate: with a
+      // made-up timestamp this case would miss on the equality and pass without RLS doing any
+      // work at all, which is the tautology context/foundation/lessons.md warns about. A knows
+      // the exact value and is still refused.
+      const { data, error } = await release(a.client, theirs.id, target, await claimedAtOf(b, theirs.id, target));
 
       // care_slots_update_own filtered the row out. Same NULL as "already free" — A learns
-      // nothing about whether B's period or slot exists.
+      // nothing about whether B's period or slot exists, and the PT412 branch does not fire
+      // either, because the explaining read is RLS-scoped too.
       expect(error).toBeNull();
       expect(data).toBeNull();
 
@@ -229,7 +279,12 @@ describe("release_slot — the owner's release door", () => {
       const one = await seedClaimedPeriod(a, "A-wyjazd-jeden", "2027-03-01", "2027-03-02");
       const two = await seedClaimedPeriod(a, "A-wyjazd-dwa", "2027-03-10", "2027-03-11");
 
-      const { data, error } = await release(a.client, one.id, two.slotIds[0]);
+      const { data, error } = await release(
+        a.client,
+        one.id,
+        two.slotIds[0],
+        await claimedAtOf(a, two.id, two.slotIds[0]),
+      );
 
       expect(error).toBeNull();
       expect(data).toBeNull();
@@ -242,7 +297,7 @@ describe("release_slot — the owner's release door", () => {
       const claimed = await seedClaimedPeriod(a, "A-znowu-wolne", "2027-04-01", "2027-04-02");
       const target = claimed.slotIds[0];
 
-      expect((await release(a.client, claimed.id, target)).error).toBeNull();
+      expect((await release(a.client, claimed.id, target, await claimedAtOf(a, claimed.id, target))).error).toBeNull();
 
       // A DIFFERENT caretaker, with their own capability — the point of the release is that
       // the freed term goes back on the market for whoever holds the link next.
@@ -261,6 +316,121 @@ describe("release_slot — the owner's release door", () => {
       expect(slot?.claimed_by_name).toBe("Basia");
       expect(slot?.claim_digest).toBe(digest);
       expect(slot?.claimed_at).not.toBeNull();
+    });
+  });
+
+  // ── 3. Optimistic concurrency ──────────────────────────────────────────────
+  //
+  // prd.md §Open Questions #3, closed by
+  // supabase/migrations/20260914150000_release_slot_expected_claimed_at.sql. The scenario is one
+  // owner with two tabs, not two owners: tab A renders the grid, the term changes hands through
+  // the still-live invite link, and tab A then clicks "Zwolnij" on a view that is already wrong.
+  //
+  // The sequence below is the whole point and is written out rather than helper-wrapped: a test
+  // that released and re-claimed through a fixture would be easy to read as "release twice",
+  // which is a different case entirely (§2 covers it).
+  describe("optimistic concurrency", () => {
+    // Seed a period, claim a term as Ania, capture the token a page would have rendered, then
+    // let Basia take the term over so the stored row moves out from under that token.
+    async function seedRelaimedTerm(title: string, start: string, end: string) {
+      const claimed = await seedClaimedPeriod(a, title, start, end);
+      const target = claimed.slotIds[0];
+      const staleToken = await claimedAtOf(a, claimed.id, target);
+
+      // Ania lets it go — with a CURRENT token, so this first release is the legitimate one.
+      expect((await release(a.client, claimed.id, target, staleToken)).error).toBeNull();
+
+      // Basia takes it through the link. This is what makes `staleToken` stale.
+      const secret = generateClaimSecret();
+      const digest = await digestClaimSecret(secret);
+      const { error } = await anon.rpc("claim_slots", {
+        p_token: claimed.token,
+        p_slot_ids: [target],
+        p_claim_secret: secret,
+        p_name: "Basia",
+      });
+      expect(error).toBeNull();
+
+      return { ...claimed, target, staleToken, basiaDigest: digest };
+    }
+
+    it("refuses a release carrying a token from before the term changed hands", async () => {
+      const { id, target, staleToken } = await seedRelaimedTerm("A-wyscig", "2027-05-01", "2027-05-02");
+
+      const { data, error } = await release(a.client, id, target, staleToken);
+
+      // PT412, NOT a NULL return. This is the one miss that must not look like the other four:
+      // answering NULL would send the route to its 404, whose sentence tells the owner the term
+      // is free while Basia is standing on it.
+      expect(error?.code).toBe("PT412");
+      expect(data).toBeNull();
+    });
+
+    it("leaves Basia's claim completely intact after the refused release", async () => {
+      const { id, target, staleToken, basiaDigest } = await seedRelaimedTerm(
+        "A-wyscig-nic-nie-pisze",
+        "2027-05-05",
+        "2027-05-06",
+      );
+      const before = (await slotsOf(a, id)).find((row) => row.id === target);
+
+      await release(a.client, id, target, staleToken);
+
+      // Read the row back rather than trusting the error: the raise has to roll the statement
+      // back, and an assertion on the SQLSTATE alone would pass against a function that refused
+      // AFTER writing. All three claim columns, because they are one fact.
+      const after = (await slotsOf(a, id)).find((row) => row.id === target);
+      expect(after?.claimed_by_name).toBe("Basia");
+      expect(after?.claim_digest).toBe(basiaDigest);
+      expect(after?.claimed_at).toBe(before?.claimed_at);
+    });
+
+    it("still releases when the owner refreshes and sends the CURRENT token", async () => {
+      const { id, target } = await seedRelaimedTerm("A-wyscig-po-odswiezeniu", "2027-05-10", "2027-05-11");
+
+      // The remedy the route's 409 sentence asks for. Without this the previous two tests would
+      // also pass against a function that refuses every release outright.
+      const { data, error } = await release(a.client, id, target, await claimedAtOf(a, id, target));
+
+      expect(error).toBeNull();
+      expect(data).toBe(target);
+
+      const after = (await slotsOf(a, id)).find((row) => row.id === target);
+      expect(after?.claimed_by_name).toBeNull();
+      expect(after?.claimed_at).toBeNull();
+      expect(after?.claim_digest).toBeNull();
+    });
+
+    it("answers NULL rather than PT412 for a stale token on a term that is simply free", async () => {
+      // The two refusals must stay distinguishable at the source. A function that raised PT412
+      // on every non-match would turn the ordinary "this term was already released" case into a
+      // 409, and the owner would be told someone is holding a slot that nobody is.
+      const claimed = await seedClaimedPeriod(a, "A-wyscig-wolny", "2027-05-15", "2027-05-16");
+      const target = claimed.slotIds[0];
+      const token = await claimedAtOf(a, claimed.id, target);
+
+      expect((await release(a.client, claimed.id, target, token)).error).toBeNull();
+
+      const { data, error } = await release(a.client, claimed.id, target, token);
+
+      expect(error).toBeNull();
+      expect(data).toBeNull();
+    });
+
+    it("refuses a NULL token instead of falling back to the old unguarded behaviour", async () => {
+      // The argument is not optional in the signature, but `authenticated` can call this RPC
+      // directly through PostgREST and pass an explicit null. That must not resolve to "release
+      // whatever is there" — which is precisely what the pre-migration guard did.
+      const claimed = await seedClaimedPeriod(a, "A-wyscig-null", "2027-05-20", "2027-05-21");
+      const target = claimed.slotIds[0];
+
+      const { data, error } = await release(a.client, claimed.id, target, NULL_TOKEN);
+
+      expect(error?.code).toBe("PT412");
+      expect(data).toBeNull();
+
+      const after = (await slotsOf(a, claimed.id)).find((row) => row.id === target);
+      expect(after?.claimed_by_name).toBe("Ania");
     });
   });
 });

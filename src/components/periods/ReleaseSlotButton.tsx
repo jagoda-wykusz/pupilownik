@@ -26,9 +26,19 @@ interface Props {
   caretakerLabel: string;
   /** The term itself, e.g. "Rano, 13 lipca" — the other half of the accessible name. */
   termLabel: string;
+  /**
+   * The `claimed_at` this page rendered, echoed back to the server as an optimistic-concurrency
+   * token. `release_slot` frees the term only while the stored row still carries this value, so
+   * a claim landing after this page was drawn refuses the release instead of being wiped by it
+   * (supabase/migrations/20260914150000_release_slot_expected_claimed_at.sql).
+   *
+   * Safe to serialise into island props, unlike the digest beside it in the same row: this is a
+   * timestamp the owner is already looking at, not a capability secret.
+   */
+  claimedAt: string;
 }
 
-export default function ReleaseSlotButton({ periodId, slotId, caretakerLabel, termLabel }: Props) {
+export default function ReleaseSlotButton({ periodId, slotId, caretakerLabel, termLabel, claimedAt }: Props) {
   const [armed, setArmed] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -57,7 +67,16 @@ export default function ReleaseSlotButton({ periodId, slotId, caretakerLabel, te
     setError(null);
     setPending(true);
     try {
-      const res = await fetch(`/api/periods/${periodId}/slots/${slotId}/release`, { method: "POST" });
+      // A JSON body, where this island used to send none. That is not cosmetic: a bodyless POST
+      // with no Content-Type is the shape Astro's origin middleware inspects, so sending one
+      // here REMOVED the framework's CSRF cover, and the route grew its own explicit Origin
+      // check in the same change. Do not drop the header back off on the assumption that the
+      // route still validates the body — the two moved together.
+      const res = await fetch(`/api/periods/${periodId}/slots/${slotId}/release`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ expected_claimed_at: claimedAt }),
+      });
 
       if (res.status === 401) {
         window.location.href = "/auth/signin";
@@ -67,14 +86,23 @@ export default function ReleaseSlotButton({ periodId, slotId, caretakerLabel, te
         window.location.reload();
         return;
       }
-      // 404 is the interesting one and gets its own sentence: it means the term is no longer
-      // claimed — someone else's release, or this page has simply been open a while. Telling
-      // the owner to refresh is actionable; "spróbuj ponownie" would send them into a loop
-      // against a request that can never now succeed.
+      // Two failures get their own sentence, because each has a different remedy and neither is
+      // "try again".
+      //
+      // 404 — the term is no longer claimed at all: someone else's release, or this page has
+      // been open a while. 409 — it IS claimed, by a claim made after this view was rendered,
+      // and the release was refused rather than allowed to wipe it. Telling the owner "nie jest
+      // już zajęty" in that second case would be false about a term somebody is standing on,
+      // which is the whole reason the route separates them.
+      //
+      // Both point at a refresh. "Spróbuj ponownie" would send the owner into a loop against a
+      // request that can never now succeed with the token this page holds.
       setError(
         res.status === 404
           ? "Ten termin nie jest już zajęty. Odśwież stronę, żeby zobaczyć aktualną obsadę."
-          : "Nie udało się zwolnić terminu. Spróbuj ponownie.",
+          : res.status === 409
+            ? "Ten termin zajął w międzyczasie ktoś inny. Odśwież stronę, żeby zobaczyć, kto go trzyma — zwolnienie teraz skasowałoby ten zapis."
+            : "Nie udało się zwolnić terminu. Spróbuj ponownie.",
       );
     } catch {
       setError("Błąd połączenia. Sprawdź sieć i spróbuj ponownie.");

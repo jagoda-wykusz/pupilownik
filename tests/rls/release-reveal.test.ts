@@ -140,7 +140,25 @@ describe("releasing a term and the caretaker's reveal", () => {
   }
 
   async function release(periodId: string, slotId: string): Promise<void> {
-    const { data, error } = await owner.client.rpc("release_slot", { p_period_id: periodId, p_slot_id: slotId });
+    // `release_slot` is optimistically concurrent, so it needs the `claimed_at` a page would
+    // have rendered. This suite is about what a release does to the CARETAKER'S REVEAL, not
+    // about the concurrency guard itself (tests/rls/release-slot.test.ts owns that), so the
+    // token is read fresh here — the equivalent of an owner acting on a current view.
+    const { data: current, error: readError } = await owner.client
+      .from("care_slots")
+      .select("claimed_at")
+      .eq("id", slotId)
+      .single();
+    expect(readError).toBeNull();
+    if (current?.claimed_at == null) {
+      throw new Error("release-reveal test: wanted a claimed slot to release, found no claimed_at");
+    }
+
+    const { data, error } = await owner.client.rpc("release_slot", {
+      p_period_id: periodId,
+      p_slot_id: slotId,
+      p_expected_claimed_at: current.claimed_at,
+    });
     expect(error).toBeNull();
     // The function returns the freed slot id. A NULL means its WHERE matched nothing, so the
     // rest of the test would be asserting against a write that never happened. This does not

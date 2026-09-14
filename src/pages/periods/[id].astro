@@ -134,10 +134,17 @@ const claimedByDay = new Map(
   byDay.map((entry) => [
     entry.day,
     entry.slots
-      .filter((slot) => slot.claimed_at !== null)
+      // A type PREDICATE, not a plain arrow, and it is load-bearing rather than tidy: the
+      // release island's optimistic-concurrency token is `claimed_at`, and its prop is
+      // `string`. A plain `.filter()` does not narrow, so the projection below would hand it
+      // `string | null` and the only ways out would be a cast or a `?? ""` — both of which turn
+      // "this row has no claim timestamp" into a value the server would reject as a 400 rather
+      // than a type error caught here.
+      .filter((slot): slot is SlotRow & { claimed_at: string } => slot.claimed_at !== null)
       .map((slot) => ({
         id: slot.id,
         time_of_day: slot.time_of_day,
+        claimed_at: slot.claimed_at,
         caretaker: caretakers.bySlotId.get(slot.id) ?? null,
       })),
   ]),
@@ -301,6 +308,7 @@ const claimedByDay = new Map(
                             slotId={claimed.id}
                             caretakerLabel={claimed.caretaker?.label ?? UNNAMED_CARETAKER_LABEL}
                             termLabel={`${TIME_OF_DAY_LABEL[claimed.time_of_day]}, ${formatDay(entry.day)}`}
+                            claimedAt={claimed.claimed_at}
                             client:load
                           />
                         </li>
