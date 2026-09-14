@@ -1,10 +1,10 @@
 ---
 change_id: pet-edit-and-delete
 title: Owner edits a pet with its care instructions, and deletes one no live trip covers
-status: impl_reviewed
+status: archived
 created: 2026-09-13
 updated: 2026-09-14
-archived_at: null
+archived_at: 2026-09-14T11:13:22Z
 ---
 
 ## Notes
