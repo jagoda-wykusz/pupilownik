@@ -40,21 +40,23 @@ Rdzeń wartości — czyli ta jedna cecha, po usunięciu której produkt staje s
 | S-07 | ui-design-system            | aplikacja wygląda wg hi-fi designu — system wizualny + reskin auth  | —             | (UI wszystkich FR)            | done     |
 | S-03 | caretaker-claims-slot       | opiekun otwiera link i zajmuje wolny slot (bez podwójnej obsady)    | S-08          | FR-007, FR-008, FR-009, US-02 | done     |
 | S-04 | owner-occupancy-view        | właściciel widzi pełną obsadę okresu — kto zajął którą porę         | S-03          | FR-006, US-01                 | done     |
-| S-05 | caretaker-names-visibility  | opiekun widzi imiona innych opiekunów w obrębie okresu              | S-03          | FR-011                        | proposed |
+| S-05 | caretaker-names-visibility  | opiekun widzi imiona innych opiekunów w obrębie okresu              | S-03          | FR-011                        | deferred |
 | S-06 | close-care-period           | właściciel zamyka/odwołuje okres i unieważnia link                  | S-02          | FR-012                        | done     |
 | S-09 | pet-edit-and-delete         | właściciel poprawia zwierzę i instrukcje, usuwa zwierzę bez wyjazdu | S-01, S-06    | FR-002, FR-003, §Guardrails   | done     |
 
-Pozostała ścieżka must-have (czyli minimalny zestaw wymagań, bez których PRD nie uznaje MVP za działające): **S-03 → S-04**. Wszystko inne jest nice-to-have albo już wylądowało.
+**Ścieżka must-have jest domknięta.** `S-03` i `S-04` wylądowały (zob. tabela powyżej), więc minimalny zestaw wymagań, bez których PRD nie uznaje MVP za działające, jest kompletny. Z całej roadmapy pozostaje jeden slice — `S-05` — i jest **odłożony** świadomie, nie zaległy.
+
+_Sprostowanie 2026-09-14:_ ten akapit twierdził, że pozostaje ścieżka must-have **S-03 → S-04**, jeszcze długo po tym, jak oba zjechały na `done` dwie linie wyżej — dokument zaprzeczał własnej tabeli. Tabela jest źródłem prawdy; ta proza była nieaktualna od momentu domknięcia `S-04`.
 
 ## Streams
 
 Navigation aid — groups items that share a Prerequisites chain. Canonical ordering still lives in the dependency graph below; this table is the proposed reading order across parallel tracks.
 
-| Stream | Theme                          | Chain                                               | Note                                                                                                                                                                                                                                                                                 |
-| ------ | ------------------------------ | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| A      | Rdzeń: od zwierzęcia do zapisu | `F-01` → `S-01` → `S-02` → `S-08` → `S-03` → `S-04` | Ścieżka must-have; zawiera gwiazdę przewodnią `S-03`. Pierwsze cztery ogniwa wylądowały — pozostaje `S-03` → `S-04`. Zgodna z celem `szybkość`.                                                                                                                                      |
-| B      | Dodatki (nice-to-have)         | `S-06` / `S-05` / `S-09`                            | `S-06` dołącza do Stream A przy `S-02` (już spełnione, więc jest plannowalny od dziś), `S-05` przy `S-03`. Równoległe względem siebie i do `S-03`. `S-09` domyka cykl życia encji z `S-01` i potrzebuje `S-06`, bo odwołanie wyjazdu jest jedynym wyjściem z jego blokady usunięcia. |
-| C      | UI / system wizualny           | `S-07`                                              | Domknięty. Ekrany domenowe realizują swoje slice'y na jego komponentach (zob. Design reference).                                                                                                                                                                                     |
+| Stream | Theme                          | Chain                                               | Note                                                                                                                                                                                                                                                                                       |
+| ------ | ------------------------------ | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| A      | Rdzeń: od zwierzęcia do zapisu | `F-01` → `S-01` → `S-02` → `S-08` → `S-03` → `S-04` | Ścieżka must-have; zawiera gwiazdę przewodnią `S-03`. **Domknięta w całości** — wszystkie sześć ogniw wylądowało (sprostowane 2026-09-14; ten opis zatrzymał się na stanie sprzed `S-03`). Zgodna z celem `szybkość`.                                                                      |
+| B      | Dodatki (nice-to-have)         | `S-06` / `S-05` / `S-09`                            | `S-06` i `S-09` wylądowały. `S-05` dołączałby przy `S-03` i jako jedyny z tego strumienia jest **odłożony poza MVP** (decyzja 2026-09-14 — zob. slice). `S-09` domyka cykl życia encji z `S-01` i potrzebował `S-06`, bo odwołanie wyjazdu jest jedynym wyjściem z jego blokady usunięcia. |
+| C      | UI / system wizualny           | `S-07`                                              | Domknięty. Ekrany domenowe realizują swoje slice'y na jego komponentach (zob. Design reference).                                                                                                                                                                                           |
 
 ## Baseline
 
@@ -192,9 +194,10 @@ Otwarty dług z designu: pole **`NOTATKA`** (wolny tekst na poziomie okresu) wyp
 - **Parallel with:** S-04, S-06
 - **Blockers:** —
 - **Unknowns:**
-  - Czy imiona widzi każdy posiadacz linku, czy tylko osoba, która sama zajęła slot? S-03 ustanawia capability per-osoba, więc oba warianty są tanie — ale to decyzja o prywatności, nie techniczna. Owner: użytkownik. Block: no.
+  - ~~Czy imiona widzi każdy posiadacz linku, czy tylko osoba, która sama zajęła slot?~~ **Rozstrzygnięte 2026-09-14: tylko osoba, która sama zajęła slot.** Nie dlatego, że drugi wariant jest droższy — S-03 ustanawia capability per-osoba, więc oba są tanie — tylko dlatego, że produkt ma już dokładnie tę granicę i nie ma żadnej innej. `get_claimed_details` odsłania notatkę wyjazdu i wrażliwe instrukcje wyłącznie posiadaczowi, który zajął termin; pokazywanie imion każdemu, kto trzyma link, wprowadziłoby drugi, luźniejszy próg widoczności danych osobowych i to właśnie ono wymagałoby uzasadnienia. Konsekwencja dla zakresu: gdyby slice został podjęty, to zmiana istniejącej funkcji odsłaniającej plus UI, bez nowego modelu dostępu.
 - **Risk:** Nice-to-have wspierający kryterium Secondary; nie blokuje launchu. Konsumuje model odsłonięcia z S-03 — jeśli S-03 rozszerzy funkcję tokenową o imiona „za darmo", ten slice może się skurczyć do zmiany UI. Sekwencjonowany po gwieździe przewodniej zgodnie z celem `szybkość`.
-- **Status:** proposed
+- **Status:** deferred
+- **Decyzja (2026-09-14):** **odłożone poza MVP — świadomie, nie z braku czasu.** To jedyny slice tej roadmapy, który nie wylądował, i zostawianie go na `proposed` czytało się jak niedokończona robota, a nie jak decyzja. FR-011 pozostaje `nice-to-have` w PRD i nie trafia do Non-Goals: nic w produkcie mu nie przeczy, a rozstrzygnięty wyżej Unknown sprowadza go do zmiany istniejącej funkcji odsłaniającej plus UI. Podstawa odłożenia jest wprost z PRD — FR-011 wspiera kryterium **Secondary**, a wszystkie wymagania must-have (kryterium Primary) są dowiezione; dokładanie widoczności danych osobowych między opiekunami po zamknięciu ścieżki must-have jest rozszerzeniem zakresu, nie domknięciem go. Wznowić, gdy pojawi się sygnał od użytkowników, że koordynacja „kto co wziął" faktycznie kuleje — dziś ten sygnał nie istnieje, bo produkt nie był jeszcze używany w takim kręgu.
 
 ### S-06: Właściciel zamyka / odwołuje okres
 
@@ -230,8 +233,8 @@ Otwarty dług z designu: pole **`NOTATKA`** (wolny tekst na poziomie okresu) wyp
 | S-08       | period-pets-relation        | Relacja okres ↔ zwierzęta (odblokowuje instrukcje opiekuna)     | done                  | Zarchiwizowane 2026-09-06                        |
 | S-07       | ui-design-system            | System wizualny wg hi-fi designu + reskin ekranów auth          | done                  | Zarchiwizowane 2026-09-06                        |
 | S-03       | caretaker-claims-slot       | Opiekun zajmuje slot przez link (atomowo)                       | done                  | Zarchiwizowane 2026-09-08                        |
-| S-04       | owner-occupancy-view        | Widok obsady okresu dla właściciela                             | no                    | Ostatni must-have; po S-03                       |
-| S-05       | caretaker-names-visibility  | Widoczność imion opiekunów w okresie                            | no                    | Nice-to-have; po S-03                            |
+| S-04       | owner-occupancy-view        | Widok obsady okresu dla właściciela                             | done                  | Zarchiwizowane 2026-09-08                        |
+| S-05       | caretaker-names-visibility  | Widoczność imion opiekunów w okresie                            | deferred              | Odłożone 2026-09-14; poza MVP (zob. slice)       |
 | S-06       | close-care-period           | Zamknięcie/odwołanie okresu + unieważnienie linku               | done                  | Nice-to-have, ale plannowalny równolegle do S-03 |
 | S-09       | pet-edit-and-delete         | Edycja zwierzęcia i instrukcji + usunięcie z blokadą            | done                  | Domyka cykl życia encji z S-01; wymaga S-06      |
 
