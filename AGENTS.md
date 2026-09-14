@@ -49,7 +49,7 @@ Pre-commit (husky + lint-staged) runs `eslint --fix` on `*.{ts,tsx,astro}` and `
 
 - **It decides whether anything publishes.** A non-zero exit produces no version, and no version means no deploy — including on a direct push to `master`.
 - **The order is load-bearing**, not stylistic: `check → lint → build → unit + component → check:secrets`. `astro check` regenerates `.astro/`, whose generated types type-aware ESLint needs; and the build must precede the tests because `tests/unit/client-bundle.test.ts` scans `dist/client` and fails — deliberately, rather than skipping — when there is no build.
-- **`integration` is excluded on purpose.** The Cloudflare build container has no Docker, so `supabase start` cannot run there. Those 22 files run in GitHub Actions (`.github/workflows/ci.yml`) and nowhere else.
+- **`integration` is excluded on purpose.** The Cloudflare build container has no Docker, so `supabase start` cannot run there. Those 28 files run in GitHub Actions (`.github/workflows/ci.yml`) and nowhere else.
 - **Actions cannot block a merge.** This repository is private on GitHub Free, where branch protection is unavailable. A red run there is a signal; the gate above is the only enforcement.
 
 `tests/unit/ci-gate-source.test.ts` asserts both gates still contain what they claim to. It cannot see the Cloudflare dashboard field, so keep that field as the single string `npm run ci:gate` rather than an expanded chain.

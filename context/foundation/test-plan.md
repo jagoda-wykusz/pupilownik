@@ -988,7 +988,7 @@ tests/rls/release-reveal.test.ts`, five consecutive runs, 4/4 passing every time
   **The trade it creates, and why Actions needed a new step.** On failure npm drops the package
   entirely rather than leaving a broken one. On Cloudflare that is exactly right — nothing there can
   use the CLI. In Actions it would mean `npx supabase start` quietly fetching a copy from the
-  registry instead of failing, and the 22 integration files are the only tests in this project that
+  registry instead of failing, and the 28 integration files are the only tests in this project that
   exercise RLS, so a silent skip is the worst outcome available. `.github/workflows/ci.yml` now runs
   `npx --no-install supabase --version` first; `--no-install` is the load-bearing flag, since it
   makes npx fail instead of fetch.

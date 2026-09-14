@@ -15,11 +15,11 @@ Pełny opis problemu, person, kryteriów sukcesu i wymagań funkcjonalnych:
 
 ## Dwie ścieżki
 
-|               | Właściciel                                                                                                 | Opiekun                                                                                          |
-| ------------- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| Dostęp        | konto (email + hasło), Supabase Auth                                                                       | **bez konta** — wyłącznie link zapraszający                                                      |
-| Co robi       | dodaje zwierzęta i instrukcje, tworzy wyjazd, generuje link, widzi obsadę, zwalnia termin, odwołuje wyjazd | otwiera link, czyta publiczne instrukcje, zajmuje wolne terminy podając imię                     |
-| Zakres danych | tylko własne wiersze — egzekwowane przez RLS, nie przez kod aplikacji                                      | tylko ten jeden wyjazd; wrażliwe instrukcje (adres, kody dostępu) dopiero **po** zajęciu terminu |
+|               | Właściciel                                                                                                                          | Opiekun                                                                                          |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| Dostęp        | konto (email + hasło), Supabase Auth                                                                                                | **bez konta** — wyłącznie link zapraszający                                                      |
+| Co robi       | dodaje zwierzęta i instrukcje, **poprawia je i usuwa**, tworzy wyjazd, generuje link, widzi obsadę, zwalnia termin, odwołuje wyjazd | otwiera link, czyta publiczne instrukcje, zajmuje wolne terminy podając imię                     |
+| Zakres danych | tylko własne wiersze — egzekwowane przez RLS, nie przez kod aplikacji                                                               | tylko ten jeden wyjazd; wrażliwe instrukcje (adres, kody dostępu) dopiero **po** zajęciu terminu |
 
 Dwie reguły produktu, które trzymają całość: **żaden termin nie może zostać obsadzony dwukrotnie**
 (atomowy `claim_slots`, wszystko albo nic) i **nic nie wycieka poza krąg z linku** (surowy token
@@ -77,7 +77,24 @@ npm run dev
 - `npm run lint` - Run ESLint with type-checked rules
 - `npm run lint:fix` - Auto-fix ESLint issues
 - `npm run format` - Run Prettier
+- `npm run check` - `astro check` — typecheck, templates included
+- `npm run check:links` - Verify every path referenced from a markdown doc still exists
 - `npm run check:secrets` - Scan `dist/client` for a secret that should never reach a browser (needs a build first)
+
+Tests and the gate:
+
+- `npm test` - vitest, all three projects. The `integration` project needs the local Supabase stack (`npm run db:start`)
+- `npm run test:watch` - the same, in watch mode
+- `npm run test:render` - the Astro-rendering project, under its own config (`vitest.render.config.ts`)
+- `npm run test:e2e` - Playwright. Needs the local stack **and** a dev server; it attaches to one you already have running
+- `npm run ci:gate` - the publish gate, exactly what Cloudflare Workers Builds runs. See [CI / CD](#ci--cd)
+
+Local database (all require Docker):
+
+- `npm run db:start` / `npm run db:stop` - start or stop the local Supabase stack
+- `npm run db:reset` - rebuild the database from `supabase/migrations/`
+- `npm run db:migration <name>` - scaffold a new migration
+- `npm run db:gen-types` - regenerate `src/db/database.types.ts` from the live schema
 
 ## Project Structure
 
@@ -107,7 +124,7 @@ down in [`docs/reference/contract-surfaces.md`](./docs/reference/contract-surfac
 
 ## Supabase Configuration
 
-This project uses [Supabase](https://supabase.com/) for authentication. Environment variables are declared via Astro's `astro:env` schema and are treated as **server-only secrets** — they are never exposed to the client.
+This project uses [Supabase](https://supabase.com/) for authentication, the schema, its RLS policies and the RPCs that carry the domain rules. Environment variables are declared via Astro's `astro:env` schema and are treated as **server-only secrets** — they are never exposed to the client.
 
 ### First-time setup (local, no cloud project needed)
 
@@ -172,16 +189,25 @@ By default Supabase requires email confirmation before a user can sign in. To sk
 
 Users can then sign in immediately after sign-up without clicking a confirmation link.
 
-### Auth routes
+### Routes
 
-| Route                 | Description                                                             |
-| --------------------- | ----------------------------------------------------------------------- |
-| `/auth/signin`        | Email/password sign-in form                                             |
-| `/auth/signup`        | Email/password sign-up form                                             |
-| `/auth/confirm-email` | Post-signup "check your inbox" page                                     |
-| `/dashboard`          | Example protected page (redirects to `/auth/signin` if unauthenticated) |
+| Route                          | Access        | Description                                                    |
+| ------------------------------ | ------------- | -------------------------------------------------------------- |
+| `/auth/signin`, `/auth/signup` | public        | Email/password sign-in and sign-up forms                       |
+| `/auth/confirm-email`          | public        | Post-signup "check your inbox" page                            |
+| `/periods`, `/periods/new`     | owner         | Trip list (the signed-in entry point) and the create form      |
+| `/periods/[id]`                | owner         | One trip: occupancy, the invite link, release and revoke       |
+| `/pets`, `/pets/new`           | owner         | Pet list and the create form                                   |
+| `/pets/[id]`                   | owner         | One pet: its instructions, edit and delete                     |
+| `/invite/[token]`              | **link only** | The caretaker view — claim a slot, then see the sensitive tier |
 
-Route protection is handled in `src/middleware.ts`. Add paths to the `PROTECTED_ROUTES` array there to require authentication.
+Route protection is handled in `src/middleware.ts`: `PROTECTED_ROUTES` redirects a signed-out
+visitor to `/auth/signin`, and `/invite` is public by requirement — it also carries the
+no-referrer / no-store headers that keep the token out of referers and shared caches. Ownership
+itself is enforced by RLS, not by these routes.
+
+`/dashboard` is not in the table on purpose: it is a leftover starter page, still gated but
+reached by nothing — `/` sends a signed-in owner to `/periods` and no link points at it.
 
 ## Deployment
 
@@ -207,11 +233,11 @@ Set `SUPABASE_URL` and `SUPABASE_KEY` as secrets in your Cloudflare dashboard or
 
 |               | GitHub Actions                                                                                                                  | Workers Builds build command                                                                                          |
 | ------------- | ------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| What runs     | typecheck, lint, build, **all three vitest projects**, secret scan                                                              | typecheck, lint, build, **unit + component**, secret scan                                                             |
+| What runs     | typecheck, lint, build, **all three vitest projects**, secret scan, **Playwright e2e**                                          | typecheck, lint, build, **unit + component**, secret scan                                                             |
 | Needs         | a real Supabase stack (Docker)                                                                                                  | nothing but the repo                                                                                                  |
 | Can it block? | **No.** Private repo on GitHub Free — branch protection is unavailable, so a red run is a red X next to an enabled merge button | **Yes.** A non-zero exit produces no version, and no version means no deploy — including on a direct push to `master` |
 
-The split is forced by the platforms, not chosen. The Cloudflare build container has no Docker, so `supabase start` cannot run there and the 22 integration files are permanently unrunnable in the publish gate. GitHub Actions is the only place they execute at all — and on this plan it can only report.
+The split is forced by the platforms, not chosen. The Cloudflare build container has no Docker, so `supabase start` cannot run there and the 28 integration files are permanently unrunnable in the publish gate. GitHub Actions is the only place they execute at all — and on this plan it can only report.
 
 The publish gate is `npm run ci:gate`, defined in `package.json` rather than typed into the Cloudflare dashboard, so its contents live in git history where review can see them. The dashboard holds one line: `npm run ci:gate`. Order inside the chain is load-bearing — `astro check` regenerates `.astro/` that type-aware ESLint needs, and the build must precede the tests because `tests/unit/client-bundle.test.ts` scans `dist/client` and fails rather than skips without it.
 
