@@ -90,6 +90,9 @@ describe("PUT /api/pets/[id] — the owner's edit route", () => {
   let owner: OwnerContext;
   let petId: string;
   let instructionId: string;
+  // Captured once: every test that uses the shared `petId` is a NEGATIVE case, so nothing in
+  // this file moves that row's token. The happy paths seed their own pets and read their own.
+  let petToken: string;
 
   async function seedPet(name: string): Promise<{ petId: string; instructionId: string }> {
     const pet = await owner.client
@@ -113,11 +116,24 @@ describe("PUT /api/pets/[id] — the owner's edit route", () => {
     return { petId: pet.data.id, instructionId: instruction.data.id };
   }
 
+  // The optimistic-concurrency token as the database currently holds it (impl-review F4).
+  async function tokenOf(id: string): Promise<string> {
+    const { data } = await owner.client.from("pets").select("updated_at").eq("id", id).single();
+    if (!data) {
+      throw new Error("pets.put test: reading the version token failed");
+    }
+    return data.updated_at;
+  }
+
+  // `expected_updated_at` is REQUIRED by updatePetSchema, so every body needs it — including the
+  // ones whose point is a different validation failure. Overridable, so the stale case below can
+  // send an old value.
   function body(overrides: Record<string, unknown> = {}): string {
     return JSON.stringify({
       name: "Burek",
       species: "dog",
       instructions: [{ id: instructionId, title: "Karmienie", is_sensitive: false }],
+      expected_updated_at: petToken,
       ...overrides,
     });
   }
@@ -132,6 +148,7 @@ describe("PUT /api/pets/[id] — the owner's edit route", () => {
     cookieHeader = authed.cookieHeader;
     owner = authed.owner;
     ({ petId, instructionId } = await seedPet("Burek"));
+    petToken = await tokenOf(petId);
   });
 
   // ── Auth ────────────────────────────────────────────────────────────────────────────────
@@ -192,6 +209,7 @@ describe("PUT /api/pets/[id] — the owner's edit route", () => {
         name: "SameOrigin renamed",
         species: "dog",
         instructions: [{ id: seeded.instructionId, title: "Karmienie", is_sensitive: false }],
+        expected_updated_at: await tokenOf(seeded.petId),
       }),
     });
     expect(status).toBe(200);
@@ -224,7 +242,7 @@ describe("PUT /api/pets/[id] — the owner's edit route", () => {
       cookieHeader,
       userId: owner.userId,
       petId,
-      rawBody: JSON.stringify({ species: "dog", instructions: [] }),
+      rawBody: JSON.stringify({ species: "dog", instructions: [], expected_updated_at: petToken }),
     });
     expect(status).toBe(400);
     expect(errorOf(payload)).toBe("Imię zwierzęcia jest wymagane");
@@ -270,7 +288,7 @@ describe("PUT /api/pets/[id] — the owner's edit route", () => {
       cookieHeader,
       userId: owner.userId,
       petId: crypto.randomUUID(),
-      rawBody: JSON.stringify({ name: "X", species: "dog", instructions: [] }),
+      rawBody: JSON.stringify({ name: "X", species: "dog", instructions: [], expected_updated_at: petToken }),
     });
     expect(status).toBe(404);
     expect(errorOf(payload)).toBe("Nie znaleziono zwierzęcia");
@@ -287,6 +305,7 @@ describe("PUT /api/pets/[id] — the owner's edit route", () => {
         name: "Sync renamed",
         species: "cat",
         breed: "dachowiec",
+        expected_updated_at: await tokenOf(seeded.petId),
         instructions: [
           { id: seeded.instructionId, title: "Karmienie 2x", body: "250g", is_sensitive: false },
           { title: "Kod bramy", body: "4829#", is_sensitive: true },
@@ -307,6 +326,74 @@ describe("PUT /api/pets/[id] — the owner's edit route", () => {
     expect(rows).toHaveLength(2);
     expect(rows[0]).toMatchObject({ title: "Karmienie 2x", body: "250g", is_sensitive: false });
     expect(rows[1]).toMatchObject({ title: "Kod bramy", body: "4829#", is_sensitive: true });
+  });
+
+  // ── The version token, as the route reports it ──────────────────────────────────────────
+  it("answers 409 for a stale form and says to refresh, without touching anything", async () => {
+    const seeded = await seedPet("StaleRoute");
+    const staleToken = await tokenOf(seeded.petId);
+
+    // Somebody else's save lands first, adding a row this form has never seen.
+    const firstSave = await callPut({
+      cookieHeader,
+      userId: owner.userId,
+      petId: seeded.petId,
+      rawBody: JSON.stringify({
+        name: "StaleRoute",
+        species: "dog",
+        expected_updated_at: staleToken,
+        instructions: [
+          { id: seeded.instructionId, title: "Karmienie", is_sensitive: false },
+          { title: "Dodane gdzie indziej", is_sensitive: false },
+        ],
+      }),
+    });
+    expect(firstSave.status).toBe(200);
+
+    // The stale form saves its own view, which omits that row.
+    const { status, body: payload } = await callPut({
+      cookieHeader,
+      userId: owner.userId,
+      petId: seeded.petId,
+      rawBody: JSON.stringify({
+        name: "StaleRoute renamed",
+        species: "dog",
+        expected_updated_at: staleToken,
+        instructions: [{ id: seeded.instructionId, title: "Karmienie", is_sensitive: false }],
+      }),
+    });
+
+    expect(status).toBe(409);
+    const message = errorOf(payload) ?? "";
+    // Terminal and actionable: the only thing that helps is a reload, and a retry with the same
+    // body would be refused identically — so the sentence must not say "spróbuj ponownie".
+    expect(message).toContain("Odśwież stronę");
+    expect(message).not.toContain("Spróbuj ponownie");
+
+    // And the row the stale payload omitted is still there — the whole point.
+    const { data: rows } = await owner.client
+      .from("care_instructions")
+      .select("title")
+      .eq("pet_id", seeded.petId)
+      .order("sort_order");
+    expect((rows ?? []).map((row) => row.title)).toEqual(["Karmienie", "Dodane gdzie indziej"]);
+    expect(await petName(seeded.petId)).toBe("StaleRoute");
+  });
+
+  it("refuses a body with no token at all, before reaching the database", async () => {
+    const seeded = await seedPet("NoToken");
+    const { status, body: payload } = await callPut({
+      cookieHeader,
+      userId: owner.userId,
+      petId: seeded.petId,
+      rawBody: JSON.stringify({ name: "hacked", species: "dog", instructions: [] }),
+    });
+
+    // zod, not the RPC: the field is required, so an omitted token is a 400 with a Polish
+    // sentence rather than a PT412 mapped to 409. Both refuse — this pins WHICH layer does.
+    expect(status).toBe(400);
+    expect(errorOf(payload)).toContain("Odśwież stronę");
+    expect(await petName(seeded.petId)).toBe("NoToken");
   });
 
   // ── The freeze, as the route reports it ─────────────────────────────────────────────────
@@ -354,6 +441,7 @@ describe("PUT /api/pets/[id] — the owner's edit route", () => {
       rawBody: JSON.stringify({
         name: "Frozen",
         species: "dog",
+        expected_updated_at: await tokenOf(seeded.petId),
         instructions: [
           { id: seeded.instructionId, title: "Karmienie", is_sensitive: false },
           { id: sensitive.data.id, title: "Kod bramy", is_sensitive: false },

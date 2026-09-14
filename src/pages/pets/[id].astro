@@ -45,6 +45,11 @@ interface PetRow {
   species: Species;
   breed: string | null;
   age: string | null;
+  // The optimistic-concurrency token (impl-review F4). Read here and handed to the form, which
+  // echoes it back on save; the RPC refuses the write if it no longer matches. It is not a
+  // secret and not a display value — it exists only to make "the form was loaded before
+  // somebody else's save" a refusal instead of a silent overwrite.
+  updated_at: string;
   care_instructions: InstructionRow[];
 }
 
@@ -56,16 +61,25 @@ if (petId === null) {
 } else if (supabase) {
   const { data, error } = await supabase
     .from("pets")
-    .select("id, name, species, breed, age, care_instructions(id, title, body, is_sensitive, sort_order)")
+    .select("id, name, species, breed, age, updated_at, care_instructions(id, title, body, is_sensitive, sort_order)")
     .eq("id", petId)
     .maybeSingle();
   if (error) {
+    // Logged, not merely flagged. A branch that swallows an error and renders a softer page is
+    // not a degradation but a blind spot — the owner sees "Odśwież stronę" and the server
+    // remembers nothing, so a persistent failure here is invisible to everyone
+    // (context/foundation/lessons.md, and invite/[token].astro:99 which this copies).
+    // `code` and `message` only, never the whole error: `details` can carry a row.
+    console.error("pets/[id]: pet read failed:", error.code, error.message);
     loadError = true;
   } else {
     pet = data;
   }
 } else {
-  // Unconfigured Supabase is an error state, never an empty one.
+  // Unconfigured Supabase is an error state, never an empty one — and it is the second silent
+  // branch the lesson above names. Same sentence as invite/[token].astro:114 and
+  // api/auth/signin.ts, so a misconfigured deployment reads the same across every surface.
+  console.error("pets/[id]: supabase client unavailable (configuration)");
   loadError = true;
 }
 
@@ -133,6 +147,7 @@ const instructions = [...(pet?.care_instructions ?? [])].sort(
               species={pet.species}
               breed={pet.breed}
               age={pet.age}
+              updatedAt={pet.updated_at}
               instructions={instructions}
             />
 

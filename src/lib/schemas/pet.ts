@@ -97,6 +97,11 @@ export const PET_MESSAGES = {
   sensitiveRequired: "Oznaczenie instrukcji jako wrażliwej jest wymagane",
   fieldInvalid: "Nieprawidłowa wartość pola",
   nulCharacter: "Tekst nie może zawierać znaku zerowego",
+  // The optimistic-concurrency token (impl-review F4). A MISSING or malformed one is a client
+  // bug, not something an owner can act on, so the sentence tells them the one thing that helps:
+  // reload. It reads the same as the stale-token 409 the route produces from PT412, because from
+  // the owner's side the two are the same situation caught at two different depths.
+  expectedUpdatedAtInvalid: "Odśwież stronę i spróbuj ponownie — formularz jest nieaktualny",
   // The shape itself, not a field. Without this, a non-object body (null, "x", 42, []) is
   // valid JSON, reaches zod, and produces its English default with an empty path — which the
   // route would then hand to the island to render.
@@ -159,6 +164,16 @@ export const updatePetSchema = z.object(
     instructions: z
       .array(updateInstructionSchema, PET_MESSAGES.instructionsRequired)
       .max(MAX_INSTRUCTIONS_PER_PET, PET_MESSAGES.instructionsTooMany),
+    // REQUIRED, not optional, and that is the whole point (impl-review F4). An optional token is
+    // an opt-out: any caller that omits it gets the old last-write-wins behaviour back, and the
+    // guard would be advisory. The RPC refuses a NULL token on its own (`is distinct from`), so
+    // this layer is the one that produces a Polish sentence instead of a raw PT412.
+    //
+    // A plain ISO-8601 string rather than z.iso.datetime(): the value is opaque to this layer —
+    // the page rendered it, the island echoes it back, and only Postgres compares it, as a
+    // timestamptz. Validating its shape here would add a second spelling of "what a timestamp
+    // looks like" that could disagree with the column.
+    expected_updated_at: z.string(PET_MESSAGES.expectedUpdatedAtInvalid).min(1, PET_MESSAGES.expectedUpdatedAtInvalid),
   },
   PET_MESSAGES.notAnObject,
 );

@@ -24,9 +24,26 @@ interface TextareaProps {
   rows?: number;
   /** Hint text under the label — used for "who will see this". */
   hint?: string;
+  /** Locks the field while a request is in flight. Added by S-09's impl-review (F10): ui/Input
+   *  has carried this since the period form, and EditPetForm's instruction body was the one
+   *  control on that page that stayed editable mid-save — keystrokes typed into it were
+   *  discarded by the reload with no sign. Defaults to false, so the call sites that predate it
+   *  are untouched. */
+  disabled?: boolean;
 }
 
-export function Textarea({ label, value, onChange, name, id, placeholder, error, rows = 3, hint }: TextareaProps) {
+export function Textarea({
+  label,
+  value,
+  onChange,
+  name,
+  id,
+  placeholder,
+  error,
+  rows = 3,
+  hint,
+  disabled = false,
+}: TextareaProps) {
   const generatedId = useId();
   const fieldId = id ?? generatedId;
   const errorId = `${fieldId}-error`;
@@ -52,6 +69,8 @@ export function Textarea({ label, value, onChange, name, id, placeholder, error,
           "bg-card flex min-h-[60px] items-start rounded-lg border-[1.5px] px-4 py-3.5",
           "focus-within:ring-ring/50 focus-within:ring-[3px]",
           error ? "border-destructive" : "border-input",
+          // Same 60% wash ui/Input uses, so a disabled field reads the same in both.
+          disabled && "opacity-60",
         )}
       >
         <textarea
@@ -63,6 +82,7 @@ export function Textarea({ label, value, onChange, name, id, placeholder, error,
             onChange(event.target.value);
           }}
           placeholder={placeholder}
+          disabled={disabled}
           aria-invalid={error ? true : undefined}
           aria-describedby={describedBy}
           className="text-foreground placeholder:text-muted-foreground min-w-0 flex-1 resize-y bg-transparent text-[15px] leading-[1.4] outline-none"

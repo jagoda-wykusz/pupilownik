@@ -38,6 +38,13 @@ interface Props {
   species: Species;
   breed: string | null;
   age: string | null;
+  /** The pet's `updated_at` as the page rendered it — the optimistic-concurrency token
+   *  (impl-review F4). Echoed back verbatim on save and compared by the RPC against the locked
+   *  row, so a form loaded before somebody else's save is refused rather than applied. Held in
+   *  a prop and never in state: it describes the snapshot this form was built from, and a value
+   *  that updated itself would defeat the check. After a successful save the page reloads and a
+   *  fresh one arrives. */
+  updatedAt: string;
   instructions: InstructionProp[];
 }
 
@@ -62,7 +69,7 @@ interface Errors {
   instructions?: string;
 }
 
-export default function EditPetForm({ petId, name, species, breed, age, instructions }: Props) {
+export default function EditPetForm({ petId, name, species, breed, age, updatedAt, instructions }: Props) {
   const [petName, setPetName] = useState(name);
   const [petSpecies, setPetSpecies] = useState<Species>(species);
   const [petBreed, setPetBreed] = useState(breed ?? "");
@@ -141,6 +148,7 @@ export default function EditPetForm({ petId, name, species, breed, age, instruct
         body: JSON.stringify({
           name: petName.trim(),
           species: petSpecies,
+          expected_updated_at: updatedAt,
           breed: petBreed.trim() || undefined,
           age: petAge.trim() || undefined,
           // Order is meaningful: the RPC writes sort_order from array position. `id` is passed
@@ -167,9 +175,16 @@ export default function EditPetForm({ petId, name, species, breed, age, instruct
         return;
       }
       if (res.status === 400 || res.status === 409) {
-        // Show what the server actually said. It knows things the client cannot: whether an
-        // instruction id is really this pet's, and whether a live claimed trip freezes the
-        // sensitive flag. A generic "check the fields" hides exactly that.
+        // Show what the server actually said. It knows two things the client cannot: whether a
+        // live claimed trip freezes the sensitive flag, and whether this form was loaded before
+        // somebody else's save landed. A generic "check the fields" hides both, and neither has
+        // the same remedy.
+        //
+        // CORRECTED by S-09's impl-review (F9): this comment used to claim the server also
+        // reports "whether an instruction id is really this pet's". It does not — an id naming
+        // another of the owner's pets is silently ignored, which tests/rls/update-pet.test.ts
+        // pins with `expect(error).toBeNull()`. The conclusion was right and its stated reason
+        // was fiction; a reader would have gone looking for a message that never arrives.
         const body: unknown = await res.json().catch(() => null);
         // Checked, not cast: a response from an intermediary could carry a non-string `error`,
         // and handing an object to ServerError would make React throw on an invalid child.
@@ -280,6 +295,7 @@ export default function EditPetForm({ petId, name, species, breed, age, instruct
                 onChange={(value) => {
                   updateRow(row.key, { body: value });
                 }}
+                disabled={submitting}
               />
               <div className="flex items-center justify-between gap-3">
                 <label className="text-foreground flex items-center gap-2 text-[14px]">

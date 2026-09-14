@@ -48,7 +48,9 @@ export const onRequest = defineMiddleware(async (context, next) => {
     return context.redirect(HOME_ROUTE);
   }
 
-  if (PROTECTED_ROUTES.some((route) => context.url.pathname.startsWith(route))) {
+  const isProtected = PROTECTED_ROUTES.some((route) => context.url.pathname.startsWith(route));
+
+  if (isProtected) {
     if (!context.locals.user) {
       return context.redirect("/auth/signin");
     }
@@ -58,6 +60,23 @@ export const onRequest = defineMiddleware(async (context, next) => {
 
   if (isInviteRoute(context.url.pathname)) {
     response.headers.set("Referrer-Policy", "no-referrer");
+    response.headers.set("Cache-Control", "no-store");
+  }
+
+  // Every signed-in page, for the SECOND half of the reason the invite branch above gives —
+  // "out of shared caches and out of the back-button cache on a borrowed device". Added by
+  // S-09's impl-review (F5), which found that /pets/<id> renders every care instruction the
+  // owner has, INCLUDING the is_sensitive ones the rest of this product treats as an address
+  // and a gate code, and serialises them into an island's props with no Cache-Control at all.
+  //
+  // Scoped to PROTECTED_ROUTES rather than to /pets: the reasoning is about pages that exist
+  // only for an authenticated reader, which is exactly what that list means. A narrower fix
+  // would leave /periods — which renders the caretaker note and every claimant's name — one
+  // future slice away from the same hole.
+  //
+  // NOT Referrer-Policy: that one is on /invite because its PATH carries a bearer token. These
+  // paths carry an id that is useless without a session.
+  if (isProtected) {
     response.headers.set("Cache-Control", "no-store");
   }
 

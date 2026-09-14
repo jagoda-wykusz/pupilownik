@@ -102,10 +102,28 @@ describe("update_pet_with_instructions — the owner's edit door", () => {
     return period.id;
   }
 
+  // The optimistic-concurrency token as the database currently holds it (impl-review F4).
+  // Read through the OWNER's own client, so a caller who cannot see the pet gets null and the
+  // call below exercises the same NULL-token path a real stale form would.
+  async function tokenOf(client: SupabaseClient<Database>, petId: string): Promise<string | null> {
+    const { data } = await client.from("pets").select("updated_at").eq("id", petId).maybeSingle();
+    return data?.updated_at ?? null;
+  }
+
   // No explicit return annotation: `ReturnType<SupabaseClient<Database>["rpc"]>` resolves to a
   // different structural instance of PostgrestFilterBuilder than the call site produces, and
   // TS reports them as two unrelated types with the same name. Inference is correct here.
-  function update(client: SupabaseClient<Database>, petId: string, instructions: unknown[], name = "Burek") {
+  //
+  // `expectedUpdatedAt` defaults to CURRENT, which is what every pre-F4 case in this file means
+  // by "a save from a form that is up to date". The stale cases pass an old value explicitly.
+  async function update(
+    client: SupabaseClient<Database>,
+    petId: string,
+    instructions: unknown[],
+    name = "Burek",
+    expectedUpdatedAt?: string | null,
+  ) {
+    const token = expectedUpdatedAt === undefined ? await tokenOf(client, petId) : expectedUpdatedAt;
     return client.rpc("update_pet_with_instructions", {
       p_pet_id: petId,
       p_name: name,
@@ -113,6 +131,10 @@ describe("update_pet_with_instructions — the owner's edit door", () => {
       p_breed: "",
       p_age: "",
       p_instructions: instructions as never,
+      // `as never` for the same reason p_instructions carries it: a null token is a legitimate
+      // input here (an absent one), and the generated type is non-nullable because the SQL
+      // parameter has no default.
+      p_expected_updated_at: token as never,
     });
   }
 
@@ -137,6 +159,7 @@ describe("update_pet_with_instructions — the owner's edit door", () => {
         p_breed: "",
         p_age: "",
         p_instructions: [] as never,
+        p_expected_updated_at: new Date().toISOString(),
       });
 
       expect(error).not.toBeNull();
@@ -263,6 +286,87 @@ describe("update_pet_with_instructions — the owner's edit door", () => {
 
       // ...and it was not silently copied onto the target pet either.
       expect(await instructionsOf(owner, owner.petId)).toEqual([]);
+    });
+  });
+
+  // ── 3b. The version token ────────────────────────────────────────────────────────────
+  //
+  // impl-review F4. Before this, PUT was last-write-wins over the WHOLE instruction set: the
+  // payload is the complete desired state, so a save from a stale form deleted every row the
+  // form did not know about — silently, with a 200. These cases are the ones that would have
+  // been green before the fix and are red without it.
+  describe("the optimistic-concurrency token", () => {
+    it("refuses a save from a stale form with PT412, and writes NOTHING", async () => {
+      const owner = await createOwnerWithPet("Stale");
+      const keepId = await seedInstruction(owner, owner.petId, "Karmienie", false, 0);
+
+      // Tab A's snapshot.
+      const staleToken = await tokenOf(owner.client, owner.petId);
+
+      // Tab B saves in between, adding a row A has never seen.
+      const first = await update(owner.client, owner.petId, [
+        { id: keepId, title: "Karmienie", is_sensitive: false },
+        { title: "Dodane w drugiej karcie", is_sensitive: false },
+      ]);
+      expect(first.error).toBeNull();
+
+      // Tab A now saves its own view — which does not contain B's row. THIS is the destructive
+      // case: without the token the payload's omission would delete it.
+      const { error } = await update(
+        owner.client,
+        owner.petId,
+        [{ id: keepId, title: "Karmienie", is_sensitive: false }],
+        "Stale renamed",
+        staleToken,
+      );
+
+      expect(error).not.toBeNull();
+      expect(error?.code).toBe("PT412");
+
+      // Nothing landed: B's row survives AND A's rename did not apply. A refusal that kept half
+      // the payload would be worse than none.
+      const rows = await instructionsOf(owner, owner.petId);
+      expect(rows.map((row) => row.title)).toEqual(["Karmienie", "Dodane w drugiej karcie"]);
+      const { data: pet } = await owner.client.from("pets").select("name").eq("id", owner.petId).single();
+      expect(pet?.name).toBe("Burek");
+    });
+
+    it("refuses an ABSENT token rather than skipping the check", async () => {
+      const owner = await createOwnerWithPet("NoToken");
+
+      const { error } = await update(owner.client, owner.petId, [], "hacked", null);
+
+      // `is distinct from` rather than `<>` in the function is what makes this red: with `<>`,
+      // NULL <> timestamp is NULL, which is not true, so the guard would fall open for exactly
+      // the caller that omitted it — an opt-out disguised as a guard.
+      expect(error?.code).toBe("PT412");
+      const { data: pet } = await owner.client.from("pets").select("name").eq("id", owner.petId).single();
+      expect(pet?.name).toBe("NoToken");
+    });
+
+    it("moves the token on every save, including one that changes only instructions", async () => {
+      const owner = await createOwnerWithPet("Moves");
+      const before = await tokenOf(owner.client, owner.petId);
+
+      // Scalars identical to what is stored; only the instruction set changes. The token must
+      // still move, or a second editor's view of the INSTRUCTIONS would look current.
+      const { error } = await update(owner.client, owner.petId, [{ title: "Nowa", is_sensitive: false }], "Moves");
+      expect(error).toBeNull();
+
+      const after = await tokenOf(owner.client, owner.petId);
+      expect(after).not.toBe(before);
+    });
+
+    it("still answers NULL for a stranger's pet — a 404, never a version error", async () => {
+      const victimToken = await tokenOf(b.client, b.petId);
+
+      const { data, error } = await update(a.client, b.petId, [], "hacked", victimToken);
+
+      // Ordering inside the function is what this pins: the RLS gate runs BEFORE the version
+      // check, so a stranger holding a CORRECT token still learns nothing. If the check came
+      // first, a version error would confirm the pet exists.
+      expect(error).toBeNull();
+      expect(data).toBeNull();
     });
   });
 

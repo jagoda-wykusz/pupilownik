@@ -60,11 +60,30 @@ describe("auth gating (middleware)", () => {
     expect(response.headers.get("Cache-Control")).toBe("no-store");
   });
 
-  it("those headers are scoped to /invite and not sprayed across the app", async () => {
+  it("those headers are scoped and not sprayed across the app", async () => {
     const { response } = await runMiddleware({ pathname: "/auth/signin" });
 
+    // A signed-out page: no session to protect, so neither header applies. Referrer-Policy in
+    // particular stays exclusive to /invite, whose PATH carries a bearer token.
     expect(response.headers.get("Referrer-Policy")).toBeNull();
     expect(response.headers.get("Cache-Control")).toBeNull();
+  });
+
+  // Added by S-09's impl-review (F5). /pets/<id> renders every care instruction the owner has,
+  // including the is_sensitive ones this product treats as an address and a gate code, and
+  // serialises them into an island's props — with no Cache-Control at all until this landed.
+  // Driven from the real PROTECTED_ROUTES so a newly gated prefix inherits the header instead
+  // of needing someone to remember it.
+  it.each(PROTECTED_ROUTES)("%s carries no-store for a signed-in reader", async (route) => {
+    const { cookieHeader } = await createAuthenticatedCookieHeader();
+
+    const { response, nextCalled } = await runMiddleware({ pathname: route, cookieHeader });
+
+    // nextCalled guards the guard: without a session the middleware redirects BEFORE next(),
+    // and a 302 would carry the header too while proving nothing about the rendered page.
+    expect(nextCalled).toBe(true);
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
+    expect(response.headers.get("Referrer-Policy")).toBeNull();
   });
 
   // "/" is not a page — it resolves to the trip list. An unauthenticated visitor takes the

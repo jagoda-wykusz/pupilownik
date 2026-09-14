@@ -78,7 +78,7 @@ export const PUT: APIRoute = async (context) => {
     return jsonResponse({ error: issue.message }, 400);
   }
 
-  const { name, species, breed, age, instructions } = parsed.data;
+  const { name, species, breed, age, instructions, expected_updated_at } = parsed.data;
   const { data, error } = await supabase.rpc("update_pet_with_instructions", {
     p_pet_id: parsedId.data,
     p_name: name,
@@ -89,6 +89,10 @@ export const PUT: APIRoute = async (context) => {
     p_age: age ?? "",
     p_species: species,
     p_instructions: instructions,
+    // The optimistic-concurrency token the page rendered (impl-review F4). Passed through
+    // opaquely: this route never reads or compares it, because the only honest comparison is the
+    // one Postgres makes against the locked row.
+    p_expected_updated_at: expected_updated_at,
   });
 
   if (error) {
@@ -110,6 +114,24 @@ export const PUT: APIRoute = async (context) => {
 
     if (error.code === "PT409") {
       return jsonResponse({ error: frozenMessage(error.details) }, 409);
+    }
+    // PT412 — the form was loaded before somebody else's save landed, so this payload describes
+    // a pet that no longer exists in that shape. Answered as 409 rather than 412: from the
+    // owner's side this is a conflict with another edit, and the island's error handling already
+    // branches on 400/409. The sentence is terminal and says the only thing that helps — a
+    // retry with the same stale body would be refused identically.
+    //
+    // A DISTINCT SQLSTATE from the freeze above, deliberately: two refusals with two different
+    // remedies must not share a code the route would then have to disambiguate by sniffing
+    // DETAIL.
+    if (error.code === "PT412") {
+      return jsonResponse(
+        {
+          error:
+            "To zwierzę zostało zmienione, odkąd ten formularz został otwarty. Odśwież stronę, żeby zobaczyć aktualny stan — zapisanie teraz skasowałoby tamte zmiany.",
+        },
+        409,
+      );
     }
     // 22003 (sort_order out of int range) cannot be reached through THIS route — the update
     // RPC derives sort_order from array position and updatePetSchema has no such field — so a
@@ -227,8 +249,29 @@ function blockedMessage(details: string | null): string {
     .map((title) => `„${title}”`)
     .join(", ");
   const rest = titles.length - Math.min(titles.length, 2);
-  const tail = rest > 0 ? ` i ${rest} inn${rest === 1 ? "y" : "e"}` : "";
+  const tail = rest > 0 ? ` i ${rest} ${remainingTripsWord(rest)}` : "";
   return `Nie można usunąć zwierzęcia — obejmuje je aktywny wyjazd: ${named}${tail}. ${remedy}`;
+}
+
+// Polish agreement for "<n> other [trips]", which needs THREE forms, not two: 1 -> "inny",
+// 2-4 -> "inne", everything else -> "innych" — and 12, 13, 14 take the last form despite ending
+// in 2-4. The first version of this branch had two forms and read "5 inne", which is wrong from
+// five trips up (impl-review F10; the unit test that pins it had the rule wrong in the other
+// direction first, which is why the shape is written out here rather than inlined again).
+//
+// Not a general pluralisation helper: it is one word, agreeing with the masculine inanimate
+// "wyjazd", and this is its only call site. A shared utility would have to take a gender and
+// three stems, which is a bigger thing than this repo needs.
+function remainingTripsWord(count: number): string {
+  const lastDigit = count % 10;
+  const lastTwo = count % 100;
+  if (count === 1) {
+    return "inny";
+  }
+  if (lastDigit >= 2 && lastDigit <= 4 && !(lastTwo >= 12 && lastTwo <= 14)) {
+    return "inne";
+  }
+  return "innych";
 }
 
 function blockingTitles(details: string | null): string[] {

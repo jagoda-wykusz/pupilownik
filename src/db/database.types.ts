@@ -191,6 +191,7 @@ export type Database = {
           name: string
           owner_id: string
           species: Database["public"]["Enums"]["pet_species"]
+          updated_at: string
         }
         Insert: {
           age?: string | null
@@ -200,6 +201,7 @@ export type Database = {
           name: string
           owner_id: string
           species: Database["public"]["Enums"]["pet_species"]
+          updated_at?: string
         }
         Update: {
           age?: string | null
@@ -209,6 +211,7 @@ export type Database = {
           name?: string
           owner_id?: string
           species?: Database["public"]["Enums"]["pet_species"]
+          updated_at?: string
         }
         Relationships: []
       }
@@ -284,6 +287,7 @@ export type Database = {
           name: string
           owner_id: string
           species: Database["public"]["Enums"]["pet_species"]
+          updated_at: string
         }
         SetofOptions: {
           from: "*"
@@ -311,6 +315,7 @@ export type Database = {
         Args: {
           p_age: string
           p_breed: string
+          p_expected_updated_at: string
           p_instructions: Json
           p_name: string
           p_pet_id: string
