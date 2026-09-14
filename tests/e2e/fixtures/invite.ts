@@ -1,4 +1,4 @@
-import { test as base } from "@playwright/test";
+import { test as base } from "./base";
 import { digestInviteToken, generateInviteToken } from "@/lib/invite-token";
 import { createOwnerWithPet } from "../../helpers/auth";
 import { NOTE, PUBLIC_BODY, PUBLIC_TITLE, SECRET_BODY, SECRET_TITLE } from "../../helpers/reveal";
@@ -135,4 +135,4 @@ export const test = base.extend<{ trip: InviteTrip }>({
   },
 });
 
-export { expect } from "@playwright/test";
+export { expect } from "./base";

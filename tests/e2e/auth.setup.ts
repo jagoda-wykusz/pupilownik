@@ -1,4 +1,4 @@
-import { test as setup, expect } from "@playwright/test";
+import { test as setup, expect } from "./fixtures/base";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { createOwnerClient } from "../helpers/auth";

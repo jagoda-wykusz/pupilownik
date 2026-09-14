@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures/base";
 import { ownerClient } from "./fixtures/owner";
 import { waitForHydration } from "./fixtures/hydration";
 
@@ -78,13 +78,27 @@ test("a pet created by its owner persists after page reload", async ({ page }) =
   // URL rather than on the heading separates "the POST succeeded" from "the list rendered".
   await page.waitForURL("**/pets");
 
-  const heading = page.getByRole("heading", { name: petName });
-  await expect(heading).toBeVisible();
+  // A LINK, not a heading. /pets renders each pet as a whole-card anchor whose name is a
+  // <span> (src/pages/pets/index.astro), so the pet's name is part of that link's accessible name
+  // and is exposed by no heading on the page — the only heading there is "Moje zwierzęta".
+  //
+  // This assertion said `heading` until 2026-09-14 and had been red since 0c3e9f0 retired the page
+  // off the starter markup. Worth naming rather than quietly correcting, because it is the exact
+  // split this project's E2E guidance draws: a CHANGED SELECTOR, which a healer may re-find, never
+  // a changed behaviour, which it would mask. The product was right the whole time — the pet was
+  // created, persisted and rendered; only the role this line looked for had moved. It went
+  // unnoticed because `npm run test:e2e` is deliberately outside `npm run ci:gate` (no Docker in
+  // the Cloudflare build container) and GitHub Actions cannot block a merge on this plan.
+  //
+  // Playwright matches an accessible name by substring unless `exact: true`, so the timestamped
+  // name matches the card whose full name also carries the species and the instruction count.
+  const petLink = page.getByRole("link", { name: petName });
+  await expect(petLink).toBeVisible();
 
   // The actual point of the test: the row survived the round trip to Postgres, not merely the
   // optimistic render. A reload re-runs the SSR query.
   await page.reload();
-  await expect(heading).toBeVisible();
+  await expect(petLink).toBeVisible();
 
   // Cleanup runs in `test.afterEach` above, so it happens even when an assertion here fails.
 });
