@@ -77,8 +77,14 @@ const ISLAND_FLOOR: Record<string, number> = {
   "/src/pages/periods/[id].astro": 1,
   "/src/pages/periods/index.astro": 1,
   "/src/pages/periods/new.astro": 1,
+  // Stays 0 on purpose. S-09 made each card a link to the detail page rather than putting an
+  // edit or delete control on the list, so this page still ships no client JavaScript.
   "/src/pages/pets/index.astro": 0,
   "/src/pages/pets/new.astro": 1,
+  // S-09: the edit form. Renders only when the pet resolves, and the container has no session,
+  // so the floor is 0 — the row exists to pin the page into the sweep (its HTML is still
+  // scanned for secrets) rather than to count a hydrated island.
+  "/src/pages/pets/[id].astro": 0,
 };
 
 interface Rendered {

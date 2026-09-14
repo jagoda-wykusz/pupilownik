@@ -81,4 +81,28 @@ describe("pets RLS owner-isolation", () => {
     // The with-check predicate ((select auth.uid()) = owner_id) rejects the reassignment.
     expect(error).not.toBeNull();
   });
+
+  // The POSITIVE half, added by S-09. Every assertion above is a refusal, and a suite made only
+  // of refusals stays green when the policy it is supposed to guard is DELETED — dropping
+  // `pets_update_own` denies the owner too, so all four tests above keep passing. That is the
+  // "asercja, która opisuje warstwę zamiast jej pilnować" failure in context/foundation/lessons.md.
+  // S-09 leans on this policy (update_pet_with_instructions is security invoker and relies on it
+  // as the authorization boundary), so it is pinned from the permitting side here.
+  it("an owner CAN update their own pet — the permitting half of pets_update_own", async () => {
+    const { data: updated, error } = await a.client
+      .from("pets")
+      .update({ name: "A-dog renamed", breed: "kundel" })
+      .eq("id", aPetId)
+      .select("id, name, breed");
+
+    expect(error).toBeNull();
+    expect(updated).toEqual([{ id: aPetId, name: "A-dog renamed", breed: "kundel" }]);
+
+    // Read back through the owner's own client, never a service-role one.
+    const { data: row } = await a.client.from("pets").select("name").eq("id", aPetId).single();
+    expect(row?.name).toBe("A-dog renamed");
+
+    // Restore, so the ordering of tests in this file stays irrelevant.
+    await a.client.from("pets").update({ name: "A-dog", breed: null }).eq("id", aPetId);
+  });
 });

@@ -1,0 +1,145 @@
+---
+import Layout from "@/layouts/Layout.astro";
+import AppBar from "@/components/AppBar.astro";
+import EditPetForm from "@/components/pets/EditPetForm";
+import { createClient } from "@/lib/supabase";
+import { petIdSchema } from "@/lib/schemas/pet";
+import { resolveTheme, THEME_COOKIE } from "@/lib/theme";
+import { SPECIES_LABEL, type Species } from "@/lib/pet-format";
+
+// The owner's screen for one pet: edit its fields and its care instructions.
+//
+// Protected by middleware (PROTECTED_ROUTES includes "/pets"). The read carries no owner
+// filter — RLS scopes it, so another owner's id resolves to nothing and lands on the same 404
+// as an id that does not exist.
+//
+// GROUND: this page is on `bg-background` with a working theme toggle, while /pets and
+// /pets/new are still on `bg-cosmic` without one. That inconsistency is deliberate and
+// temporary, and it is a consequence rather than a preference: `bg-cosmic` is a fixed gradient
+// with no theme variant (global.css), and ui/Input renders its label OUTSIDE the box as
+// `text-muted-foreground` directly on the page ground — which on navy is ~3.4:1 in the default
+// light theme and near-black-on-near-black in `.contrast`. A token-styled form on that ground
+// is correct in exactly one of three themes. The two older screens retire onto tokens with
+// S-01's own reskin; this slice does not touch them.
+const supabase = createClient(Astro.request.headers, Astro.cookies);
+const theme = resolveTheme(Astro.cookies.get(THEME_COOKIE)?.value);
+
+// Validated the same way the API route validates it. Without this, a non-uuid reaches
+// Postgres, raises 22P02, and this page answers 200 with a load-failure message — telling a
+// probe its input was at least well-formed, and telling a user with a typo that something
+// broke. A bad id is simply not found.
+const parsedId = petIdSchema.safeParse(Astro.params.id);
+const petId = parsedId.success ? parsedId.data : null;
+
+interface InstructionRow {
+  id: string;
+  title: string;
+  body: string | null;
+  is_sensitive: boolean;
+  sort_order: number;
+}
+interface PetRow {
+  id: string;
+  name: string;
+  // The enum, not `string`: SPECIES_LABEL is keyed by pet_species, so a widened type here
+  // makes the lookup an implicit `any` (ts7053) — the defect that slipped past the toolchain
+  // when the list screen moved onto the shared map in S-03 Phase 3.
+  species: Species;
+  breed: string | null;
+  age: string | null;
+  care_instructions: InstructionRow[];
+}
+
+let pet: PetRow | null = null;
+let loadError = false;
+
+if (petId === null) {
+  // Nothing to look up. Falls through to the same not-found branch below.
+} else if (supabase) {
+  const { data, error } = await supabase
+    .from("pets")
+    .select("id, name, species, breed, age, care_instructions(id, title, body, is_sensitive, sort_order)")
+    .eq("id", petId)
+    .maybeSingle();
+  if (error) {
+    loadError = true;
+  } else {
+    pet = data;
+  }
+} else {
+  // Unconfigured Supabase is an error state, never an empty one.
+  loadError = true;
+}
+
+// RLS makes "not yours" and "does not exist" the same answer, and so does this page — a real
+// 404 status, not a soft empty state, so a probe learns nothing from either. A malformed id
+// joins them rather than surfacing as a load error.
+const notFound = !loadError && !pet;
+if (notFound) {
+  Astro.response.status = 404;
+}
+
+// Ordering is decided here, not in the island and not in the template: the update RPC writes
+// sort_order from array POSITION, so the order this page hands the form is the order that will
+// be stored on the next save. Leaving PostgREST's arbitrary order to reach the form would let
+// an owner who changes nothing but the name silently reshuffle their own instruction list.
+// `id` breaks ties so the order is total rather than merely mostly-defined.
+const instructions = [...(pet?.care_instructions ?? [])].sort(
+  (a, b) => a.sort_order - b.sort_order || a.id.localeCompare(b.id),
+);
+
+// Island props are serialised into the HTML, so whatever goes below is disclosed to anyone who
+// can load this page. That is acceptable here and nowhere else in this codebase: the page sits
+// behind PROTECTED_ROUTES and behind RLS, the reader IS the owner, and the sensitive
+// instruction bodies are the owner's own text which the form exists to edit. The caretaker-side
+// screens have the opposite rule and must keep it.
+---
+
+<Layout title={pet?.name ?? "Zwierzę"}>
+  <div class="bg-background min-h-screen px-5 py-8">
+    <div class="mx-auto w-full max-w-2xl">
+      <AppBar theme={theme}>
+        <a href="/pets" class="text-primary text-[13px] font-bold hover:underline">← Moje zwierzęta</a>
+      </AppBar>
+
+      {
+        loadError && (
+          <p
+            role="alert"
+            class="border-destructive/40 bg-destructive/10 text-destructive rounded-lg border-[1.5px] px-4 py-3 text-[14px]"
+          >
+            Nie udało się wczytać zwierzęcia. Odśwież stronę.
+          </p>
+        )
+      }
+
+      {
+        notFound && (
+          <div class="border-border bg-card rounded-lg border-[1.5px] p-8 text-center">
+            <p class="font-heading text-foreground text-[17px] font-bold">Nie znaleziono zwierzęcia</p>
+            <p class="text-muted-foreground mt-2 text-[15px]">To zwierzę nie istnieje albo nie należy do Ciebie.</p>
+          </div>
+        )
+      }
+
+      {
+        pet && (
+          <>
+            <h1 class="font-heading text-foreground text-[30px] leading-[1.15] font-bold">{pet.name}</h1>
+            <p class="text-primary mt-1 text-[15px] font-semibold">{SPECIES_LABEL[pet.species]}</p>
+
+            <EditPetForm
+              client:load
+              petId={pet.id}
+              name={pet.name}
+              species={pet.species}
+              breed={pet.breed}
+              age={pet.age}
+              instructions={instructions}
+            />
+          </>
+        )
+      }
+    </div>
+  </div>
+</Layout>

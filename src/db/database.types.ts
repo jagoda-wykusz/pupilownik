@@ -306,6 +306,17 @@ export type Database = {
         Returns: string
       }
       revoke_period: { Args: { p_period_id: string }; Returns: string }
+      update_pet_with_instructions: {
+        Args: {
+          p_age: string
+          p_breed: string
+          p_instructions: Json
+          p_name: string
+          p_pet_id: string
+          p_species: Database["public"]["Enums"]["pet_species"]
+        }
+        Returns: string
+      }
     }
     Enums: {
       pet_species: "dog" | "cat" | "other"
