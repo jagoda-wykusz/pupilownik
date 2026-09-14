@@ -30,10 +30,12 @@ import { waitForHydration } from "./fixtures/hydration";
 //      `afterEach` teardown means the account does not accumulate a pet per run — including on
 //      runs where the test itself failed, which is the half an in-body cleanup gets wrong.
 //
-// On the cleanup: it goes through the DATABASE rather than the UI, and that is forced rather than
-// chosen — this app has no delete affordance for a pet anywhere (no button in
-// src/pages/pets/index.astro, no DELETE on /api/pets). The client is anon-keyed and signed in as
-// the same owner, so RLS applies and the delete is one the owner could genuinely perform.
+// On the cleanup: it goes through the DATABASE rather than the UI, and since S-09 Phase 2 that is
+// CHOSEN rather than forced. The app does have a delete affordance now (a control on /pets/<id>,
+// DELETE on /api/pets/[id]), but it refuses a pet an unrevoked trip covers — so a UI teardown
+// would sometimes fail on the state being cleaned up instead of the behaviour under test. The
+// client is anon-keyed and signed in as the same owner, so RLS applies and the delete is one the
+// owner could genuinely perform.
 
 // Set by the test, consumed by the teardown below. It lives out here because cleanup belongs in
 // `afterEach` rather than at the end of the test body: a failure at ANY assertion above would skip

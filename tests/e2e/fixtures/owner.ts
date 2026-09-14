@@ -20,8 +20,13 @@ export interface OwnerCredentials {
 // Rebuilds an owner-scoped Supabase client for the identity `auth.setup.ts` created this run.
 //
 // It exists for CLEANUP, not for assertions. Specs assert through the browser; the database is
-// only how they put data in place and take it away again — this project exposes no delete
-// affordance for pets, so there is no honest UI route for teardown.
+// only how they put data in place and take it away again.
+//
+// CORRECTED 2026-09-14 (S-09 Phase 2): this used to read "no delete affordance for pets, so
+// there is no honest UI route for teardown". There is one now — `/pets/<id>` deletes through
+// `DELETE /api/pets/[id]` — and teardown deliberately does not use it. The product path REFUSES
+// while an unrevoked trip covers the pet, so a UI teardown would have to revoke trips first and
+// would fail on the fixture's own state rather than on the behaviour under test.
 //
 // ANON-KEYED, always. The service-role key bypasses RLS, and a fixture that seeds or cleans up
 // with it is performing a different operation from the one the app performs — which is exactly

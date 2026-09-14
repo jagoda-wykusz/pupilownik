@@ -60,12 +60,18 @@ assertion becomes a tautology.
 Consequence to accept rather than work around: anything the fixture cannot do is something the
 owner genuinely cannot do.
 
-## 4. Cleanup goes through the database, because the UI has no delete
+## 4. Cleanup goes through the database, because the product path can refuse
 
-There is no delete affordance for a pet anywhere in this app — no button in
-`src/pages/pets/index.astro`, nothing in `AddPetForm`, and `/api/pets` exposes POST only. A spec
-that creates data therefore tears it down through an owner-scoped client (`tests/e2e/fixtures/owner.ts`).
-This is forced, not preferred; if a delete route ever ships, prefer the UI.
+A spec that creates data tears it down through an owner-scoped client
+(`tests/e2e/fixtures/owner.ts`) rather than through the interface.
+
+**Corrected 2026-09-14 (S-09 Phase 2).** This rule used to say there was no delete affordance
+anywhere and that database teardown was therefore forced. That is no longer true: `/pets/<id>`
+carries a delete control and `/api/pets/[id]` exposes `DELETE`. The rule stands on a different
+footing now, and a stronger one — `delete_pet` REFUSES with 409 while any unrevoked period covers
+the pet, so a UI teardown would have to revoke every covering trip first, and a spec whose cleanup
+can fail on the state it is cleaning up reports the wrong failure. Teardown is now a deliberate
+choice; do not "upgrade" it to the UI path on the grounds that one finally exists.
 
 ## 5. No retries — not even in CI
 

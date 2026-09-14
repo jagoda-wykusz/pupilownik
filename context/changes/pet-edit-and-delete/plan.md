@@ -595,23 +595,46 @@ re-run green after the change; 1.16 and 1.17 were reopened rather than re-ticked
 
 #### Automated
 
-- [ ] 2.1 Database rebuilds from migrations cleanly: `npm run db:reset`
-- [ ] 2.2 Security advisors clean: `npx supabase db advisors --type security`
-- [ ] 2.3 Types regenerated and committed: `npm run db:gen-types` leaves no diff
-- [ ] 2.4 Typecheck passes: `npm run check`
-- [ ] 2.5 Lint passes with zero warnings: `npm run lint`
-- [ ] 2.6 Build passes: `npm run build`
-- [ ] 2.7 Unit + component projects pass
-- [ ] 2.8 Integration project passes
-- [ ] 2.9 Render sweep passes: `npm run test:render`
-- [ ] 2.10 The publish gate passes end to end: `npm run ci:gate`
-- [ ] 2.11 Mutation check: dropping `revoked_at is null` turns the refusal test red and the pet is actually deleted
+- [x] 2.1 Database rebuilds from migrations cleanly: `npm run db:reset`
+- [x] 2.2 Security advisors clean: `npx supabase db advisors --type security`
+- [x] 2.3 Types regenerated and committed: `npm run db:gen-types` leaves no diff
+- [x] 2.4 Typecheck passes: `npm run check`
+- [x] 2.5 Lint passes with zero warnings: `npm run lint`
+- [x] 2.6 Build passes: `npm run build`
+- [x] 2.7 Unit + component projects pass
+- [x] 2.8 Integration project passes
+- [x] 2.9 Render sweep passes: `npm run test:render`
+- [x] 2.10 The publish gate passes end to end: `npm run ci:gate`
+- [x] 2.11 Mutation check: dropping `revoked_at is null` turns the refusal test red and the pet is actually deleted
+
+> Mutation, measured 2026-09-14 — TWO mutants, because one could not tell the plan's prediction
+> apart from its neighbour (context/foundation/lessons.md, "granica metody").
+>
+> - **M1, the guard removed** (`if v_blockers is not null` -> `if false`): 8 tests red. The route
+>   case is the proof the plan asked for — `expected 200 to be 409`, and a 200 on this route means
+>   the RPC returned the pet id, i.e. the row was genuinely deleted, not merely mis-reported.
+> - **M2, the predicate widened** (the `and p.revoked_at is null` line dropped, so every covering
+>   period blocks): 4 tests red, and a DIFFERENT four — the refusal cases stay green while
+>   "deletes once the trip is revoked" and "covered only by a revoked trip" fail. This is what
+>   pins the `revoked_at` half specifically; M1 alone would have passed a guard that refuses
+>   forever and leaves the owner no way out.
+>
+> Both mutants were verified as applied (grep on the migration after `npm run db:reset`), and the
+> migration was restored and the database rebuilt before the final gate run.
+
+> **A red worth recording, cause unknown** (context/foundation/lessons.md, "Czerwony, którego nie
+> spowodowałeś"): during the commit split on 2026-09-14 `npm run test:render` failed ONCE with
+> `Error: Hook timed out in 10000ms` in `beforeAll` — the suite's own 35 cases all skipped, so
+> nothing asserted anything. That run reported 19s of Vite transform against a cold cache, which
+> makes a cold-start timeout the obvious suspect, but it is a suspicion and not a diagnosis. Three
+> immediate re-runs on the same tree: 35/35 green each time. Left as an open observation rather
+> than explained away; the hook has no explicit timeout and would need one if this recurs.
 
 #### Manual
 
-- [ ] 2.12 Deleting an uncovered pet works and lands on `/pets`
-- [ ] 2.13 Deleting a covered pet is refused, names the trip, pet survives a reload
-- [ ] 2.14 Revoke then delete succeeds
-- [ ] 2.15 Double-tap does not delete — second tap lands on the escape
-- [ ] 2.16 Focus moves to confirm on arming and back on cancel
-- [ ] 2.17 Delete zone correct in all three themes and at 400px
+- [x] 2.12 Deleting an uncovered pet works and lands on `/pets`
+- [x] 2.13 Deleting a covered pet is refused, names the trip, pet survives a reload
+- [x] 2.14 Revoke then delete succeeds
+- [x] 2.15 Double-tap does not delete — second tap lands on the escape
+- [x] 2.16 Focus moves to confirm on arming and back on cancel
+- [x] 2.17 Delete zone correct in all three themes and at 400px

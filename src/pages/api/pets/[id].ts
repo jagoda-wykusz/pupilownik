@@ -2,9 +2,9 @@ import type { APIRoute } from "astro";
 import { createClient } from "@/lib/supabase";
 import { petIdSchema, updatePetSchema } from "@/lib/schemas/pet";
 
-// PUT /api/pets/[id] — the owner's edit path for a pet and its care instructions.
+// PUT and DELETE /api/pets/[id] — the owner's edit and remove paths for a pet.
 //
-// The FIRST non-POST/GET verb in this codebase. Every other route in src/pages/api exports
+// The FIRST non-POST/GET verbs in this codebase. Every other route in src/pages/api exports
 // POST only, so there is no precedent for the verb itself — but the body of the handler
 // follows api/periods/[id]/token.ts step for step (own auth check, own id validation, a
 // SECURITY INVOKER RPC, NULL -> 404, an error log that names code and message only), and the
@@ -140,6 +140,121 @@ export const PUT: APIRoute = async (context) => {
   // 200, not 201: this replaces an existing resource rather than creating one.
   return jsonResponse({ petId: data }, 200);
 };
+
+// DELETE /api/pets/[id] — remove a pet, or refuse while a live trip covers it.
+//
+// The same order of operations as PUT above, minus body parsing: auth, Origin, client, id, RPC,
+// error mapping, NULL -> 404. What differs is the shape of the request it answers and the two
+// ways it can say no.
+//
+// THE ORIGIN CHECK IS HERE EVEN THOUGH THIS REQUEST WOULD INHERIT ASTRO'S. DeletePetButton
+// sends no headers and no body, so the framework's origin middleware — which only inspects a
+// non-safe method carrying NO Content-Type — does cover it, exactly as it covers the revoke
+// route. The three lines stay anyway, for the reason revoke.ts:42-61 spells out: the framework
+// check is a DEFAULT, not a control this file owns, and three edits remove it silently
+// (`checkOrigin: false` in astro.config.mjs, a deployment path that skips Astro's internal
+// middlewares, or a refactor that routes island calls through a helper adding Content-Type).
+// This is an irreversible action, and a comment is not a control.
+//
+// delete_pet is SECURITY INVOKER, so pets_delete_own decides whether this owner may remove the
+// row. Not this owner's pet and no such pet collapse into the same 404 — and so does a foreign
+// pet that a live trip covers, because the blocker query inside the function is RLS-scoped too.
+// A stranger never learns that a trip exists.
+export const DELETE: APIRoute = async (context) => {
+  if (!context.locals.user) {
+    return jsonResponse({ error: "Unauthorized" }, 401);
+  }
+
+  const origin = context.request.headers.get("Origin");
+  if (origin !== null && origin !== context.url.origin) {
+    return jsonResponse({ error: "Nieprawidłowe źródło żądania" }, 403);
+  }
+
+  const supabase = createClient(context.request.headers, context.cookies);
+  if (!supabase) {
+    return jsonResponse({ error: "Supabase is not configured" }, 500);
+  }
+
+  const parsedId = petIdSchema.safeParse(context.params.id);
+  if (!parsedId.success) {
+    return jsonResponse({ error: "Validation failed" }, 400);
+  }
+
+  const { data, error } = await supabase.rpc("delete_pet", {
+    p_pet_id: parsedId.data,
+  });
+
+  if (error) {
+    // Code and message only, never the whole error — the same discipline as PUT above, and the
+    // same single exception: the PT409 branch reads error.details, because delete_pet puts JSON
+    // there on purpose. Those blocking titles are the owner's own text; they reach the owner in
+    // the response and are still never logged.
+    console.error("delete_pet failed:", error.code, error.message);
+
+    if (error.code === "PT409") {
+      return jsonResponse({ error: blockedMessage(error.details) }, 409);
+    }
+    return jsonResponse({ error: "Nie udało się usunąć zwierzęcia" }, 500);
+  }
+
+  if (!data) {
+    return jsonResponse({ error: "Nie znaleziono zwierzęcia" }, 404);
+  }
+
+  return jsonResponse({ petId: data }, 200);
+};
+
+// The PT409 payload is a JSON array of `{ id, title }` for every unrevoked period covering the
+// pet. Unlike the freeze's ids, these ARE useful to the owner: the remedy is to revoke one of
+// these trips, and the owner needs to know which.
+//
+// Parsed defensively: a malformed or absent DETAIL must still produce a usable sentence rather
+// than a crash inside an error handler. At most two titles are named — a pet on six trips would
+// otherwise produce a sentence nobody reads — and the rest are counted.
+function blockedMessage(details: string | null): string {
+  const remedy = "Aby usunąć zwierzę, najpierw odwołaj wyjazd.";
+  const titles = blockingTitles(details);
+
+  if (titles.length === 0) {
+    return `Nie można usunąć zwierzęcia — obejmuje je aktywny wyjazd. ${remedy}`;
+  }
+
+  // Polish quotation marks around a title the owner typed: „…” — the pair this codebase uses
+  // in every other owner-facing sentence. A straight ASCII quote here would also collide with
+  // the ones a title may itself contain.
+  const named = titles
+    .slice(0, 2)
+    .map((title) => `„${title}”`)
+    .join(", ");
+  const rest = titles.length - Math.min(titles.length, 2);
+  const tail = rest > 0 ? ` i ${rest} inn${rest === 1 ? "y" : "e"}` : "";
+  return `Nie można usunąć zwierzęcia — obejmuje je aktywny wyjazd: ${named}${tail}. ${remedy}`;
+}
+
+function blockingTitles(details: string | null): string[] {
+  if (!details) {
+    return [];
+  }
+  try {
+    const rows: unknown = JSON.parse(details);
+    if (!Array.isArray(rows)) {
+      return [];
+    }
+    // Checked, not cast. This payload crosses a process boundary, and a row whose `title` is
+    // not a string would otherwise reach the sentence as "[object Object]".
+    //
+    // `row: unknown` is explicit because `Array.isArray` narrows an `unknown` to `any[]`, not to
+    // `unknown[]` — without the annotation every element is `any` and the checks below are
+    // decoration the type system does not enforce (four no-unsafe-* errors, caught by lint).
+    return rows
+      .map((row: unknown) =>
+        typeof row === "object" && row !== null && "title" in row && typeof row.title === "string" ? row.title : null,
+      )
+      .filter((title): title is string => title !== null && title.length > 0);
+  } catch {
+    return [];
+  }
+}
 
 // The PT409 payload is a JSON array of instruction ids. The ids are of no use to the owner, so
 // the sentence names the COUNT and the remedy instead — the ids exist in DETAIL for a future

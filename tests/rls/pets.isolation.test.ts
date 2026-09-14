@@ -105,4 +105,34 @@ describe("pets RLS owner-isolation", () => {
     // Restore, so the ordering of tests in this file stays irrelevant.
     await a.client.from("pets").update({ name: "A-dog", breed: null }).eq("id", aPetId);
   });
+
+  // The other permitting half, added by S-09 Phase 2 for the same reason as the one above:
+  // `delete_pet` is security invoker and leans on `pets_delete_own` as its authorization
+  // boundary, and every DELETE assertion in this file until now was a refusal — dropping the
+  // policy denies the owner too, so they would all stay green with the policy gone.
+  //
+  // Deletes a THROWAWAY pet rather than aPetId: the tests above read that row back, and a file
+  // whose cases have to run in one order is a file that fails for the wrong reason later.
+  it("an owner CAN delete their own pet — the permitting half of pets_delete_own", async () => {
+    const seeded = await a.client
+      .from("pets")
+      .insert({ owner_id: a.userId, name: "A-throwaway", species: "other" })
+      .select("id")
+      .single();
+    expect(seeded.error).toBeNull();
+    if (!seeded.data) {
+      throw new Error("pets RLS test: seeding a throwaway pet failed");
+    }
+
+    const { data: deleted, error } = await a.client.from("pets").delete().eq("id", seeded.data.id).select("id");
+
+    expect(error).toBeNull();
+    // `.select()` on the delete, so this distinguishes "removed one row" from PostgREST's
+    // silent zero-row delete — which is what an RLS-scoped-to-nobody delete looks like, and
+    // reports no error at all.
+    expect(deleted).toEqual([{ id: seeded.data.id }]);
+
+    const { data: rows } = await a.client.from("pets").select("id").eq("id", seeded.data.id);
+    expect(rows ?? []).toEqual([]);
+  });
 });

@@ -292,6 +292,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      delete_pet: { Args: { p_pet_id: string }; Returns: string }
       get_claimed_details: {
         Args: { p_claim_secret: string; p_token: string }
         Returns: Json

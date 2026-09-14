@@ -83,9 +83,11 @@ const ISLAND_FLOOR: Record<string, number> = {
   "/src/pages/pets/index.astro": 1,
   // 2: AddPetForm plus the AppBar's theme switch.
   "/src/pages/pets/new.astro": 2,
-  // S-09: the edit form. Renders only when the pet resolves, and the container has no session,
-  // so the floor is 0 — the row exists to pin the page into the sweep (its HTML is still
-  // scanned for secrets) rather than to count a hydrated island.
+  // S-09: the edit form, and from Phase 2 the delete control beside it — TWO `client:load`
+  // sites. Both render only when the pet resolves, and the container has no session, so the
+  // floor stays 0: the row exists to pin the page into the sweep (its HTML is still scanned for
+  // secrets) rather than to count a hydrated island. Same trade as periods/[id].astro, recorded
+  // in test-plan.md §7.
   "/src/pages/pets/[id].astro": 0,
 };
 

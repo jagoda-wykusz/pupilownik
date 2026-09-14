@@ -18,11 +18,17 @@ import type { OwnerCredentials } from "./fixtures/owner";
 //     shape `@supabase/ssr` writes on the workerd runtime. What `storageState` then holds is what
 //     the app actually issues.
 //
-// The credentials are written next to the state because THIS PROJECT HAS NO WAY TO DELETE A PET —
-// there is no delete affordance in `src/pages/pets/index.astro`, none in `AddPetForm`, and
-// `/api/pets` exposes POST only. So a spec that creates data has to clean it up through the
-// database, which means re-creating a client for the same identity. Both files are gitignored;
-// `owner-credentials.json` holds a throwaway local account and must never be committed.
+// The credentials are written next to the state so a spec can rebuild a client for the SAME
+// identity and tear its data down through the database.
+//
+// CORRECTED 2026-09-14 (S-09 Phase 2). This paragraph used to say the project had no way to
+// delete a pet at all — true when it was written, false now: `/pets/<id>` carries a delete
+// control and `/api/pets/[id]` exposes DELETE. Teardown still goes through the database, and
+// that is now a CHOICE rather than a necessity: the product path can legitimately REFUSE (a pet
+// covered by an unrevoked trip answers 409), so a spec that cleaned up through the UI would
+// fail on the state it is cleaning up rather than on the behaviour it tested. See
+// docs/reference/e2e-rules.md §4. Both files are gitignored; `owner-credentials.json` holds a
+// throwaway local account and must never be committed.
 
 const AUTH_DIR = path.resolve("playwright/.auth");
 const STATE_FILE = path.join(AUTH_DIR, "owner.json");
