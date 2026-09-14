@@ -541,31 +541,38 @@ No data migration: nothing about existing rows changes.
 
 #### Automated
 
-- [x] 1.1 Database rebuilds from migrations cleanly: `npm run db:reset`
-- [x] 1.2 Security advisors clean: `npx supabase db advisors --type security`
-- [x] 1.3 Types regenerated and committed: `npm run db:gen-types` leaves no diff
-- [x] 1.4 Typecheck passes: `npm run check`
-- [x] 1.5 Lint passes with zero warnings: `npm run lint`
-- [x] 1.6 Build passes: `npm run build`
-- [x] 1.7 Unit + component projects pass
-- [x] 1.8 Integration project passes
-- [x] 1.9 Render sweep passes: `npm run test:render`
-- [x] 1.10 The publish gate passes end to end: `npm run ci:gate`
-- [x] 1.11 Mutation check: freeze predicate and child `pet_id` predicate each turn a test red
+- [x] 1.1 Database rebuilds from migrations cleanly: `npm run db:reset` — a74bd29
+- [x] 1.2 Security advisors clean: `npx supabase db advisors --type security` — a74bd29
+- [x] 1.3 Types regenerated and committed: `npm run db:gen-types` leaves no diff — a74bd29
+- [x] 1.4 Typecheck passes: `npm run check` — a74bd29
+- [x] 1.5 Lint passes with zero warnings: `npm run lint` — a74bd29
+- [x] 1.6 Build passes: `npm run build` — a74bd29
+- [x] 1.7 Unit + component projects pass — a74bd29
+- [x] 1.8 Integration project passes — a74bd29
+- [x] 1.9 Render sweep passes: `npm run test:render` — a74bd29
+- [x] 1.10 The publish gate passes end to end: `npm run ci:gate` — a74bd29
+- [x] 1.11 Mutation check: freeze predicate and child `pet_id` predicate each turn a test red — a74bd29
 
 #### Manual
 
-- [x] 1.12 Editing a pet's scalar fields persists and re-renders — walkthrough 2026-09-14
-- [x] 1.13 Add/edit/reorder/remove instruction rows produces exactly the intended set — walkthrough 2026-09-14
-- [x] 1.14 A caretaker on a live link sees edited public text on reload — walkthrough 2026-09-14
-- [x] 1.15 `is_sensitive` flip refused with a claim present, permitted after revoke — walkthrough 2026-09-14
-- [x] 1.16 `/pets/<id>` correct in all three themes and at 400px — re-checked 2026-09-14 after the reskin
-- [x] 1.17 `/pets` cards navigate; focus order is sane — re-checked 2026-09-14 after the reskin
+- [x] 1.12 Editing a pet's scalar fields persists and re-renders — a74bd29
+- [x] 1.13 Add/edit/reorder/remove instruction rows produces exactly the intended set — a74bd29
+- [x] 1.14 A caretaker on a live link sees edited public text on reload — a74bd29
+- [x] 1.15 `is_sensitive` flip refused with a claim present, permitted after revoke — a74bd29
+- [x] 1.16 `/pets/<id>` correct in all three themes and at 400px — a74bd29
+- [x] 1.17 `/pets` cards navigate; focus order is sane — a74bd29
 
 > 1.12-1.15 confirmed by the owner's manual walkthrough on 2026-09-14 ("testy manualne są ok").
 > 1.16 and 1.17 were reopened after that pass, because the reskin and the AppBar navigation
 > recorded under Deviations below landed later and changed exactly what those two items look
 > at. Both were walked again on the current UI the same day and confirmed. Phase 1 is closed.
+
+> SHA convention, and the one place this slice departs from it. Phase 1 was implemented but never
+> committed at the time, so its rows carry the SHA of the commit that actually landed its code
+> (`a74bd29`) rather than a commit made at the end of that phase. The reskin and the AppBar
+> navigation recorded under Deviations landed separately in `0c3e9f0`, between the two phases, and
+> own no Progress row of their own. Phase 1's manual rows 1.12-1.17 were confirmed on 2026-09-14,
+> after `0c3e9f0` — see the note under them.
 
 ### Deviations from the plan (2026-09-14)
 
@@ -595,17 +602,17 @@ re-run green after the change; 1.16 and 1.17 were reopened rather than re-ticked
 
 #### Automated
 
-- [x] 2.1 Database rebuilds from migrations cleanly: `npm run db:reset`
-- [x] 2.2 Security advisors clean: `npx supabase db advisors --type security`
-- [x] 2.3 Types regenerated and committed: `npm run db:gen-types` leaves no diff
-- [x] 2.4 Typecheck passes: `npm run check`
-- [x] 2.5 Lint passes with zero warnings: `npm run lint`
-- [x] 2.6 Build passes: `npm run build`
-- [x] 2.7 Unit + component projects pass
-- [x] 2.8 Integration project passes
-- [x] 2.9 Render sweep passes: `npm run test:render`
-- [x] 2.10 The publish gate passes end to end: `npm run ci:gate`
-- [x] 2.11 Mutation check: dropping `revoked_at is null` turns the refusal test red and the pet is actually deleted
+- [x] 2.1 Database rebuilds from migrations cleanly: `npm run db:reset` — 08f7aaf
+- [x] 2.2 Security advisors clean: `npx supabase db advisors --type security` — 08f7aaf
+- [x] 2.3 Types regenerated and committed: `npm run db:gen-types` leaves no diff — 08f7aaf
+- [x] 2.4 Typecheck passes: `npm run check` — 08f7aaf
+- [x] 2.5 Lint passes with zero warnings: `npm run lint` — 08f7aaf
+- [x] 2.6 Build passes: `npm run build` — 08f7aaf
+- [x] 2.7 Unit + component projects pass — 08f7aaf
+- [x] 2.8 Integration project passes — 08f7aaf
+- [x] 2.9 Render sweep passes: `npm run test:render` — 08f7aaf
+- [x] 2.10 The publish gate passes end to end: `npm run ci:gate` — 08f7aaf
+- [x] 2.11 Mutation check: dropping `revoked_at is null` turns the refusal test red and the pet is actually deleted — 08f7aaf
 
 > Mutation, measured 2026-09-14 — TWO mutants, because one could not tell the plan's prediction
 > apart from its neighbour (context/foundation/lessons.md, "granica metody").
@@ -632,9 +639,9 @@ re-run green after the change; 1.16 and 1.17 were reopened rather than re-ticked
 
 #### Manual
 
-- [x] 2.12 Deleting an uncovered pet works and lands on `/pets`
-- [x] 2.13 Deleting a covered pet is refused, names the trip, pet survives a reload
-- [x] 2.14 Revoke then delete succeeds
-- [x] 2.15 Double-tap does not delete — second tap lands on the escape
-- [x] 2.16 Focus moves to confirm on arming and back on cancel
-- [x] 2.17 Delete zone correct in all three themes and at 400px
+- [x] 2.12 Deleting an uncovered pet works and lands on `/pets` — 08f7aaf
+- [x] 2.13 Deleting a covered pet is refused, names the trip, pet survives a reload — 08f7aaf
+- [x] 2.14 Revoke then delete succeeds — 08f7aaf
+- [x] 2.15 Double-tap does not delete — second tap lands on the escape — 08f7aaf
+- [x] 2.16 Focus moves to confirm on arming and back on cancel — 08f7aaf
+- [x] 2.17 Delete zone correct in all three themes and at 400px — 08f7aaf
