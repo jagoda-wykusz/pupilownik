@@ -1,55 +1,88 @@
+# Pupilownik
+
+Astro 6 SSR (React 19 islands, Tailwind 4, shadcn/ui) on Supabase, deployed to Cloudflare
+Workers. TypeScript strict, `@/*` → `./src/*`.
+
+**Read `@AGENTS.md` before changing code.** It is the operational contract — hard rules,
+commands, conventions, and the two CI gates. This file only orients you.
+
+## What the product is
+
+An owner leaving for a trip needs several trusted people to cover feeding — today that is
+organised serially over a messenger, one slow reply blocking the next question. Pupilownik
+turns it into **parallel self-service sign-up inside a closed circle invited by one link**.
+The owner defines pets with care instructions, creates a care period (date range → morning /
+evening slots) and sends a single link; caretakers claim free slots themselves, without an
+account.
+
+Two product rules hold the whole thing together, and every change is judged against them:
+
+1. **No slot is ever filled twice.** `claim_slots` (`supabase/migrations/20260907154125_claim_slots.sql`)
+   allocates with one guarded `UPDATE` — all-or-nothing. A read-then-write check is not a
+   substitute and will be rejected in review.
+2. **Nothing leaks outside the link's circle.** The raw invite token never reaches the
+   database (only its SHA-256; see `src/lib/invite-token.ts`), and sensitive instructions
+   (address, access codes) reveal only _after_ a slot is claimed.
+
+Ownership is enforced by **RLS in the database, not by handler code**. A route that checks
+`owner_id` in TypeScript is doing the wrong thing in the wrong layer.
+
+## Two paths through the app
+
+|              | Owner                                                                 | Caretaker                                                     |
+| ------------ | --------------------------------------------------------------------- | ------------------------------------------------------------- |
+| Access       | account (email + password), Supabase Auth                             | **no account** — the invite link only                         |
+| Entry points | `src/pages/{dashboard,pets,periods}/*` (gated in `src/middleware.ts`) | `src/pages/invite/[token].astro`, `src/pages/invite/claim.ts` |
+| Data scope   | own rows only, via RLS                                                | one period; the sensitive tier only after claiming            |
+
+## Where to look before asking
+
+| Need                                                  | Read                              |
+| ----------------------------------------------------- | --------------------------------- |
+| Rules, commands, conventions, CI                      | `@AGENTS.md`                      |
+| Setup, scripts, Supabase config                       | `@README.md`                      |
+| Why the product exists, FR/NFR, open questions        | `context/foundation/prd.md`       |
+| What ships next, slice status                         | `context/foundation/roadmap.md`   |
+| Risk map, what is tested and what is deliberately not | `context/foundation/test-plan.md` |
+| Recurring pitfalls already paid for                   | `context/foundation/lessons.md`   |
+| Data-access and contract rules, E2E rules             | `docs/reference/`                 |
+| What was decided on past changes (**never edit**)     | `context/archive/`                |
+
+## About the fence below
+
+Everything between the `@przeprogramowani/10x-cli` markers is **CLI-managed course
+material** — `10x-cli get` rewrites that region wholesale, so never put project rules
+inside it. This preamble lives above the fence and survives; `tests/unit/claude-md-overview.test.ts`
+fails the gate if it stops doing so.
+
 <!-- BEGIN @przeprogramowani/10x-cli -->
 
-## 10xDevs AI Toolkit — Module 1, Lesson 1
+## 10xDevs AI Toolkit - Module 3, Lesson 4 (E2E Tests)
 
-Bootstrap a greenfield project end-to-end with the **shaping chain**:
+**For E2E tests, use the `/10x-e2e` skill.** It is the single source of truth
+for the workflow — risk → seed test + rules → generate → review against the five
+anti-patterns → re-prompt → verify. The skill's `references/` carry the full
+rules, anti-patterns, seed pattern, and prompt-template.
 
-```
-/10x-init  →  /10x-shape  →  /10x-prd  →  (10x-tech-stack-selector)  →  (bootstrapper)
-```
+A few hard rules that hold even before you invoke the skill:
 
-The first three skills ship in this lesson; the last two are the next links in the chain.
+- **Locators:** `getByRole` / `getByLabel` / `getByText` first; `getByTestId`
+  only when accessibility attributes are ambiguous. Never CSS selectors, XPath,
+  or DOM structure.
+- **Never `page.waitForTimeout()`.** Wait for state: `toBeVisible()`,
+  `waitForURL()`, `waitForResponse()`.
+- **Test independence + cleanup.** Each test runs standalone — its own setup,
+  action, assertion, and cleanup; unique ids (timestamp suffix) so parallel runs
+  and re-runs don't collide.
 
-### Task Router — Where to start
+Two boundaries to keep straight:
 
-| Skill                   | Use it when                                                                                                                                                                                                                                                                                                                                                               |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Project setup**       |                                                                                                                                                                                                                                                                                                                                                                           |
-| `/10x-init`             | The project directory is fresh. Scaffolds `context/foundation/lessons.md` and `docs/reference/contract-surfaces.md` so the rest of the workflow has somewhere to write. Run this once per project.                                                                                                                                                                        |
-| **Discovery**           |                                                                                                                                                                                                                                                                                                                                                                           |
-| `/10x-shape`            | You have an idea and need to turn it into structured shape-notes BEFORE writing a PRD. Greenfield only. Walks vision → persona/access → MVP → FRs (with Socratic challenge) → business logic & data → stack-openness sketch. Surfaces empty-CRUD and MVP-too-big anti-patterns by name. Output: `context/foundation/shape-notes.md` with a resumable `checkpoint:` block. |
-| **Document generation** |                                                                                                                                                                                                                                                                                                                                                                           |
-| `/10x-prd`              | You have shape-notes (or raw notes) and want a schema-conformant `context/foundation/prd.md`. Generates against the locked schema, routes every gap verbatim into `## Open Questions`, and refuses to invent domain decisions. On collision, prompts overwrite vs. versioned save (`prd-vN.md`).                                                                          |
-
-### How the chain hands off
-
-- `/10x-init` produces the workflow v2 scaffold (`context/foundation/`, `lessons.md`, `contract-surfaces.md`). `/10x-shape` requires this and will offer to delegate to `/10x-init` if it's missing.
-- `/10x-shape` writes `context/foundation/shape-notes.md` with frontmatter `checkpoint:` (current_phase, phases_completed, frs_drafted, quality_check_status). On re-entry, it resumes from the next unfinished phase.
-- `/10x-prd` reads `shape-notes.md` (default) or any path you pass, scores the input on a 4-signal heuristic, warns on thin input, and writes `context/foundation/prd.md` against the schema at `skills/10x-shape/references/prd-schema.md` (frontmatter aligned 1:1 with 10x-tech-stack-selector's Q1–Q7).
-
-### What the PRD captures (and what it does NOT)
-
-- **Captured**: vision, persona, success criteria, user stories (Given/When/Then), FRs (FR-NNN), NFRs, business logic (one-sentence rule first), data model, access control, durable implementation decisions, testing strategy, deployment & CI/CD strategy, non-goals, open questions.
-- **NOT captured (deliberate)**: framework choices, database choices, file paths, deployment platform. Stack openness is binding — only `product_type` and `tech_preferences.language_family` capture stack-shaped intent. Frameworks are 10x-tech-stack-selector's job.
-
-### Anti-patterns surfaced during shaping
-
-- **Empty-CRUD**: business logic that reduces to "users add and remove records" with no domain rule. `/10x-shape` names it explicitly and prompts for a real rule shape (recommendation, prioritization, classification, validation, scoring, workflow, calculation).
-- **MVP-too-big**: first-flow estimate exceeds ~1 week of after-hours work, or > 4 distinct user actions before user-visible value, or requires multiple integrations before payoff. Skill names the expensive pieces and offers concrete scope-down moves.
-
-Both are **soft gates**: they warn but allow override. Overrides are recorded in the checkpoint and surfaced in the PRD's `## Open Questions`.
-
-### Foundation paths used by this lesson
-
-- `context/foundation/shape-notes.md` — `/10x-shape` output
-- `context/foundation/prd.md` (or `prd-vN.md`) — `/10x-prd` output
-- `context/foundation/lessons.md` — recurring rules & pitfalls (scaffolded by `/10x-init`)
-- `docs/reference/contract-surfaces.md` — load-bearing names registry (scaffolded by `/10x-init`)
-
-### Universal language
-
-The shipped skills carry no 10xDevs / cohort / certification references. The mechanics (Socratic challenge, gray-area discovery, recommended-answer fatigue mitigation, soft quality gate) are universal indicators of a well-scoped greenfield project.
-
-Skills must not write to `context/archive/`. Archived changes are immutable; if a resolved target path starts with `context/archive/`, abort with: "This change is archived. Open a new change with `/10x-new` instead."
+- **DOM (snapshot) is the default.** Vision (`--caps=vision`) is a supplement for
+  visual-only risks (layout, z-index, animation); for pixel regression prefer
+  deterministic tools (`toMatchSnapshot`, Argos, Lost Pixel). VLM model
+  selection/cost is a debugging topic (Lesson 5), not testing.
+- **Healer helps on selectors, harms on logic.** A changed selector → healer
+  re-finds it (route through PR review). A changed business behavior → healer
+  masks the bug; that failing-test-to-fix case is Lesson 5.
 
 <!-- END @przeprogramowani/10x-cli -->
